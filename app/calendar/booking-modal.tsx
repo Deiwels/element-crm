@@ -199,22 +199,87 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }
 
   // ── Selected client card ──────────────────────────────────────────────────
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [clientNotes, setClientNotes] = useState(selected?.notes || '')
+  const [savingNotes, setSavingNotes] = useState(false)
+
+  useEffect(() => {
+    setClientNotes(selected?.notes || '')
+    setEditingNotes(false)
+  }, [selected?.id])
+
+  async function saveClientNotes() {
+    if (!selected?.id || selected.id.startsWith('local_')) { setEditingNotes(false); return }
+    setSavingNotes(true)
+    try {
+      await apiFetch(`/api/clients/${encodeURIComponent(selected.id)}`, {
+        method: 'PATCH', body: JSON.stringify({ notes: clientNotes })
+      })
+      setSelected(prev => prev ? { ...prev, notes: clientNotes } : prev)
+    } catch {}
+    setSavingNotes(false); setEditingNotes(false)
+  }
+
   if (selected) {
     return (
-      <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(10,132,255,.40)', background: 'rgba(10,132,255,.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(10,132,255,.22)', border: '1px solid rgba(10,132,255,.40)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 15 }}>{selected.name}</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginTop: 2 }}>
-              {isOwnerOrAdmin ? (selected.phone || 'No phone') : maskPhone(selected.phone || '')}
-              {selected.visitCount ? ` · ${selected.visitCount} visit${selected.visitCount !== 1 ? 's' : ''}` : ' · New client'}
+      <div style={{ borderRadius: 14, border: '1px solid rgba(10,132,255,.35)', background: 'rgba(10,132,255,.06)', overflow: 'hidden' }}>
+        {/* Client header */}
+        <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(10,132,255,.22)', border: '1px solid rgba(10,132,255,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 900, fontSize: 15 }}>{selected.name}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginTop: 2 }}>
+                {isOwnerOrAdmin ? (selected.phone || 'No phone') : maskPhone(selected.phone || '')}
+                {selected.visitCount ? ` · ${selected.visitCount} visit${selected.visitCount !== 1 ? 's' : ''}` : ' · New client'}
+              </div>
             </div>
           </div>
+          <button onClick={clear} style={{ height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 }}>Change</button>
         </div>
-        <button onClick={clear} style={{ height: 32, padding: '0 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.70)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 }}>Change</button>
+
+        {/* Client notes */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,.06)', padding: '10px 14px', background: 'rgba(0,0,0,.12)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: editingNotes ? 8 : (clientNotes ? 6 : 0) }}>
+            <span style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)' }}>Client notes</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {!editingNotes && (
+                <button onClick={() => setEditingNotes(true)}
+                  style={{ height: 24, padding: '0 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,.10)', background: 'transparent', color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontSize: 10, fontFamily: 'inherit' }}>
+                  {clientNotes ? 'Edit' : '+ Add note'}
+                </button>
+              )}
+              {!editingNotes && clientNotes && (
+                <button onClick={async () => {
+                  setClientNotes('')
+                  if (selected?.id && !selected.id.startsWith('local_')) {
+                    try { await apiFetch(`/api/clients/${encodeURIComponent(selected.id)}`, { method: 'PATCH', body: JSON.stringify({ notes: '' }) }) } catch {}
+                  }
+                  setSelected(prev => prev ? { ...prev, notes: '' } : prev)
+                }} style={{ height: 24, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(255,107,107,.20)', background: 'transparent', color: 'rgba(255,107,107,.60)', cursor: 'pointer', fontSize: 10, fontFamily: 'inherit' }}>Clear</button>
+              )}
+            </div>
+          </div>
+          {editingNotes ? (
+            <div>
+              <textarea value={clientNotes} onChange={e => setClientNotes(e.target.value)} rows={2} autoFocus
+                placeholder="Notes about this client…"
+                style={{ width: '100%', borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical' as const, fontFamily: 'inherit', lineHeight: 1.5 }} />
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <button onClick={() => { setClientNotes(selected?.notes || ''); setEditingNotes(false) }}
+                  style={{ height: 28, padding: '0 12px', borderRadius: 7, border: '1px solid rgba(255,255,255,.10)', background: 'transparent', color: 'rgba(255,255,255,.55)', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>Cancel</button>
+                <button onClick={saveClientNotes} disabled={savingNotes}
+                  style={{ height: 28, padding: '0 14px', borderRadius: 7, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
+                  {savingNotes ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          ) : clientNotes ? (
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.60)', lineHeight: 1.5 }}>{clientNotes}</div>
+          ) : null}
+        </div>
       </div>
     )
   }
@@ -557,6 +622,7 @@ export function BookingModal({
   const [status, setStatus] = useState('booked')
   const [notes, setNotes] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
+  const [lightbox, setLightbox] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const isNew = !existingEvent?._raw?.id
@@ -700,43 +766,37 @@ export function BookingModal({
               )}
               <div style={{ gridColumn: !isNew ? '2 / 3' : '1 / -1' }}>
                 <label style={lbl}>Notes</label>
-                <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes…" style={inp} />
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes…" rows={2}
+                  style={{ ...inp, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
               </div>
             </div>
 
-            {/* Reference photo from client — shown prominently if exists */}
+            {/* Client photo — clean, no decoration */}
             {existingEvent?.photoUrl && (
-              <div style={{ padding: '14px', borderRadius: 14, border: '1px solid rgba(255,207,63,.28)', background: 'rgba(255,207,63,.06)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,207,63,.80)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                  <span style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,207,63,.80)', fontWeight: 900 }}>Reference photo from client</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+              <>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
                   <img
                     src={existingEvent.photoUrl}
-                    alt="Client reference"
-                    style={{ width: 140, height: 140, borderRadius: 14, objectFit: 'cover', border: '1px solid rgba(255,207,63,.30)', cursor: 'pointer', flexShrink: 0 }}
-                    onClick={() => window.open(existingEvent.photoUrl, '_blank')}
+                    alt="reference"
+                    style={{ width: 110, height: 110, borderRadius: 12, objectFit: 'cover', cursor: 'zoom-in', border: '1px solid rgba(255,255,255,.12)', display: 'block' }}
+                    onClick={() => setLightbox(true)}
                     onError={e => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none' }}
                   />
-                  <div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', lineHeight: 1.6, marginBottom: 8 }}>
-                      Client attached this haircut reference when booking online.
-                    </div>
-                    <button
-                      onClick={() => window.open(existingEvent.photoUrl, '_blank')}
-                      style={{ height: 32, padding: '0 14px', borderRadius: 8, border: '1px solid rgba(255,207,63,.35)', background: 'rgba(255,207,63,.08)', color: 'rgba(255,207,63,.90)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
-                      Open full size ↗
-                    </button>
-                  </div>
                 </div>
-              </div>
+                {lightbox && (
+                  <div onClick={() => setLightbox(false)}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, cursor: 'zoom-out', backdropFilter: 'blur(8px)' }}>
+                    <img src={existingEvent.photoUrl} alt="reference"
+                      style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 16, objectFit: 'contain', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }} />
+                    <button onClick={() => setLightbox(false)}
+                      style={{ position: 'absolute', top: 20, right: 20, width: 40, height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(0,0,0,.50)', color: '#fff', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                  </div>
+                )}
+              </>
             )}
 
-            {/* Upload new reference photo */}
+            {/* Upload reference photo */}
             <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />
-
-
 
             {/* Payment — owner/admin only */}
             {isOwnerOrAdmin && existingEvent && (
@@ -744,7 +804,7 @@ export function BookingModal({
             )}
 
             {/* Footer */}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: '1px solid rgba(255,255,255,.08)', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: '1px solid rgba(255,255,255,.08)', flexWrap: 'wrap' as const }}>
               {!isNew && (
                 <button onClick={onDelete} style={{ height: 42, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>Delete</button>
               )}
