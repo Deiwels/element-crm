@@ -257,6 +257,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(false)
   const [selectedId, setSelectedId] = useState<string|null>(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [mobileProfile, setMobileProfile] = useState(false)
   const [q, setQ] = useState('')
   const [filterBarber, setFilterBarber] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -302,6 +303,16 @@ export default function ClientsPage() {
         select option{background:#111}
         .cl-row:hover td{background:rgba(255,255,255,.025)!important}
         .cl-row.sel td{background:rgba(10,132,255,.07)!important}
+        @media(max-width:768px){
+          .cl-grid{grid-template-columns:1fr!important;}
+          .cl-profile-panel{display:none!important;}
+          .cl-profile-panel.visible{display:block!important;position:fixed;inset:0;z-index:80;background:#000;overflow-y:auto;}
+          th:nth-child(3),td:nth-child(3){display:none;}
+          th:nth-child(4),td:nth-child(4){display:none;}
+          th:nth-child(5),td:nth-child(5){display:none;}
+          .cl-filters{gap:6px!important;}
+          .cl-filters select,.cl-filters input{height:36px!important;font-size:12px!important;}
+        }
       `}</style>
       <div style={{ display:'flex', flexDirection:'column', height:'100vh', background:'#000', color:'#e9e9e9', fontFamily:'Inter,system-ui,sans-serif' }}>
 
@@ -388,7 +399,13 @@ export default function ClientsPage() {
           </div>
 
           {/* Profile panel */}
-          <div style={{ overflowY:'auto', background:'rgba(0,0,0,.08)' }}>
+          <div style={{ overflowY:'auto', background:'rgba(0,0,0,.08)' }} className={`cl-profile-panel${mobileProfile && selectedId ? ' visible' : ''}`}>
+            {mobileProfile && selectedId && (
+              <div style={{ position:'sticky', top:0, zIndex:10, padding:'10px 14px', background:'rgba(0,0,0,.80)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(255,255,255,.08)', display:'flex', alignItems:'center', gap:10 }}>
+                <button onClick={() => setMobileProfile(false)} style={{ height:34, padding:'0 14px', borderRadius:999, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.06)', color:'#fff', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit' }}>← Back</button>
+                <span style={{ fontSize:12, color:'rgba(255,255,255,.45)' }}>Client profile</span>
+              </div>
+            )}
             {!selectedId ? (
               <div style={{ padding:32, textAlign:'center', color:'rgba(255,255,255,.30)', fontSize:13 }}>Click any client to view profile</div>
             ) : (
@@ -399,6 +416,7 @@ export default function ClientsPage() {
                 onUpdate={updateClient}
               />
             )}
+          </div>
           </div>
         </div>
       </div>

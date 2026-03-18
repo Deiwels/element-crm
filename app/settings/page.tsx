@@ -126,7 +126,7 @@ function UsersTab() {
       {/* Create new account */}
       <SectionCard title="Create account">
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginBottom: 4 }}>Owner, Admin or Barber — each person gets their own login</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 10 }}>
           <Field label="Display name"><input value={name} onChange={e => setName(e.target.value)} placeholder="Nazar" style={inp} /></Field>
           <Field label="Username (login)"><input value={username} onChange={e => setUsername(e.target.value)} placeholder="nazar" style={inp} /></Field>
           <Field label="Password"><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="min 4 chars" style={inp} /></Field>
@@ -296,6 +296,15 @@ export default function SettingsPage() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
         select option{background:#111}
+        @media(max-width:768px){
+          .set-2col{grid-template-columns:1fr!important;}
+          .set-tabs{gap:4px!important;}
+          .set-tabs button{font-size:10px!important;padding:0 10px!important;height:32px!important;}
+          .set-topbar{flex-wrap:wrap!important;gap:8px!important;}
+          .set-topbar h2{font-size:13px!important;}
+          .set-fee-row{grid-template-columns:1fr 70px 80px 36px!important;}
+          .set-fee-col3{display:none!important;}
+        }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
 
@@ -333,7 +342,7 @@ export default function SettingsPage() {
 
             {/* ── SHOP ── */}
             {tab === 'shop' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 14 }}>
                 <SectionCard title="Shop info">
                   <Field label="Shop name"><input value={s.shop_name || ''} onChange={e => set('shop_name', e.target.value)} placeholder="ELEMENT Barbershop" style={inp} /></Field>
                   <Field label="Timezone">
@@ -360,7 +369,7 @@ export default function SettingsPage() {
                 <SectionCard title="Tax">
                   <Toggle checked={!!tax.enabled} onChange={v => setNested('tax','enabled',v)} label="Enable tax on services" sub="Added to invoice total" />
                   {tax.enabled && <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 10 }}>
                       <Field label="Tax label"><input value={tax.label || ''} onChange={e => setNested('tax','label',e.target.value)} placeholder="Sales Tax" style={inp} /></Field>
                       <Field label="Tax rate %"><input type="number" min={0} max={50} step={0.01} value={tax.rate || ''} onChange={e => setNested('tax','rate',Number(e.target.value))} placeholder="8.75" style={inp} /></Field>
                     </div>
@@ -421,7 +430,7 @@ export default function SettingsPage() {
 
             {/* ── BOOKING & SMS ── */}
             {tab === 'booking' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 14 }}>
                 <SectionCard title="SMS notifications">
                   <Toggle checked={booking.sms_confirm !== false} onChange={v => setNested('booking','sms_confirm',v)} label="Confirmation SMS" sub="Sent when booking is created" />
                   <Toggle checked={!!booking.reminder_hours_24} onChange={v => setNested('booking','reminder_hours_24',v)} label="24h reminder" sub="Day before appointment" />
@@ -446,7 +455,7 @@ export default function SettingsPage() {
               <div style={{ maxWidth: 600 }}>
                 <SectionCard title="Payroll defaults">
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)' }}>Default rates for new barbers. Override per-barber in Payroll → Commission rules.</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 10 }}>
                     <Field label="Default barber commission %">
                       <input type="number" min={0} max={100} value={payroll.default_barber_pct ?? 60} onChange={e => { const v = Number(e.target.value); setNested('payroll','default_barber_pct',v) }} style={inp} />
                     </Field>
@@ -504,7 +513,7 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 680 }}>
                 <SectionCard title="Square & integrations">
                   <Field label="Square Proxy URL"><input value={square.proxy_url || ''} onChange={e => setNested('square','proxy_url',e.target.value)} placeholder="https://square-proxy-…run.app" style={inp} /></Field>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 10 }}>
                     <Field label="Location ID"><input value={square.location_id || ''} onChange={e => setNested('square','location_id',e.target.value)} placeholder="L08HP7JSW9WNR" style={inp} /></Field>
                     <Field label="Terminal Device ID"><input value={square.device_id || ''} onChange={e => setNested('square','device_id',e.target.value)} placeholder="device:438CS…" style={inp} /></Field>
                   </div>

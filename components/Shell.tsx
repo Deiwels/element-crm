@@ -203,6 +203,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   const [user, setUser] = useState<User | null>(null)
   const [status, setStatus] = useState<'loading' | 'ok' | 'noauth'>('loading')
   const [showProfile, setShowProfile] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
 
   useEffect(() => {
@@ -257,30 +258,44 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         *{box-sizing:border-box;margin:0;padding:0;}
         html,body{height:100%;background:#000;color:#e9e9e9;font-family:Inter,system-ui,sans-serif;}
         a{color:#fff!important;text-decoration:none!important;}
-        .shell{display:flex;height:100vh;width:100vw;overflow:hidden;}
-        .sidebar{width:240px;flex:0 0 240px;border-right:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(10,10,18,1),rgba(0,0,8,1));display:flex;flex-direction:column;height:100vh;}
+        .shell{display:flex;height:100vh;width:100vw;overflow:hidden;position:relative;}
+        .sidebar{width:240px;flex:0 0 240px;border-right:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(10,10,18,1),rgba(0,0,8,1));display:flex;flex-direction:column;height:100vh;z-index:50;transition:transform .25s ease;}
         .brand{padding:20px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06);}
         .brand h1{font-family:"Julius Sans One",sans-serif;letter-spacing:.28em;font-size:16px;text-transform:uppercase;color:#e9e9e9;background:linear-gradient(135deg,#fff,rgba(255,255,255,.65));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
         .brand-sub{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.25);margin-top:5px;}
         .nav{display:flex;flex-direction:column;gap:3px;padding:12px 10px;flex:1;}
-        .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid transparent;transition:all .18s ease;cursor:pointer;}
+        .nav-item{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;border:1px solid transparent;transition:all .18s ease;cursor:pointer;}
         .nav-item:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.08);}
         .nav-item.active{border-color:rgba(10,132,255,.50);background:rgba(10,132,255,.12);box-shadow:0 0 16px rgba(10,132,255,.15);}
-        .nav-t{font-weight:700;font-size:13px;color:#e9e9e9;display:block;}
+        .nav-t{font-weight:700;font-size:14px;color:#e9e9e9;display:block;}
         .nav-s{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.35);display:block;margin-top:1px;}
         .user-bar{padding:10px;border-top:1px solid rgba(255,255,255,.06);}
         .content{flex:1;min-width:0;height:100vh;overflow:hidden;background:#000;}
+        .burger-btn{display:none;position:fixed;top:12px;left:12px;z-index:100;width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(0,0,0,.80);backdrop-filter:blur(12px);color:#fff;cursor:pointer;align-items:center;justify-content:center;font-size:18px;}
+        .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:49;backdrop-filter:blur(4px);}
+        @media(max-width:768px){
+          .sidebar{position:fixed;inset:0 auto 0 0;transform:translateX(-105%);}
+          .sidebar.open{transform:translateX(0);}
+          .burger-btn{display:flex;}
+          .sidebar-backdrop.open{display:block;}
+          .content{width:100vw;}
+        }
       `}</style>
 
       <div className="shell">
-        <aside className="sidebar">
+        {/* Burger button — mobile only */}
+        <button className="burger-btn" onClick={() => setSidebarOpen(true)}>☰</button>
+        {/* Backdrop */}
+        <div className={`sidebar-backdrop${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(false)} />
+
+        <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
           <div className="brand">
             <h1>ELEMENT</h1>
             <div className="brand-sub">{page}</div>
           </div>
           <nav className="nav">
             {visibleNav.map(item => (
-              <Link key={item.id} href={item.href} className={`nav-item ${pathname === item.href ? 'active' : ''}`}>
+              <Link key={item.id} href={item.href} onClick={() => setSidebarOpen(false)} className={`nav-item ${pathname === item.href ? 'active' : ''}`}>
                 <div>
                   <span className="nav-t">{item.label}</span>
                   <span className="nav-s">{item.sub}</span>

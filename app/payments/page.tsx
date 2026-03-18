@@ -189,6 +189,7 @@ export default function PaymentsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [refundTarget, setRefundTarget] = useState<Payment | null>(null)
+  const [mobileDetail, setMobileDetail] = useState(false)
 
   // Filters
   const [q, setQ] = useState('')
@@ -268,6 +269,20 @@ export default function PaymentsPage() {
         select option{background:#111}
         .pay-row:hover td{background:rgba(255,255,255,.025)!important}
         .pay-row.sel td{background:rgba(10,132,255,.07)!important}
+        @media(max-width:768px){
+          .pay-grid{grid-template-columns:1fr!important;}
+          .pay-details{display:none!important;}
+          .pay-kpis{grid-template-columns:1fr 1fr!important;}
+          .pay-filters{gap:6px!important;}
+          .pay-filters select{width:auto!important;min-width:0!important;font-size:12px!important;}
+          .pay-topbar-row{flex-direction:column!important;align-items:flex-start!important;gap:8px!important;}
+          th:nth-child(3),td:nth-child(3){display:none;}
+          th:nth-child(5),td:nth-child(5){display:none;}
+        }
+        @media(max-width:480px){
+          .pay-kpis{grid-template-columns:1fr 1fr!important;}
+          th:nth-child(4),td:nth-child(4){font-size:12px!important;}
+        }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
 
@@ -280,7 +295,7 @@ export default function PaymentsPage() {
                 {visible.length} transactions · {fmtDateFull(from)} → {fmtDateFull(to)}
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, alignItems: 'center' }}>
               <button onClick={() => setShowDatePicker(true)}
                 style={{ ...inp, cursor: 'pointer', fontWeight: 700, minWidth: 180, textAlign: 'left', background: 'rgba(255,255,255,.05)' }}>
                 {from === to && from === todayIso() ? 'Today' : `${fmtDateShort(from)} → ${fmtDateShort(to)}`}
@@ -294,7 +309,7 @@ export default function PaymentsPage() {
             </div>
           </div>
           {/* Filters row */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, alignItems: 'center' }}>
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search client / note…"
               style={{ ...inp, width: 'min(220px,45vw)' }} />
             {[
@@ -311,7 +326,7 @@ export default function PaymentsPage() {
         </div>
 
         {/* KPI strip */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderBottom: '1px solid rgba(255,255,255,.06)', background: 'rgba(0,0,0,.12)', flexShrink: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderBottom: '1px solid rgba(255,255,255,.06)', background: 'rgba(0,0,0,.12)', flexShrink: 0, overflowX: 'auto' as const }}>
           {[{ label: 'Gross', val: kpis.gross }, { label: 'Tips', val: kpis.tips }, { label: 'Fees', val: kpis.fees }, { label: 'Net', val: kpis.net }].map(k => (
             <div key={k.label} style={{ padding: '10px 16px', borderRight: '1px solid rgba(255,255,255,.06)' }}>
               <div style={{ ...lbl, marginBottom: 4 }}>{k.label}</div>
@@ -350,7 +365,7 @@ export default function PaymentsPage() {
                     const isSel = p.id === selectedId
                     const isTerminal = p.source === 'terminal' || p.method === 'terminal'
                     return (
-                      <tr key={p.id} className={`pay-row${isSel ? ' sel' : ''}`} onClick={() => setSelectedId(p.id)} style={{ cursor: 'pointer' }}>
+                      <tr key={p.id} className={`pay-row${isSel ? ' sel' : ''}`} onClick={() => { setSelectedId(p.id); setMobileDetail(true) }} style={{ cursor: 'pointer' }}>
                         <td style={{ padding: '9px 12px', borderBottom: '1px solid rgba(255,255,255,.05)', color: 'rgba(255,255,255,.50)', fontSize: 12 }}>{fmtDateShort(p.date)}</td>
                         <td style={{ padding: '9px 12px', borderBottom: '1px solid rgba(255,255,255,.05)', overflow: 'hidden' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
@@ -381,7 +396,15 @@ export default function PaymentsPage() {
           </div>
 
           {/* Details panel */}
-          <div style={{ overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10, background: 'rgba(0,0,0,.08)' }}>
+          <div style={{ overflowY: 'auto', padding: mobileDetail ? '0 0 14px' : 14, display: 'flex', flexDirection: 'column', gap: 10, background: 'rgba(0,0,0,.08)' }} className={`pay-details${mobileDetail && selectedId ? ' visible' : ''}`}
+            style={{ overflowY: 'auto', background: 'rgba(0,0,0,.08)', ...(mobileDetail && selectedId ? { position: 'fixed' as const, inset: 0, zIndex: 90, display: 'flex', flexDirection: 'column' as const } : { padding: 14, display: 'flex', flexDirection: 'column' as const, gap: 10 }) }}>
+            {mobileDetail && selectedId && (
+              <div style={{ position: 'sticky', top: 0, zIndex: 10, padding: '10px 14px', background: 'rgba(0,0,0,.90)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <button onClick={() => setMobileDetail(false)} style={{ height: 34, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>← Back</button>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,.45)' }}>Payment detail</span>
+              </div>
+            )}
+            <div style={{ padding: mobileDetail ? '0 14px 14px' : 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
             {!selectedPayment ? (
               <div style={{ color: 'rgba(255,255,255,.30)', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>Click any payment to view details</div>
             ) : (() => {
@@ -439,6 +462,7 @@ export default function PaymentsPage() {
                 </div>
               </>
             })()}
+          </div>
           </div>
         </div>
       </div>
