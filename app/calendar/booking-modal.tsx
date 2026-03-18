@@ -95,37 +95,59 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
     setName(''); setEmail(''); setNotes(''); setResults([]); setNotFound(false); setOpen(false)
   }, [initialClient?.id, initialName])
 
+  // Extract only digits from phone
+  function digits(s: string) { return s.replace(/\D/g, '') }
+
+  // Format as +1 (XXX) XXX-XXXX — always show +1 prefix
   function formatPhone(raw: string) {
-    const d = raw.replace(/\D/g, '').slice(0, 11)
+    const d = digits(raw).replace(/^1/, '').slice(0, 10) // strip leading 1, max 10 digits
     if (d.length === 0) return ''
-    if (d.length <= 1) return '+' + d
-    if (d.startsWith('1')) {
-      const n = d.slice(1)
-      if (n.length <= 3) return `+1 (${n}`
-      if (n.length <= 6) return `+1 (${n.slice(0,3)}) ${n.slice(3)}`
-      return `+1 (${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6)}`
-    }
-    return '+' + d
+    if (d.length <= 3)  return `+1 (${d}`
+    if (d.length <= 6)  return `+1 (${d.slice(0,3)}) ${d.slice(3)}`
+    return `+1 (${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`
   }
 
   function onPhoneChange(raw: string) {
+    // If user clears field, reset
+    if (!raw.trim()) { setPhone(''); setNotFound(false); setResults([]); setOpen(false); return }
     const formatted = formatPhone(raw)
     setPhone(formatted)
     setNotFound(false); setResults([]); setOpen(false)
-    const digits = raw.replace(/\D/g, '')
-    if (digits.length >= 10) {
-      doSearch(formatted)
-    }
+    const d = digits(raw).replace(/^1/, '')
+    if (d.length >= 10) doSearch(d) // search with raw 10 digits
   }
 
-  const doSearch = useCallback((q: string) => {
+  const doSearch = useCallback((tenDigits: string) => {
     setLoading(true)
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(async () => {
       try {
-        const data = await apiFetch(`/api/clients/search?q=${encodeURIComponent(q)}`)
-        const list = Array.isArray(data?.clients) ? data.clients : Array.isArray(data) ? data : []
-        const mapped: Client[] = list.map((c: any) => ({
+        // Search by both formatted and raw digits — API uses phone_norm (digits only)
+        const queries = [
+          apiFetch(`/api/clients/search?q=${encodeURIComponent(tenDigits)}`),
+          apiFetch(`/api/clients/search?q=${encodeURIComponent('+1' + tenDigits)}`),
+          apiFetch(`/api/clients?q=${encodeURIComponent(tenDigits)}`),
+        ]
+        const results = await Promise.allSettled(queries)
+        const allClients: any[] = []
+        const seenIds = new Set<string>()
+        for (const r of results) {
+          if (r.status !== 'fulfilled') continue
+          const data = r.value
+          const list = Array.isArray(data?.clients) ? data.clients
+            : Array.isArray(data) ? data
+            : Array.isArray(data?.data) ? data.data : []
+          for (const c of list) {
+            const id = String(c.id || c.uid || '')
+            if (!id || seenIds.has(id)) continue
+            // Verify phone matches (digits comparison)
+            const clientDigits = digits(String(c.phone || c.phone_number || '')).replace(/^1/, '')
+            if (clientDigits && clientDigits !== tenDigits) continue
+            seenIds.add(id)
+            allClients.push(c)
+          }
+        }
+        const mapped: Client[] = allClients.map((c: any) => ({
           id: String(c.id || c.uid || ''),
           name: String(c.name || c.full_name || ''),
           phone: String(c.phone || c.phone_number || ''),
@@ -140,7 +162,7 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
         }
       } catch { setResults([]); setNotFound(true) }
       setLoading(false)
-    }, 350)
+    }, 400)
   }, [])
 
   function select(c: Client) {
@@ -203,13 +225,14 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
       {/* Phone field */}
       <div style={{ position: 'relative' }}>
         <label style={lbl}>Phone number</label>
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <div style={{ position: 'absolute', left: 14, fontSize: 14, color: 'rgba(255,255,255,.55)', pointerEvents: 'none', fontWeight: 700, zIndex: 1 }}>+1</div>
           <input
             ref={phoneRef}
-            value={phone}
+            value={phone.replace(/^\+1\s?/, '')}
             onChange={e => onPhoneChange(e.target.value)}
-            placeholder="+1 (___) ___-____"
-            style={{ ...inp, paddingRight: 40 }}
+            placeholder="(___) ___-____"
+            style={{ ...inp, paddingLeft: 38, paddingRight: 40 }}
             type="tel"
             autoComplete="off"
           />
