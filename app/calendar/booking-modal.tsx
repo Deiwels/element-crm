@@ -76,57 +76,107 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
   initialClient?: Client | null
   initialName?: string
 }) {
-  const [query, setQuery] = useState(initialName || '')
+  const [phone, setPhone] = useState('')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [notes, setNotes] = useState('')
   const [results, setResults] = useState<Client[]>([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Client | null>(initialClient || null)
-  const [showNew, setShowNew] = useState(false)
+  const [notFound, setNotFound] = useState(false)
   const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
   const timerRef = useRef<any>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const phoneRef = useRef<HTMLInputElement>(null)
 
-  // Reset when initialClient changes (new modal open)
   useEffect(() => {
     setSelected(initialClient || null)
-    setQuery(initialClient ? initialClient.name : (initialName || ''))
-    setResults([]); setShowNew(false); setOpen(false)
+    setPhone(initialClient?.phone || '')
+    setName(''); setEmail(''); setNotes(''); setResults([]); setNotFound(false); setOpen(false)
   }, [initialClient?.id, initialName])
 
+  function formatPhone(raw: string) {
+    const d = raw.replace(/\D/g, '').slice(0, 11)
+    if (d.length === 0) return ''
+    if (d.length <= 1) return '+' + d
+    if (d.startsWith('1')) {
+      const n = d.slice(1)
+      if (n.length <= 3) return `+1 (${n}`
+      if (n.length <= 6) return `+1 (${n.slice(0,3)}) ${n.slice(3)}`
+      return `+1 (${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6)}`
+    }
+    return '+' + d
+  }
+
+  function onPhoneChange(raw: string) {
+    const formatted = formatPhone(raw)
+    setPhone(formatted)
+    setNotFound(false); setResults([]); setOpen(false)
+    const digits = raw.replace(/\D/g, '')
+    if (digits.length >= 10) {
+      doSearch(formatted)
+    }
+  }
+
   const doSearch = useCallback((q: string) => {
-    if (q.length < 2) { setResults([]); setLoading(false); return }
     setLoading(true)
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(async () => {
       try {
         const data = await apiFetch(`/api/clients/search?q=${encodeURIComponent(q)}`)
         const list = Array.isArray(data?.clients) ? data.clients : Array.isArray(data) ? data : []
-        setResults(list.map((c: any) => ({
+        const mapped: Client[] = list.map((c: any) => ({
           id: String(c.id || c.uid || ''),
           name: String(c.name || c.full_name || ''),
           phone: String(c.phone || c.phone_number || ''),
           email: String(c.email || ''),
           notes: String(c.notes || ''),
           visitCount: Number(c.visit_count || c.visits || 0),
-        })).filter((c: Client) => c.name))
-      } catch { setResults([]) }
+        })).filter((c: Client) => c.name)
+        if (mapped.length > 0) {
+          setResults(mapped); setOpen(true); setNotFound(false)
+        } else {
+          setResults([]); setNotFound(true); setOpen(false)
+        }
+      } catch { setResults([]); setNotFound(true) }
       setLoading(false)
-    }, 300)
+    }, 350)
   }, [])
 
   function select(c: Client) {
-    setSelected(c); setQuery(c.name); setOpen(false); setShowNew(false)
+    setSelected(c); setPhone(c.phone || phone); setResults([]); setOpen(false); setNotFound(false)
     onSelect(c, c.name)
   }
 
   function clear() {
-    setSelected(null); setQuery(''); setResults([]); setShowNew(false); setOpen(false)
+    setSelected(null); setPhone(''); setName(''); setEmail(''); setNotes('')
+    setResults([]); setNotFound(false); setOpen(false)
     onSelect(null, '')
-    setTimeout(() => inputRef.current?.focus(), 50)
+    setTimeout(() => phoneRef.current?.focus(), 50)
   }
 
-  const inp: React.CSSProperties = { width: '100%', height: 46, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 14, fontFamily: 'inherit' }
+  async function saveNew() {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      const res = await apiFetch('/api/clients', {
+        method: 'POST',
+        body: JSON.stringify({ name: name.trim(), phone, email, notes })
+      })
+      const c = res?.client || res
+      const newClient: Client = { id: String(c.id || c.uid || 'local_' + Date.now()), name: c.name || name.trim(), phone: c.phone || phone, email: c.email || email, visitCount: 0 }
+      select(newClient)
+    } catch {
+      // Save locally anyway
+      select({ id: 'local_' + Date.now(), name: name.trim(), phone, email, visitCount: 0 })
+    }
+    setSaving(false)
+  }
 
-  // Show client card if selected
+  const inp: React.CSSProperties = { width: '100%', height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 14, fontFamily: 'inherit' }
+  const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }
+
+  // ── Selected client card ──────────────────────────────────────────────────
   if (selected) {
     return (
       <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(10,132,255,.40)', background: 'rgba(10,132,255,.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -137,8 +187,8 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 900, fontSize: 15 }}>{selected.name}</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginTop: 2 }}>
-              {isOwnerOrAdmin ? (selected.phone || 'No phone') : (selected.phone ? maskPhone(selected.phone) : 'No phone')}
-              {selected.visitCount ? ` · ${selected.visitCount} visit${selected.visitCount !== 1 ? 's' : ''}` : ''}
+              {isOwnerOrAdmin ? (selected.phone || 'No phone') : maskPhone(selected.phone || '')}
+              {selected.visitCount ? ` · ${selected.visitCount} visit${selected.visitCount !== 1 ? 's' : ''}` : ' · New client'}
             </div>
           </div>
         </div>
@@ -147,63 +197,78 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
     )
   }
 
+  // ── Phone input + results/form ────────────────────────────────────────────
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Phone field */}
       <div style={{ position: 'relative' }}>
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={e => { setQuery(e.target.value); doSearch(e.target.value); setOpen(true); onSelect(null, e.target.value) }}
-          onFocus={() => { if (query.length >= 2) setOpen(true) }}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Search client by name or phone…"
-          style={inp}
-          autoComplete="off"
-        />
-        {loading
-          ? <div style={{ position: 'absolute', right: 14, top: 15, width: 16, height: 16, border: '2px solid rgba(255,255,255,.20)', borderTop: '2px solid #0a84ff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          : query
-            ? <button onMouseDown={e => { e.preventDefault(); clear() }} style={{ position: 'absolute', right: 10, top: 11, width: 24, height: 24, borderRadius: 6, border: 'none', background: 'rgba(255,255,255,.08)', color: 'rgba(255,255,255,.50)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
-            : null
-        }
+        <label style={lbl}>Phone number</label>
+        <div style={{ position: 'relative' }}>
+          <input
+            ref={phoneRef}
+            value={phone}
+            onChange={e => onPhoneChange(e.target.value)}
+            placeholder="+1 (___) ___-____"
+            style={{ ...inp, paddingRight: 40 }}
+            type="tel"
+            autoComplete="off"
+          />
+          {loading && <div style={{ position: 'absolute', right: 14, top: 14, width: 16, height: 16, border: '2px solid rgba(255,255,255,.20)', borderTop: '2px solid #0a84ff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+          {!loading && phone && <button onMouseDown={e => { e.preventDefault(); clear() }} style={{ position: 'absolute', right: 10, top: 10, width: 24, height: 24, borderRadius: 6, border: 'none', background: 'rgba(255,255,255,.08)', color: 'rgba(255,255,255,.50)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>✕</button>}
+        </div>
       </div>
 
-      {open && query.length >= 2 && !loading && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, marginTop: 4, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(28,28,28,.99),rgba(16,16,16,.99))', backdropFilter: 'blur(18px)', boxShadow: '0 12px 40px rgba(0,0,0,.7)', overflow: 'hidden', maxHeight: 280, overflowY: 'auto' }}>
-          {results.length > 0 ? results.slice(0, 8).map(c => (
-            <div key={c.id} onMouseDown={e => { e.preventDefault(); select(c) }}
-              style={{ padding: '11px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,.05)', display: 'flex', alignItems: 'center', gap: 10 }}
+      {/* Dropdown results */}
+      {open && results.length > 0 && (
+        <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(22,22,22,.99)', backdropFilter: 'blur(18px)', boxShadow: '0 12px 40px rgba(0,0,0,.7)', overflow: 'hidden' }}>
+          {results.slice(0, 6).map(c => (
+            <div key={c.id} onClick={() => select(c)}
+              style={{ padding: '11px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,.05)', display: 'flex', alignItems: 'center', gap: 12 }}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(10,132,255,.10)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.50)" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.50)" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>{c.name}</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 1 }}>
-                  {isOwnerOrAdmin ? c.phone || 'No phone' : c.phone ? maskPhone(c.phone) : 'No phone'}
+                <div style={{ fontWeight: 800, fontSize: 14 }}>{c.name}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,.40)', marginTop: 1 }}>
+                  {isOwnerOrAdmin ? c.phone : maskPhone(c.phone || '')}
                   {c.visitCount ? ` · ${c.visitCount} visits` : ''}
                 </div>
               </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.25)" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
-          )) : (
-            <div style={{ padding: '14px 16px' }}>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.40)', marginBottom: 10 }}>No client found for "{query}"</div>
-              <button onMouseDown={e => { e.preventDefault(); setOpen(false); setShowNew(true) }}
-                style={{ height: 36, padding: '0 14px', borderRadius: 10, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>
-                + Add "{query}" as new client
-              </button>
-            </div>
-          )}
+          ))}
         </div>
       )}
 
-      {showNew && (
-        <NewClientForm
-          initialName={query}
-          onCreated={c => { select(c); setShowNew(false) }}
-          onCancel={() => setShowNew(false)}
-        />
+      {/* Not found — ask for name */}
+      {notFound && (
+        <div style={{ padding: '14px', borderRadius: 14, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(10,132,255,.05)', animation: 'slideDown .18s ease' }}>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginBottom: 12 }}>
+            No client found for <strong style={{ color: '#fff' }}>{phone}</strong> — fill in their details:
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div>
+              <label style={lbl}>Full name <span style={{ color: '#ff6b6b' }}>*</span></label>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Client name" style={inp} autoFocus />
+            </div>
+            <div>
+              <label style={lbl}>Email <span style={{ color: 'rgba(255,255,255,.30)' }}>(optional)</span></label>
+              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" style={inp} type="email" />
+            </div>
+            <div>
+              <label style={lbl}>Notes <span style={{ color: 'rgba(255,255,255,.30)' }}>(optional)</span></label>
+              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes…" style={inp} />
+            </div>
+            <button
+              onClick={saveNew}
+              disabled={!name.trim() || saving}
+              style={{ height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: name.trim() ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.04)', color: name.trim() ? '#d7ecff' : 'rgba(255,255,255,.30)', cursor: name.trim() ? 'pointer' : 'default', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', marginTop: 2, transition: 'all .15s' }}>
+              {saving ? 'Saving…' : 'Save & use this client'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
