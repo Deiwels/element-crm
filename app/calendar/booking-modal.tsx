@@ -627,9 +627,9 @@ export function BookingModal({
         .bm-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:3px }
         select option { background:#111 }
       `}</style>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80, padding: 18, overflowY: 'auto' }}
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80, padding: 18, overflowY: 'auto' }}
         onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-        <div className="bm-scroll" style={{ width: 'min(680px,95vw)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(28,28,28,.98),rgba(16,16,16,.98))', backdropFilter: 'blur(18px)', boxShadow: '0 20px 80px rgba(0,0,0,.7)', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+        <div className="bm-scroll" style={{ width: 'min(680px,95vw)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(18,18,28,.80),rgba(10,10,20,.76))', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)', boxShadow: '0 20px 80px rgba(0,0,0,.55)', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
 
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px 14px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
@@ -704,12 +704,9 @@ export function BookingModal({
               </div>
             </div>
 
-            {/* Reference photo */}
-            <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />
-
-            {/* Reference photo from client (website booking) */}
+            {/* Reference photo from client — shown prominently if exists */}
             {existingEvent?.photoUrl && (
-              <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,207,63,.25)', background: 'rgba(255,207,63,.05)' }}>
+              <div style={{ padding: '14px', borderRadius: 14, border: '1px solid rgba(255,207,63,.28)', background: 'rgba(255,207,63,.06)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,207,63,.80)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                   <span style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,207,63,.80)', fontWeight: 900 }}>Reference photo from client</span>
@@ -718,13 +715,13 @@ export function BookingModal({
                   <img
                     src={existingEvent.photoUrl}
                     alt="Client reference"
-                    style={{ width: 120, height: 120, borderRadius: 14, objectFit: 'cover', border: '1px solid rgba(255,207,63,.30)', cursor: 'pointer', flexShrink: 0 }}
+                    style={{ width: 140, height: 140, borderRadius: 14, objectFit: 'cover', border: '1px solid rgba(255,207,63,.30)', cursor: 'pointer', flexShrink: 0 }}
                     onClick={() => window.open(existingEvent.photoUrl, '_blank')}
-                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                    onError={e => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none' }}
                   />
                   <div>
                     <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', lineHeight: 1.6, marginBottom: 8 }}>
-                      Client attached this reference when booking online. Click the photo to view full size.
+                      Client attached this haircut reference when booking online.
                     </div>
                     <button
                       onClick={() => window.open(existingEvent.photoUrl, '_blank')}
@@ -735,6 +732,11 @@ export function BookingModal({
                 </div>
               </div>
             )}
+
+            {/* Upload new reference photo */}
+            <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />
+
+
 
             {/* Payment — owner/admin only */}
             {isOwnerOrAdmin && existingEvent && (

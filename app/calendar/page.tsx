@@ -204,7 +204,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 4 }
 
   return (
-    <div style={{ borderRadius: 16, border: `1px solid ${open ? 'rgba(10,132,255,.35)' : 'rgba(255,255,255,.10)'}`, background: open ? 'rgba(10,132,255,.04)' : 'rgba(0,0,0,.14)' }}>
+    <div style={{ borderRadius: 16, border: `1px solid ${open ? 'rgba(10,132,255,.35)' : 'rgba(255,255,255,.10)'}`, background: open ? 'rgba(10,132,255,.08)' : 'rgba(255,255,255,.03)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           {(photoPreview || b.photo)
@@ -341,8 +341,8 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
   const tabs = ['barbers','services','account'] as const
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 18, overflowY: 'auto' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ width: 'min(700px,95vw)', maxHeight: 'calc(100vh - 48px)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(28,28,28,.98),rgba(16,16,16,.98))', backdropFilter: 'blur(18px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.50)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 18, overflowY: 'auto' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ width: 'min(700px,95vw)', maxHeight: 'calc(100vh - 48px)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(20,20,28,.82),rgba(10,10,18,.78))', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 14 }}>Settings</div>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit' }}>✕</button>
@@ -759,10 +759,10 @@ export default function CalendarPage() {
                     {Array.from({ length: (END_HOUR-START_HOUR)*12 }, (_, i) => (
                       <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*SLOT_H, height: 1, background: i%12===0 ? 'rgba(255,255,255,.12)' : i%4===0 ? 'rgba(255,255,255,.05)' : 'rgba(255,255,255,.02)', pointerEvents: 'none' }} />
                     ))}
-                    {/* Now line */}
-                    {showNow && bi===0 && (
-                      <div style={{ position: 'absolute', left: 0, right: 0, top: nowY, height: 2, background: 'rgba(10,132,255,.95)', boxShadow: '0 0 22px rgba(10,132,255,.35)', pointerEvents: 'none', zIndex: 20 }}>
-                        <div style={{ position: 'absolute', left: 8, top: -4, width: 10, height: 10, borderRadius: 999, background: '#0a84ff' }} />
+                    {/* Now line — full width across all columns */}
+                    {showNow && (
+                      <div style={{ position: 'absolute', left: 0, right: 0, top: nowY, height: 2, background: 'rgba(10,132,255,.85)', boxShadow: '0 0 14px rgba(10,132,255,.40)', pointerEvents: 'none', zIndex: 20 }}>
+                        {bi === 0 && <div style={{ position: 'absolute', left: -4, top: -4, width: 10, height: 10, borderRadius: 999, background: '#0a84ff', boxShadow: '0 0 0 3px rgba(10,132,255,.25)' }} />}
                       </div>
                     )}
                     {/* Ghost */}
