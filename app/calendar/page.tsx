@@ -117,16 +117,6 @@ function Chip({ label, type }: { label: string; type: string }) {
 // ─── Constants ────────────────────────────────────────────────────────────────
 function timeStrToMin(s: string) { const [h,m] = s.split(':').map(Number); return (h||0)*60+(m||0) }
 
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch('https://element-crm-api-431945333485.us-central1.run.app' + path, {
-    ...opts, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts?.headers || {}) }
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
-
 // ─── DATE PICKER ─────────────────────────────────────────────────────────────
 function DatePickerModal({ current, onSelect, onClose }: { current: Date; onSelect: (d: Date) => void; onClose: () => void }) {
   const [month, setMonth] = useState(() => { const d = new Date(current); d.setDate(1); d.setHours(0,0,0,0); return d })
@@ -191,20 +181,6 @@ function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: 
       })}
     </div>
   )
-}
-
-// ─── STATUS CHIP ─────────────────────────────────────────────────────────────
-const STATUS_COLORS: Record<string, { border: string; bg: string; color: string }> = {
-  paid:      { border: 'rgba(143,240,177,.40)', bg: 'rgba(143,240,177,.10)', color: '#c9ffe1' },
-  booked:    { border: 'rgba(10,132,255,.40)',  bg: 'rgba(10,132,255,.10)',  color: '#d7ecff' },
-  arrived:   { border: 'rgba(143,240,177,.40)', bg: 'rgba(143,240,177,.10)', color: '#c9ffe1' },
-  done:      { border: 'rgba(255,207,63,.40)',  bg: 'rgba(255,207,63,.08)',  color: '#ffe9a3' },
-  noshow:    { border: 'rgba(255,107,107,.40)', bg: 'rgba(255,107,107,.10)', color: '#ffd0d0' },
-  cancelled: { border: 'rgba(255,107,107,.30)', bg: 'rgba(255,107,107,.07)', color: '#ffd0d0' },
-}
-function Chip({ label, type }: { label: string; type: string }) {
-  const s = STATUS_COLORS[type] || STATUS_COLORS.booked
-  return <span style={{ fontSize: 9, letterSpacing: '.08em', textTransform: 'uppercase', padding: '3px 7px', borderRadius: 999, border: `1px solid ${s.border}`, background: s.bg, color: s.color, whiteSpace: 'nowrap' as const }}>{label}</span>
 }
 
 // ─── MAIN CALENDAR PAGE ──────────────────────────────────────────────────────
