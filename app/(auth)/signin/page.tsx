@@ -20,7 +20,8 @@ function SignInForm() {
     try {
       await login(username.trim(), password)
       const redirect = params.get('redirect') || '/dashboard'
-      router.push(redirect)
+      // Hard navigation to ensure localStorage is available
+      window.location.href = redirect
     } catch (err: any) {
       setError(err.message || 'Login failed')
     } finally {

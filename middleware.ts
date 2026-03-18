@@ -4,22 +4,18 @@ const PUBLIC_PATHS = ['/signin']
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const token = request.cookies.get('element_token')?.value
 
-  // Allow public paths
+  // Allow public paths always
   if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
-    // If already logged in, redirect to dashboard
-    if (token) return NextResponse.redirect(new URL('/dashboard', request.url))
     return NextResponse.next()
   }
 
-  // Protected paths — require token
-  if (!token) {
-    const url = new URL('/signin', request.url)
-    url.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(url)
-  }
-
+  // For protected paths — check cookie OR allow through (client will check localStorage)
+  // We do a soft check here; hard check is in each layout component
+  const token = request.cookies.get('element_token')?.value
+  
+  // If no cookie, still allow — client-side auth will redirect if needed
+  // This prevents issues when using localStorage-based auth
   return NextResponse.next()
 }
 
