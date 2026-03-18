@@ -456,7 +456,7 @@ export function BookingModal({
       setServiceId(existingEvent.serviceId || '')
       setStatus(existingEvent.status || 'booked')
       setNotes(existingEvent.notes || '')
-      setPhotoUrl(existingEvent.photoUrl || '')
+      setPhotoUrl('')  // Upload state is always fresh; existing photo shown separately
     } else {
       setClientName(''); setServiceId(''); setStatus('booked'); setNotes(''); setPhotoUrl('')
       setSelectedClient(null)
@@ -582,14 +582,31 @@ export function BookingModal({
             {/* Reference photo */}
             <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />
 
-            {/* Existing photo from client website booking */}
-            {existingEvent?.photoUrl && !photoUrl && (
-              <div style={{ padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.03)' }}>
-                <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', marginBottom: 8 }}>Reference photo from client</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <img src={existingEvent.photoUrl} alt="reference" style={{ width: 80, height: 80, borderRadius: 12, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)', cursor: 'pointer' }}
-                    onClick={() => window.open(existingEvent.photoUrl, '_blank')} />
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', lineHeight: 1.5 }}>Client attached this as a reference. Click to view full size.</div>
+            {/* Reference photo from client (website booking) */}
+            {existingEvent?.photoUrl && (
+              <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,207,63,.25)', background: 'rgba(255,207,63,.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,207,63,.80)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <span style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,207,63,.80)', fontWeight: 900 }}>Reference photo from client</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <img
+                    src={existingEvent.photoUrl}
+                    alt="Client reference"
+                    style={{ width: 120, height: 120, borderRadius: 14, objectFit: 'cover', border: '1px solid rgba(255,207,63,.30)', cursor: 'pointer', flexShrink: 0 }}
+                    onClick={() => window.open(existingEvent.photoUrl, '_blank')}
+                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                  />
+                  <div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', lineHeight: 1.6, marginBottom: 8 }}>
+                      Client attached this reference when booking online. Click the photo to view full size.
+                    </div>
+                    <button
+                      onClick={() => window.open(existingEvent.photoUrl, '_blank')}
+                      style={{ height: 32, padding: '0 14px', borderRadius: 8, border: '1px solid rgba(255,207,63,.35)', background: 'rgba(255,207,63,.08)', color: 'rgba(255,207,63,.90)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
+                      Open full size ↗
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

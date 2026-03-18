@@ -879,7 +879,10 @@ export default function CalendarPage() {
           startMin={selectedEvent?.startMin || 9*60}
           barbers={barbers} services={services}
           isOwnerOrAdmin={isOwnerOrAdmin} myBarberId={myBarberId}
-          existingEvent={selectedEvent ? { id: selectedEvent.id, clientName: selectedEvent.clientName, clientPhone: selectedEvent.clientPhone, serviceId: selectedEvent.serviceId, status: selectedEvent.status, notes: selectedEvent.notes, paid: selectedEvent.paid, paymentMethod: selectedEvent.paymentMethod, photoUrl: selectedEvent._raw?.reference_photo_url || selectedEvent._raw?.photo_url || '', _raw: selectedEvent._raw } : null}
+          existingEvent={selectedEvent ? { id: selectedEvent.id, clientName: selectedEvent.clientName, clientPhone: selectedEvent.clientPhone, serviceId: selectedEvent.serviceId, status: selectedEvent.status, notes: selectedEvent.notes, paid: selectedEvent.paid, paymentMethod: selectedEvent.paymentMethod, photoUrl: (() => {
+              const r = selectedEvent._raw
+              return r?.reference_photo_url || r?.photo_url || r?.client_photo || r?.client_photo_url || r?.attachment_url || r?.image_url || r?.photo || r?.haircut_photo || r?.style_photo || ''
+            })(), _raw: selectedEvent._raw } : null}
           onClose={() => { if (modal.isNew) setEvents(prev => prev.filter(e => e.id !== modal.eventId)); setModal({ open: false, eventId: null, isNew: false }) }}
           onSave={handleSave} onDelete={handleDelete} onPayment={handlePayment}
         />
