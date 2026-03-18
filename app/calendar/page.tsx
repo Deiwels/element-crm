@@ -338,8 +338,7 @@ function BookingModal({
 
           {pay.hint && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginTop: 8, padding: '4px 0' }}>{pay.hint}</div>}
         </div>
-
-        </div>)}
+        )}
         {/* Footer */}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' as const }}>
           {!isNew && <button onClick={onDelete} style={{ height: 42, padding: '0 18px', borderRadius: 999, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit' }}>Delete</button>}
