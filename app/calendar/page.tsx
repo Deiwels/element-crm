@@ -457,10 +457,100 @@ export default function CalendarPage() {
   const [modal, setModal] = useState<ModalState>({ open: false, eventId: null, isNew: false })
   const [nowMin, setNowMin] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [dragging, setDragging] = useState<{ eventId: string; offsetMin: number } | null>(null)
+  const [drag, setDrag] = useState<{
+    eventId: string
+    offsetMin: number       // where in the event user grabbed (minutes from top)
+    ghostBarberIdx: number  // current column index during drag
+    ghostMin: number        // current time during drag
+  } | null>(null)
+  const [dragConfirm, setDragConfirm] = useState<{
+    eventId: string; newBarberId: string; newBarberName: string; newMin: number
+  } | null>(null)
+  const colRefs = useRef<(HTMLDivElement | null)[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
+
+  // ── Drag handlers ──────────────────────────────────────────────────────────
+  function startDrag(e: React.MouseEvent | React.TouchEvent, ev: CalEvent, barberIdx: number) {
+    e.preventDefault()
+    e.stopPropagation()
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
+    const col = colRefs.current[barberIdx]
+    if (!col) return
+    const rect = col.getBoundingClientRect()
+    const y = clientY - rect.top
+    const clickedMin = Math.round(y / SLOT_H) * 30 + START_HOUR * 60
+    const offsetMin = clickedMin - ev.startMin
+    setDrag({ eventId: ev.id, offsetMin, ghostBarberIdx: barberIdx, ghostMin: ev.startMin })
+  }
+
+  function onDragMove(e: MouseEvent | TouchEvent) {
+    if (!drag) return
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY
+    // Find which column we're over
+    let newBarberIdx = drag.ghostBarberIdx
+    colRefs.current.forEach((col, i) => {
+      if (!col) return
+      const rect = col.getBoundingClientRect()
+      if (clientX >= rect.left && clientX <= rect.right) newBarberIdx = i
+    })
+    const col = colRefs.current[newBarberIdx]
+    if (!col) return
+    const rect = col.getBoundingClientRect()
+    const y = clientY - rect.top
+    const rawMin = Math.round(y / SLOT_H) * 30 + START_HOUR * 60 - drag.offsetMin
+    const newMin = Math.max(START_HOUR * 60, Math.min(rawMin, END_HOUR * 60 - 30))
+    setDrag(d => d ? { ...d, ghostBarberIdx: newBarberIdx, ghostMin: newMin } : d)
+  }
+
+  function onDragEnd() {
+    if (!drag) return
+    const ev = events.find(e => e.id === drag.eventId)
+    if (!ev) { setDrag(null); return }
+    const newBarber = barbers[drag.ghostBarberIdx]
+    if (!newBarber) { setDrag(null); return }
+    const changed = newBarber.id !== ev.barberId || drag.ghostMin !== ev.startMin
+    if (!changed) { setDrag(null); return }
+    setDragConfirm({ eventId: ev.id, newBarberId: newBarber.id, newBarberName: newBarber.name, newMin: drag.ghostMin })
+    setDrag(null)
+  }
+
+  async function confirmDragMove() {
+    if (!dragConfirm) return
+    const ev = events.find(e => e.id === dragConfirm.eventId)
+    if (!ev) { setDragConfirm(null); return }
+    const newBarber = barbers.find(b => b.id === dragConfirm.newBarberId)
+    const updated = { ...ev, barberId: dragConfirm.newBarberId, barberName: newBarber?.name || ev.barberName, startMin: dragConfirm.newMin }
+    setEvents(prev => prev.map(e => e.id === ev.id ? updated : e))
+    setDragConfirm(null)
+    if (ev._raw?.id) {
+      try {
+        const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
+        await apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), {
+          method: 'PATCH',
+          body: JSON.stringify({ barber_id: updated.barberId, start_at: startAt.toISOString() })
+        })
+      } catch (err: any) { console.warn('drag patch:', err.message) }
+    }
+  }
+
+  useEffect(() => {
+    if (!drag) return
+    const move = (e: MouseEvent | TouchEvent) => onDragMove(e)
+    const end = () => onDragEnd()
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', end)
+    window.addEventListener('touchmove', move, { passive: false })
+    window.addEventListener('touchend', end)
+    return () => {
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', end)
+      window.removeEventListener('touchmove', move)
+      window.removeEventListener('touchend', end)
+    }
+  }, [drag, events, barbers])
 
   const todayStr = isoDate(anchor)
   const selectedEvent = events.find(e => e.id === modal.eventId) || null
@@ -723,7 +813,9 @@ export default function CalendarPage() {
               {barbers.map((barber, bi) => {
                 const colEvents = filtered.filter(e => e.barberId === barber.id)
                 return (
-                  <div key={barber.id} className="cal-col" style={{ position: 'relative', borderRight: bi < barbers.length - 1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: 'rgba(0,0,0,.06)' }}
+                  <div key={barber.id} className="cal-col"
+                  ref={el => { colRefs.current[bi] = el }}
+                  style={{ position: 'relative', borderRight: bi < barbers.length - 1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag && drag.ghostBarberIdx === bi ? 'rgba(10,132,255,.04)' : 'rgba(0,0,0,.06)', transition: 'background .15s' }}
                     onClick={e => {
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -744,6 +836,21 @@ export default function CalendarPage() {
                       </div>
                     )}
 
+                    {/* Drag ghost */}
+                    {drag && drag.ghostBarberIdx === bi && (() => {
+                      const dragEv = events.find(e => e.id === drag.eventId)
+                      if (!dragEv) return null
+                      const ghostTop = minToY(drag.ghostMin)
+                      const ghostH = Math.max(SLOT_H, (dragEv.durMin / 30) * SLOT_H)
+                      return (
+                        <div style={{ position: 'absolute', left: 8, right: 8, top: ghostTop, height: ghostH - 4, borderRadius: 14, border: '2px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.14)', pointerEvents: 'none', zIndex: 40, backdropFilter: 'blur(4px)' }}>
+                          <div style={{ padding: '8px 10px', fontWeight: 900, fontSize: 12, color: '#d7ecff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {dragEv.clientName} — {minToHHMM(drag.ghostMin)}
+                          </div>
+                        </div>
+                      )
+                    })()}
+
                     {/* Events */}
                     {colEvents.map(ev => {
                       const top = minToY(ev.startMin)
@@ -751,8 +858,10 @@ export default function CalendarPage() {
                       const color = barber.color
                       return (
                         <div key={ev.id} className="cal-event"
-                          style={{ position: 'absolute', left: 8, right: 8, top, height: height - 4, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: `linear-gradient(180deg,${color}44,${color}22)`, padding: '8px 10px', cursor: 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: 5 }}
-                          onClick={e => { e.stopPropagation(); setModal({ open: true, eventId: ev.id, isNew: false }) }}>
+                          style={{ position: 'absolute', left: 8, right: 8, top, height: height - 4, borderRadius: 14, border: `1px solid ${drag?.eventId === ev.id ? 'rgba(10,132,255,.75)' : 'rgba(255,255,255,.14)'}`, background: `linear-gradient(180deg,${color}44,${color}22)`, padding: '8px 10px', cursor: drag ? 'grabbing' : 'grab', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId === ev.id ? 50 : 5, opacity: drag?.eventId === ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
+                          onMouseDown={e => { if (e.button !== 0) return; startDrag(e, ev, bi) }}
+                          onTouchStart={e => startDrag(e, ev, bi)}
+                          onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
                             <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{ev.clientName}</div>
                             {ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />}
@@ -793,6 +902,28 @@ export default function CalendarPage() {
           onPayment={handlePayment}
         />
       )}
+
+      {/* Drag confirm modal */}
+      {dragConfirm && (() => {
+        const ev = events.find(e => e.id === dragConfirm.eventId)
+        if (!ev) return null
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(12px)' }}>
+            <div style={{ width: 'min(380px,92vw)', borderRadius: 22, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.04))', backdropFilter: 'blur(20px)', boxShadow: '0 24px 80px rgba(0,0,0,.55)', padding: 20, color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+              <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: 'rgba(255,255,255,.75)', marginBottom: 14 }}>Move booking</div>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)', marginBottom: 4 }}>{dragConfirm.newBarberName}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#0a84ff', letterSpacing: '.02em', marginBottom: 4 }}>{minToHHMM(dragConfirm.newMin)}</div>
+                <div style={{ fontSize: 12, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)' }}>{ev.clientName} · {ev.serviceName}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={() => setDragConfirm(null)} style={{ height: 40, padding: '0 18px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Cancel</button>
+                <button onClick={confirmDragMove} style={{ height: 40, padding: '0 20px', borderRadius: 999, border: '1px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.18)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>Move</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {datePickerOpen && (
         <DatePickerModal
