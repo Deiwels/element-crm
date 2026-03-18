@@ -62,7 +62,7 @@ interface PayState {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const SLOT_H = 44
+const SLOT_H = 11  // 5min = 11px (44px per 20min, 4 slots per hour)
 const START_HOUR = 9
 const END_HOUR = 21
 const COL_MIN = 190
@@ -76,7 +76,7 @@ const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.get
 const fmtDateLong = (d: Date) => d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 const fmtTime = (iso: string) => { try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) } catch { return '—' } }
 const uid = () => 'e_' + Math.random().toString(16).slice(2)
-const clamp = (min: number) => Math.max(START_HOUR * 60, Math.min(min, END_HOUR * 60 - 30))
+const clamp = (min: number) => Math.max(START_HOUR * 60, Math.min(min, END_HOUR * 60 - 5))
 
 async function apiFetch(path: string, opts?: RequestInit) {
   const token = localStorage.getItem('ELEMENT_TOKEN') || ''
@@ -161,7 +161,7 @@ function BookingModal({
 
   // Time slots
   const slots: number[] = []
-  for (let m = START_HOUR * 60; m + durMin <= END_HOUR * 60; m += 30) slots.push(m)
+  for (let m = START_HOUR * 60; m + durMin <= END_HOUR * 60; m += 5) slots.push(m)
 
   async function handleSave() {
     if (!client.trim()) return alert('Enter client name')
@@ -506,8 +506,8 @@ export default function CalendarPage() {
     if (!col) return
     const rect = col.getBoundingClientRect()
     const y = clientY - rect.top
-    const rawMin = Math.round(y / SLOT_H) * 30 + START_HOUR * 60 - drag.offsetMin
-    const newMin = Math.max(START_HOUR * 60, Math.min(rawMin, END_HOUR * 60 - 30))
+    const rawMin = Math.round(y / SLOT_H) * 5 + START_HOUR * 60 - drag.offsetMin
+    const newMin = Math.max(START_HOUR * 60, Math.min(rawMin, END_HOUR * 60 - 5))
     setDrag(d => d ? { ...d, ghostBarberIdx: newBarberIdx, ghostMin: newMin } : d)
   }
 
@@ -669,9 +669,9 @@ export default function CalendarPage() {
   }, [barbers, services, loadBookings])
 
   // Calendar geometry
-  const totalSlots = (END_HOUR - START_HOUR) * 2
+  const totalSlots = (END_HOUR - START_HOUR) * 12  // 5min slots
   const totalH = totalSlots * SLOT_H
-  const minToY = (min: number) => ((min - START_HOUR * 60) / 30) * SLOT_H
+  const minToY = (min: number) => ((min - START_HOUR * 60) / 5) * SLOT_H
   const nowY = minToY(nowMin)
   const showNow = nowMin >= START_HOUR * 60 && nowMin <= END_HOUR * 60
 
@@ -815,7 +815,7 @@ export default function CalendarPage() {
               {/* Time labels */}
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
                 {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
-                  <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i * SLOT_H * 2, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 8, color: 'rgba(255,255,255,.45)', fontSize: 11, letterSpacing: '.08em' }}>
+                  <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i * SLOT_H * 12, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 8, color: 'rgba(255,255,255,.45)', fontSize: 11, letterSpacing: '.08em' }}>
                     {pad2(START_HOUR + i)}:00
                   </div>
                 ))}
@@ -832,13 +832,13 @@ export default function CalendarPage() {
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                       const y = e.clientY - rect.top
-                      const min = Math.round(y / SLOT_H) * 30 + START_HOUR * 60
+                      const min = Math.round(y / SLOT_H) * 5 + START_HOUR * 60
                       openCreate(barber.id, clamp(min))
                     }}>
 
                     {/* Hour lines */}
-                    {Array.from({ length: (END_HOUR - START_HOUR) * 2 }, (_, i) => (
-                      <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i * SLOT_H, height: 1, background: i % 2 === 0 ? 'rgba(255,255,255,.09)' : 'rgba(255,255,255,.04)', pointerEvents: 'none' }} />
+                    {Array.from({ length: (END_HOUR - START_HOUR) * 12 }, (_, i) => (
+                      <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i * SLOT_H, height: 1, background: i % 12 === 0 ? 'rgba(255,255,255,.12)' : i % 4 === 0 ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.025)', pointerEvents: 'none' }} />
                     ))}
 
                     {/* Now line */}
