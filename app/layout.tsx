@@ -1,8 +1,4 @@
-import type { Metadata } from 'next'
-import './globals.css'
-import Providers from './providers'
-
-export const metadata: Metadata = {
+export const metadata = {
   title: 'Element CRM',
   description: 'Element Barbershop Staff Portal',
 }
@@ -10,10 +6,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
-        <Providers>
-          {children}
-        </Providers>
+      <body style={{ margin: 0, padding: 0, background: '#000' }}>
+        {children}
       </body>
     </html>
   )
