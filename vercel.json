@@ -1,0 +1,15 @@
+{
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://element-crm-api-431945333485.us-central1.run.app"
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    }
+  ]
+}
