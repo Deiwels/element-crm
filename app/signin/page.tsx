@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 
@@ -8,21 +8,6 @@ export default function SignInPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    const token = localStorage.getItem('ELEMENT_TOKEN')
-    if (!token) return
-    fetch(`${API}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(d => {
-        if (d.user) {
-          const role = d.user.role || 'barber'
-          const params = new URLSearchParams(window.location.search)
-          window.location.href = params.get('redirect') || (role === 'barber' ? '/calendar' : '/dashboard')
-        }
-      })
-      .catch(() => { localStorage.removeItem('ELEMENT_TOKEN') })
-  }, [])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -39,8 +24,7 @@ export default function SignInPage() {
       localStorage.setItem('ELEMENT_TOKEN', data.token)
       localStorage.setItem('ELEMENT_USER', JSON.stringify(data.user))
       const role = data.user?.role || 'barber'
-      const params = new URLSearchParams(window.location.search)
-      window.location.href = params.get('redirect') || (role === 'barber' ? '/calendar' : '/dashboard')
+      window.location.href = role === 'barber' ? '/calendar' : '/dashboard'
     } catch (err: any) {
       setError(err.message || 'Login failed')
       setLoading(false)
@@ -52,7 +36,6 @@ export default function SignInPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         * { box-sizing: border-box; }
-        input { font-family: inherit; }
         input:focus { outline: none; border-color: rgba(10,132,255,.65) !important; box-shadow: 0 0 0 3px rgba(10,132,255,.18) !important; }
         input::placeholder { color: rgba(255,255,255,.25); }
         button:hover:not(:disabled) { background: rgba(10,132,255,.22) !important; transform: translateY(-1px); }
