@@ -7,78 +7,47 @@ const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Barber {
-  id: string
-  name: string
-  level?: string
-  photo?: string
-  color: string
-  serverId?: string
-  about?: string
-  basePrice?: string
-  publicRole?: string
-  radarLabels?: string[]
-  radarValues?: number[]
-  username?: string
+  id: string; name: string; level?: string; photo?: string; color: string
+  about?: string; basePrice?: string; publicRole?: string
+  radarLabels?: string[]; radarValues?: number[]; username?: string
 }
-
 interface Service {
-  id: string
-  name: string
-  durationMin: number
-  price?: string
-  barberIds: string[]
+  id: string; name: string; durationMin: number; price?: string; barberIds: string[]
 }
-
 interface CalEvent {
-  id: string
-  type?: 'booking' | 'block'  // block = unavailable slot
-  barberId: string
-  barberName: string
-  clientName: string
-  clientPhone?: string
-  serviceId: string
-  serviceName: string
-  date: string
-  startMin: number
-  durMin: number
-  status: string
-  paid: boolean
-  paymentMethod?: string
-  notes?: string
-  tipAmount?: number
-  _raw: any
+  id: string; type?: 'booking' | 'block'; barberId: string; barberName: string
+  clientName: string; clientPhone: string; serviceId: string; serviceName: string
+  date: string; startMin: number; durMin: number; status: string
+  paid: boolean; paymentMethod?: string; notes?: string; tipAmount?: number; _raw: any
 }
-
-interface ModalState {
-  open: boolean
-  eventId: string | null
-  isNew: boolean
-}
-
-interface PayState {
-  method: string
-  hint: string
-  polling: boolean
-  tipYes: boolean
-  tipAmount: number
-}
+interface ModalState { open: boolean; eventId: string | null; isNew: boolean }
+interface DaySchedule { enabled: boolean; startMin: number; endMin: number }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const SLOT_H = 11  // 5min = 11px (44px per 20min, 4 slots per hour)
+const SLOT_H = 11
 const START_HOUR = 9
 const END_HOUR = 21
 const COL_MIN = 190
 const BARBER_COLORS = ['#99d100','#a86bff','#0a84ff','#ffb000','#ff5aa5','#35d6c7','#ff6b6b']
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const DAY_DEFAULTS: DaySchedule[] = [
+  { enabled: false, startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const minToHHMM = (min: number) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`
-const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
-const fmtDateLong = (d: Date) => d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-const fmtTime = (iso: string) => { try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) } catch { return '—' } }
 const uid = () => 'e_' + Math.random().toString(16).slice(2)
 const clamp = (min: number) => Math.max(START_HOUR * 60, Math.min(min, END_HOUR * 60 - 5))
+const timeStrToMin = (s: string) => { const [h,m] = s.split(':').map(Number); return (h||0)*60+(m||0) }
+const minToTimeStr = (min: number) => `${pad2(Math.floor(min/60))}:${pad2(min%60)}`
 
 async function apiFetch(path: string, opts?: RequestInit) {
   const token = localStorage.getItem('ELEMENT_TOKEN') || ''
@@ -91,12 +60,7 @@ async function apiFetch(path: string, opts?: RequestInit) {
   return data
 }
 
-function getServicePrice(svc?: Service) {
-  if (!svc?.price) return 0
-  return Number(String(svc.price).replace(/[^\d.]/g, '')) || 0
-}
-
-// ─── STATUS CHIP ─────────────────────────────────────────────────────────────
+// ─── Status Chip ──────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, { border: string; bg: string; color: string }> = {
   paid:      { border: 'rgba(143,240,177,.40)', bg: 'rgba(143,240,177,.10)', color: '#c9ffe1' },
   booked:    { border: 'rgba(10,132,255,.40)',  bg: 'rgba(10,132,255,.10)',  color: '#d7ecff' },
@@ -107,50 +71,44 @@ const STATUS_COLORS: Record<string, { border: string; bg: string; color: string 
 }
 function Chip({ label, type }: { label: string; type: string }) {
   const s = STATUS_COLORS[type] || STATUS_COLORS.booked
-  return (
-    <span style={{ fontSize: 9, letterSpacing: '.08em', textTransform: 'uppercase', padding: '4px 8px', borderRadius: 999, border: `1px solid ${s.border}`, background: s.bg, color: s.color, whiteSpace: 'nowrap' as const }}>
-      {label}
-    </span>
-  )
+  return <span style={{ fontSize: 9, letterSpacing: '.08em', textTransform: 'uppercase', padding: '3px 7px', borderRadius: 999, border: `1px solid ${s.border}`, background: s.bg, color: s.color, whiteSpace: 'nowrap' as const }}>{label}</span>
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-function timeStrToMin(s: string) { const [h,m] = s.split(':').map(Number); return (h||0)*60+(m||0) }
-
-// ─── DATE PICKER ─────────────────────────────────────────────────────────────
-function DatePickerModal({ current, onSelect, onClose }: { current: Date; onSelect: (d: Date) => void; onClose: () => void }) {
+// ─── DatePickerModal ──────────────────────────────────────────────────────────
+function DatePickerModal({ current, onSelect, onClose }: {
+  current: Date; onSelect: (d: Date) => void; onClose: () => void
+}) {
   const [month, setMonth] = useState(() => { const d = new Date(current); d.setDate(1); d.setHours(0,0,0,0); return d })
   const today = new Date(); today.setHours(0,0,0,0)
-  const firstDay = new Date(month)
-  const offset = (firstDay.getDay() + 6) % 7
-  const start = new Date(firstDay); start.setDate(1 - offset)
+  const offset = (month.getDay() + 6) % 7
+  const start = new Date(month); start.setDate(1 - offset)
   const days: Date[] = []
   for (let i = 0; i < 42; i++) { const d = new Date(start); d.setDate(start.getDate() + i); days.push(d) }
   const btn: React.CSSProperties = { height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.18)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 14, fontFamily: 'inherit' }
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 18 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ width: 'min(480px,95vw)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.03))', backdropFilter: 'blur(18px)', padding: 16, color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,.10)' }}>
+      <div style={{ width: 'min(480px,95vw)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(28,28,28,.98),rgba(16,16,16,.98))', backdropFilter: 'blur(18px)', padding: 16, color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,.10)' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 13 }}>Choose date</div>
-          <button onClick={onClose} style={{ height: 34, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Close</button>
+          <button onClick={onClose} style={{ height: 32, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: 12 }}>Close</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => { const m = new Date(month); m.setMonth(m.getMonth()-1); setMonth(m) }} style={{ height: 36, width: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 16, fontFamily: 'inherit' }}>←</button>
-            <button onClick={() => { const m = new Date(month); m.setMonth(m.getMonth()+1); setMonth(m) }} style={{ height: 36, width: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 16, fontFamily: 'inherit' }}>→</button>
+            <button onClick={() => { const m = new Date(month); m.setMonth(m.getMonth()-1); setMonth(m) }} style={{ height: 36, width: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit' }}>←</button>
+            <button onClick={() => { const m = new Date(month); m.setMonth(m.getMonth()+1); setMonth(m) }} style={{ height: 36, width: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit' }}>→</button>
           </div>
           <div style={{ fontWeight: 900, fontSize: 15 }}>{month.toLocaleDateString([], { month: 'long', year: 'numeric' })}</div>
           <button onClick={() => { const t = new Date(); t.setDate(1); t.setHours(0,0,0,0); setMonth(t) }} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>Today</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6, marginBottom: 6 }}>
-          {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => <div key={d} style={{ textAlign: 'center', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', padding: '4px 0' }}>{d}</div>)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 6 }}>
+          {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => <div key={d} style={{ textAlign: 'center', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', padding: '4px 0' }}>{d}</div>)}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
           {days.map((d, i) => {
             const inMonth = d.getMonth() === month.getMonth()
             const isToday = +d === +today
             const isSel = d.toDateString() === current.toDateString()
-            return <button key={i} onClick={() => { onSelect(d); onClose() }} style={{ ...btn, opacity: inMonth ? 1 : 0.35, borderColor: isSel ? 'rgba(10,132,255,.75)' : isToday ? 'rgba(255,207,63,.55)' : 'rgba(255,255,255,.12)', background: isSel ? 'rgba(10,132,255,.12)' : 'rgba(0,0,0,.18)', boxShadow: isSel ? '0 0 0 1px rgba(10,132,255,.22) inset' : 'none' }}>{d.getDate()}</button>
+            return <button key={i} onClick={() => { onSelect(d); onClose() }} style={{ ...btn, opacity: inMonth ? 1 : 0.3, borderColor: isSel ? 'rgba(10,132,255,.75)' : isToday ? 'rgba(255,207,63,.55)' : 'rgba(255,255,255,.10)', background: isSel ? 'rgba(10,132,255,.12)' : 'rgba(0,0,0,.18)' }}>{d.getDate()}</button>
           })}
         </div>
       </div>
@@ -158,23 +116,23 @@ function DatePickerModal({ current, onSelect, onClose }: { current: Date; onSele
   )
 }
 
-// ─── SCHEDULE GRID ───────────────────────────────────────────────────────────
+// ─── SchedGrid ────────────────────────────────────────────────────────────────
 function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: (s: DaySchedule[]) => void }) {
   function toggle(i: number) { const n = [...schedule]; n[i] = { ...n[i], enabled: !n[i].enabled }; onChange(n) }
   function setTime(i: number, field: 'startMin'|'endMin', val: string) { const n = [...schedule]; n[i] = { ...n[i], [field]: timeStrToMin(val) }; onChange(n) }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6, margin: '8px 0' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 5, margin: '8px 0' }}>
       {DAY_NAMES.map((name, i) => {
         const day = schedule[i]
         return (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.10)'}`, borderRadius: 12, padding: '8px 6px', background: day.enabled ? 'rgba(10,132,255,.08)' : 'rgba(0,0,0,.18)', opacity: day.enabled ? 1 : 0.55, transition: 'all .18s' }}>
-            <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', textAlign: 'center', fontWeight: 900, color: 'rgba(255,255,255,.65)' }}>{name}</div>
-            <button onClick={() => toggle(i)} style={{ height: 28, borderRadius: 999, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.16)'}`, background: day.enabled ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.05)', color: day.enabled ? '#d7ecff' : '#fff', cursor: 'pointer', fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', fontWeight: 900, fontFamily: 'inherit', width: '100%' }}>{day.enabled ? 'ON' : 'OFF'}</button>
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.10)'}`, borderRadius: 12, padding: '7px 5px', background: day.enabled ? 'rgba(10,132,255,.08)' : 'rgba(0,0,0,.18)', opacity: day.enabled ? 1 : 0.55 }}>
+            <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', textAlign: 'center', fontWeight: 900, color: 'rgba(255,255,255,.60)' }}>{name}</div>
+            <button onClick={() => toggle(i)} style={{ height: 26, borderRadius: 999, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.16)'}`, background: day.enabled ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.05)', color: day.enabled ? '#d7ecff' : '#fff', cursor: 'pointer', fontSize: 9, textTransform: 'uppercase', fontWeight: 900, fontFamily: 'inherit', width: '100%' }}>{day.enabled ? 'ON' : 'OFF'}</button>
             <div style={{ opacity: day.enabled ? 1 : 0.3, pointerEvents: day.enabled ? 'auto' : 'none' }}>
-              <label style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 2 }}>From</label>
-              <input type="time" value={minToTimeStr(day.startMin)} onChange={e => setTime(i,'startMin',e.target.value)} style={{ height: 30, borderRadius: 10, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 6px', fontSize: 11, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
-              <label style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', margin: '4px 0 2px' }}>To</label>
-              <input type="time" value={minToTimeStr(day.endMin)} onChange={e => setTime(i,'endMin',e.target.value)} style={{ height: 30, borderRadius: 10, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 6px', fontSize: 11, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
+              <label style={{ fontSize: 8, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 2 }}>From</label>
+              <input type="time" value={minToTimeStr(day.startMin)} onChange={e => setTime(i,'startMin',e.target.value)} style={{ height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 4px', fontSize: 10, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
+              <label style={{ fontSize: 8, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', margin: '3px 0 2px' }}>To</label>
+              <input type="time" value={minToTimeStr(day.endMin)} onChange={e => setTime(i,'endMin',e.target.value)} style={{ height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 4px', fontSize: 10, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
             </div>
           </div>
         )
@@ -183,7 +141,337 @@ function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: 
   )
 }
 
-// ─── MAIN CALENDAR PAGE ──────────────────────────────────────────────────────
+// ─── BarberEditCard ───────────────────────────────────────────────────────────
+function BarberEditCard({ b, onDelete, onSaved, onError }: {
+  b: Barber; onDelete: (id: string, name: string) => void
+  onSaved: () => void; onError: (e: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [level, setLevel] = useState(b.level || '')
+  const [price, setPrice] = useState(b.basePrice || '')
+  const [about, setAbout] = useState(b.about || '')
+  const [publicRole, setPublicRole] = useState(b.publicRole || '')
+  const [radarLabels, setRadarLabels] = useState((b.radarLabels || ['FADE','LONG','BEARD','STYLE','DETAIL']).join(','))
+  const [radarValues, setRadarValues] = useState((b.radarValues || [4.5,4.5,4.5,4.5,4.5]).join(','))
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState('')
+  const [sched, setSched] = useState<DaySchedule[]>(DAY_DEFAULTS.map(d => ({...d})))
+
+  useEffect(() => {
+    setLevel(b.level || ''); setPrice(b.basePrice || ''); setAbout(b.about || '')
+    setPublicRole(b.publicRole || '')
+    setRadarLabels((b.radarLabels || ['FADE','LONG','BEARD','STYLE','DETAIL']).join(','))
+    setRadarValues((b.radarValues || [4.5,4.5,4.5,4.5,4.5]).join(','))
+  }, [b.id])
+
+  function handlePhoto(file: File | null) {
+    if (!file) return; setPhotoFile(file)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 900, scale = Math.min(1, MAX/img.width, MAX/img.height)
+        const w = Math.round(img.width*scale), h = Math.round(img.height*scale)
+        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+        let q = 0.82, out = canvas.toDataURL('image/jpeg', q)
+        while (out.length > 900000 && q > 0.35) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q) }
+        setPhotoPreview(out)
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function save() {
+    setSaving(true)
+    try {
+      const enabledDays = sched.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
+      const schedPayload = { startMin: Math.min(...sched.filter(d=>d.enabled).map(d=>d.startMin), 10*60), endMin: Math.max(...sched.filter(d=>d.enabled).map(d=>d.endMin), 20*60), days: enabledDays, perDay: sched }
+      const rLabels = radarLabels.split(',').map(s => s.trim()).filter(Boolean)
+      const rValues = radarValues.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
+      await apiFetch(`/api/barbers/${encodeURIComponent(b.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ level, base_price: price, public_role: publicRole || level, about, description: about, bio: about, radar_labels: rLabels, radar_values: rValues, photo_url: photoPreview || b.photo || '', schedule: schedPayload, work_schedule: schedPayload, public_off_days: DAY_NAMES.filter((_,i) => !sched[i].enabled), public_enabled: true })
+      })
+      setPhotoFile(null); setPhotoPreview(''); onSaved()
+    } catch (e: any) { onError(e.message) }
+    setSaving(false)
+  }
+
+  const inp: React.CSSProperties = { width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
+  const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 4 }
+
+  return (
+    <div style={{ borderRadius: 16, border: `1px solid ${open ? 'rgba(10,132,255,.35)' : 'rgba(255,255,255,.10)'}`, background: open ? 'rgba(10,132,255,.04)' : 'rgba(0,0,0,.14)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {(photoPreview || b.photo)
+            ? <img src={photoPreview || b.photo} alt={b.name} style={{ width: 44, height: 44, borderRadius: 12, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} />
+            : <div style={{ width: 44, height: 44, borderRadius: 12, background: b.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, color: '#fff', flexShrink: 0 }}>{b.name[0]}</div>
+          }
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 900, fontSize: 14 }}>{b.name}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', letterSpacing: '.06em', marginTop: 2 }}>{b.level || 'Barber'}{b.basePrice ? ` · $${b.basePrice}` : ''}</div>
+            {b.about && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>{b.about}</div>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button onClick={() => setOpen(v => !v)} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: `1px solid ${open ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.14)'}`, background: open ? 'rgba(10,132,255,.12)' : 'rgba(255,255,255,.05)', color: open ? '#d7ecff' : '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>{open ? 'Collapse' : 'Edit'}</button>
+          <button onClick={() => onDelete(b.id, b.name)} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>Remove</button>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ padding: '0 14px 14px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
+          <div style={{ paddingTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {[['Level / Rank', level, setLevel, 'Senior / Expert'], ['Base price ($)', price, setPrice, '55.99'], ['Public role', publicRole, setPublicRole, 'Ambassador'], ['Radar labels', radarLabels, setRadarLabels, 'FADE,LONG,BEARD,STYLE,DETAIL']].map(([lbText, val, setter, ph]) => (
+              <div key={lbText as string}><label style={lbl}>{lbText as string}</label><input value={val as string} onChange={e => (setter as any)(e.target.value)} placeholder={ph as string} style={inp} /></div>
+            ))}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={lbl}>About / Bio</label>
+              <textarea value={about} onChange={e => setAbout(e.target.value)} rows={3} placeholder="Precision fades. Clean silhouette. Premium finish..." style={{ ...inp, height: 'auto', padding: '10px', resize: 'vertical' as const, lineHeight: 1.5 }} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={lbl}>Radar values (0–5, comma separated)</label>
+              <input value={radarValues} onChange={e => setRadarValues(e.target.value)} placeholder="4.5,4.5,4.5,4.5,4.5" style={inp} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={lbl}>Photo</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ height: 38, padding: '0 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: 12, fontFamily: 'inherit' }}>
+                  {photoFile ? photoFile.name : 'Change photo…'}
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handlePhoto(e.target.files?.[0] || null)} />
+                </label>
+                {(photoPreview || b.photo) && <img src={photoPreview || b.photo} alt="" style={{ width: 38, height: 38, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)' }} onError={e => (e.currentTarget.style.display='none')} />}
+                {photoPreview && <button onClick={() => { setPhotoFile(null); setPhotoPreview('') }} style={{ height: 30, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>}
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label style={lbl}>Working schedule</label>
+            <SchedGrid schedule={sched} onChange={setSched} />
+          </div>
+          <button onClick={save} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', marginTop: 12 }}>
+            {saving ? 'Saving…' : 'Save changes — update on website'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── SettingsModal ────────────────────────────────────────────────────────────
+function SettingsModal({ barbers, services, onClose, onReload }: {
+  barbers: Barber[]; services: any[]; onClose: () => void; onReload: () => void
+}) {
+  const [tab, setTab] = useState<'barbers'|'services'|'account'>('barbers')
+  const [msg, setMsg] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  // Barber form
+  const [bName, setBName] = useState(''); const [bLevel, setBLevel] = useState('')
+  const [bUsername, setBUsername] = useState(''); const [bPassword, setBPassword] = useState('')
+  const [bPrice, setBPrice] = useState(''); const [bAbout, setBAbout] = useState('')
+  const [bPublicRole, setBPublicRole] = useState('')
+  const [bRadarLabels, setBRadarLabels] = useState('FADE,LONG,BEARD,STYLE,DETAIL')
+  const [bRadarValues, setBRadarValues] = useState('4.5,4.5,4.5,4.5,4.5')
+  const [bPhotoPreview, setBPhotoPreview] = useState('')
+  const [bSchedule, setBSchedule] = useState<DaySchedule[]>(DAY_DEFAULTS.map(d => ({...d})))
+
+  // Service form
+  const [sName, setSName] = useState(''); const [sDur, setSDur] = useState('30')
+  const [sPrice, setSPrice] = useState(''); const [sBarber, setSBarber] = useState(barbers[0]?.id || '')
+
+  async function addBarber() {
+    if (!bName.trim()) { setMsg('Name required'); return }
+    if (!bPassword.trim()) { setMsg('Password required'); return }
+    setSaving(true); setMsg('')
+    try {
+      const enabledDays = bSchedule.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
+      const schedPayload = { startMin: 10*60, endMin: 20*60, days: enabledDays, perDay: bSchedule }
+      const rLabels = bRadarLabels.split(',').map(s => s.trim()).filter(Boolean)
+      const rValues = bRadarValues.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
+      await apiFetch('/api/barbers', { method: 'POST', body: JSON.stringify({
+        name: bName.trim(), level: bLevel.trim(),
+        username: bUsername.trim() || bName.toLowerCase().replace(/\s+/g, '.'),
+        password: bPassword.trim(), barber_pin: bPassword.trim(),
+        base_price: bPrice.trim(), public_role: bPublicRole.trim() || bLevel.trim(),
+        about: bAbout.trim(), description: bAbout.trim(), bio: bAbout.trim(),
+        radar_labels: rLabels.length ? rLabels : ['FADE','LONG','BEARD','STYLE','DETAIL'],
+        radar_values: rValues.length ? rValues : [4.5,4.5,4.5,4.5,4.5],
+        photo_url: bPhotoPreview || '', active: true, public_enabled: true,
+        schedule: schedPayload, work_schedule: schedPayload,
+        public_off_days: DAY_NAMES.filter((_, i) => !bSchedule[i].enabled)
+      })})
+      setMsg('Barber added ✓')
+      setBName(''); setBLevel(''); setBUsername(''); setBPassword(''); setBPrice('')
+      setBAbout(''); setBPublicRole(''); setBPhotoPreview('')
+      setBSchedule(DAY_DEFAULTS.map(d => ({...d}))); onReload()
+    } catch (e: any) { setMsg('Error: ' + e.message) }
+    setSaving(false)
+  }
+
+  async function deleteBarber(id: string, name: string) {
+    if (!confirm(`Remove ${name}?`)) return
+    try { await apiFetch(`/api/barbers/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ active: false }) }); setMsg('Barber removed'); onReload() }
+    catch (e: any) { setMsg('Error: ' + e.message) }
+  }
+
+  async function addService() {
+    if (!sName.trim()) { setMsg('Service name required'); return }
+    setSaving(true); setMsg('')
+    try {
+      const price_cents = Math.round(parseFloat(sPrice || '0') * 100)
+      const existing = services.find(s => s.name.toLowerCase() === sName.toLowerCase())
+      if (existing) {
+        const ids = new Set([...(existing.barberIds || []), sBarber].filter(Boolean))
+        await apiFetch(`/api/services/${encodeURIComponent(existing.id)}`, { method: 'PATCH', body: JSON.stringify({ barber_ids: Array.from(ids), duration_minutes: Number(sDur), price_cents }) })
+      } else {
+        await apiFetch('/api/services', { method: 'POST', body: JSON.stringify({ name: sName.trim(), duration_minutes: Number(sDur), price_cents, version: '1', barber_ids: sBarber ? [sBarber] : [] }) })
+      }
+      setMsg('Service saved ✓'); setSName(''); setSDur('30'); setSPrice(''); onReload()
+    } catch (e: any) { setMsg('Error: ' + e.message) }
+    setSaving(false)
+  }
+
+  const inp: React.CSSProperties = { width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
+  const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 4 }
+  const tabs = ['barbers','services','account'] as const
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 18, overflowY: 'auto' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ width: 'min(700px,95vw)', maxHeight: 'calc(100vh - 48px)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(28,28,28,.98),rgba(16,16,16,.98))', backdropFilter: 'blur(18px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
+          <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 14 }}>Settings</div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit' }}>✕</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, padding: '14px 18px 0' }}>
+          {tabs.map(t => (
+            <button key={t} onClick={() => setTab(t)} style={{ height: 36, padding: '0 16px', borderRadius: 999, border: `1px solid ${tab === t ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.12)'}`, background: tab === t ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.04)', color: tab === t ? '#d7ecff' : '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit' }}>{t}</button>
+          ))}
+        </div>
+
+        <div style={{ padding: '16px 18px 20px' }}>
+          {msg && <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(10,132,255,.35)', background: 'rgba(10,132,255,.08)', fontSize: 12, color: '#d7ecff', marginBottom: 14 }}>{msg}</div>}
+
+          {/* Barbers tab */}
+          {tab === 'barbers' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)' }}>Current barbers ({barbers.length})</div>
+                {barbers.map(b => (
+                  <BarberEditCard key={b.id} b={b} onDelete={deleteBarber}
+                    onSaved={() => { setMsg('Saved ✓ — updated on website'); onReload() }}
+                    onError={(e: string) => setMsg('Error: ' + e)} />
+                ))}
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 16 }}>
+                <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 12 }}>Add new barber</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {[['Name *', bName, setBName, 'Nazar'], ['Level', bLevel, setBLevel, 'Senior'], ['Login', bUsername, setBUsername, 'nazar'], ['Password *', bPassword, setBPassword, '1234'], ['Base price', bPrice, setBPrice, '55.99'], ['Public role', bPublicRole, setBPublicRole, 'Ambassador']].map(([l, v, s, p]) => (
+                    <div key={l as string}><label style={lbl}>{l as string}</label><input value={v as string} onChange={e => (s as any)(e.target.value)} placeholder={p as string} style={inp} /></div>
+                  ))}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={lbl}>About / Bio</label>
+                    <textarea value={bAbout} onChange={e => setBAbout(e.target.value)} rows={2} placeholder="Precision fades. Clean silhouette..." style={{ ...inp, height: 'auto', padding: '8px 10px', resize: 'vertical' as const }} />
+                  </div>
+                  <div><label style={lbl}>Radar labels</label><input value={bRadarLabels} onChange={e => setBRadarLabels(e.target.value)} style={inp} /></div>
+                  <div><label style={lbl}>Radar values</label><input value={bRadarValues} onChange={e => setBRadarValues(e.target.value)} style={inp} /></div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={lbl}>Photo</label>
+                    <label style={{ height: 38, padding: '0 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.70)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: 12, fontFamily: 'inherit', gap: 8 }}>
+                      {bPhotoPreview ? <img src={bPhotoPreview} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} /> : null}
+                      {bPhotoPreview ? 'Change photo' : 'Upload photo…'}
+                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => {
+                        const file = e.target.files?.[0]; if (!file) return
+                        const reader = new FileReader()
+                        reader.onload = () => {
+                          const img = new Image()
+                          img.onload = () => {
+                            const MAX = 900, scale = Math.min(1, MAX/img.width, MAX/img.height)
+                            const w = Math.round(img.width*scale), h = Math.round(img.height*scale)
+                            const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
+                            canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+                            let q = 0.82, out = canvas.toDataURL('image/jpeg', q)
+                            while (out.length > 900000 && q > 0.35) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q) }
+                            setBPhotoPreview(out)
+                          }
+                          img.src = reader.result as string
+                        }
+                        reader.readAsDataURL(file)
+                      }} />
+                    </label>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={lbl}>Working schedule</label>
+                    <SchedGrid schedule={bSchedule} onChange={setBSchedule} />
+                  </div>
+                </div>
+                <button onClick={addBarber} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', marginTop: 12 }}>
+                  {saving ? 'Saving…' : '+ Add barber'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Services tab */}
+          {tab === 'services' && (
+            <div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                {services.map(s => (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.16)' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>{s.durationMin}min{s.price ? ` · $${s.price}` : ''}</div>
+                    </div>
+                    <button onClick={async () => { if (!confirm(`Delete ${s.name}?`)) return; try { await apiFetch(`/api/services/${encodeURIComponent(s.id)}`, { method: 'DELETE' }); setMsg('Deleted'); onReload() } catch (e: any) { setMsg('Error: ' + e.message) } }} style={{ height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>Remove</button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 14 }}>
+                <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 10 }}>Add service</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Service name</label><input value={sName} onChange={e => setSName(e.target.value)} placeholder="Fade" style={inp} /></div>
+                  <div><label style={lbl}>Duration (min)</label><input type="number" value={sDur} onChange={e => setSDur(e.target.value)} placeholder="30" style={inp} /></div>
+                  <div><label style={lbl}>Price ($)</label><input value={sPrice} onChange={e => setSPrice(e.target.value)} placeholder="35" style={inp} /></div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={lbl}>Barber</label>
+                    <select value={sBarber} onChange={e => setSBarber(e.target.value)} style={inp}>
+                      <option value="">All barbers</option>
+                      {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <button onClick={addService} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
+                  {saving ? 'Saving…' : '+ Add service'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Account tab */}
+          {tab === 'account' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ padding: '14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.18)' }}>
+                <div style={{ fontWeight: 900, marginBottom: 4 }}>Current session</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)' }}>
+                  {(() => { try { const u = JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null'); return u ? `${u.role} · ${u.name || u.username}` : 'Guest' } catch { return 'Guest' } })()}
+                </div>
+              </div>
+              <button onClick={() => { localStorage.removeItem('ELEMENT_TOKEN'); localStorage.removeItem('ELEMENT_USER'); window.location.href = '/signin' }} style={{ height: 42, borderRadius: 12, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Log out</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── CalendarPage ─────────────────────────────────────────────────────────────
 export default function CalendarPage() {
   const [anchor, setAnchor] = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d })
   const [barbers, setBarbers] = useState<Barber[]>([])
@@ -200,7 +488,7 @@ export default function CalendarPage() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; barberId: string; min: number } | null>(null)
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
 
-  const [currentUser] = useState<{ uid: string; name: string; username: string; role: string; barber_id?: string } | null>(() => {
+  const [currentUser] = useState<{ role: string; barber_id?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null }
   })
   const isBarber = currentUser?.role === 'barber'
@@ -219,10 +507,11 @@ export default function CalendarPage() {
     const data = await apiFetch('/api/barbers')
     const list = Array.isArray(data) ? data : (data?.barbers || [])
     return list.map((b: any, i: number) => ({
-      id: String(b.id || ''), name: String(b.name || b.full_name || b.id || '').trim(),
-      level: String(b.level || '').trim(), photo: String(b.photo_url || b.photoUrl || b.photo || '').trim(),
-      color: BARBER_COLORS[i % BARBER_COLORS.length], serverId: String(b.id || ''),
-      about: String(b.about || b.description || '').trim(), basePrice: String(b.base_price || '').trim(),
+      id: String(b.id || ''), name: String(b.name || '').trim(),
+      level: String(b.level || '').trim(), photo: String(b.photo_url || b.photo || '').trim(),
+      color: BARBER_COLORS[i % BARBER_COLORS.length],
+      about: String(b.about || b.description || '').trim(),
+      basePrice: String(b.base_price || '').trim(),
       publicRole: String(b.public_role || '').trim(),
       radarLabels: Array.isArray(b.radar_labels) ? b.radar_labels : ['FADE','LONG','BEARD','STYLE','DETAIL'],
       radarValues: Array.isArray(b.radar_values) ? b.radar_values.map(Number) : [4.5,4.5,4.5,4.5,4.5],
@@ -234,10 +523,9 @@ export default function CalendarPage() {
     const data = await apiFetch('/api/services')
     const list = Array.isArray(data?.services) ? data.services : Array.isArray(data) ? data : []
     return list.map((s: any) => {
-      const durMs = s.durationMs ?? (s.duration_minutes != null ? s.duration_minutes * 60000 : 0)
-      const durMin = Math.max(1, Math.round(durMs / 60000) || 30)
-      const priceStr = s.price != null ? String(s.price) : s.price_cents > 0 ? (s.price_cents / 100).toFixed(2) : ''
-      return { id: String(s.id || ''), name: String(s.name || ''), durationMin: durMin, price: priceStr, barberIds: (s.barberIds || s.barber_ids || []).map(String) }
+      const durMin = s.duration_minutes || Math.round((s.durationMs || 0) / 60000) || 30
+      const price = s.price ?? (s.price_cents > 0 ? (s.price_cents / 100).toFixed(2) : '')
+      return { id: String(s.id || ''), name: String(s.name || ''), durationMin: Math.max(1, durMin), price: String(price), barberIds: (s.barber_ids || s.barberIds || []).map(String) }
     }).filter((s: Service) => s.name)
   }, [])
 
@@ -246,30 +534,21 @@ export default function CalendarPage() {
     const list = Array.isArray(data?.bookings) ? data.bookings : Array.isArray(data) ? data : []
     return list.map((b: any) => {
       const startAt = b.start_at ? new Date(b.start_at) : null
-      const startMin = startAt ? startAt.getHours() * 60 + startAt.getMinutes() : clamp(10 * 60)
-      const svc = servicesArg.find(s => s.id === (b.service_id || b.serviceId))
-      const barber = barbersArg.find(br => br.id === (b.barber_id || b.barberId))
+      const startMin = startAt ? startAt.getHours() * 60 + startAt.getMinutes() : 10*60
       const isBlock = b.status === 'block' || b.type === 'block'
-      const durMin = isBlock
-        ? (b.end_at ? Math.round((new Date(b.end_at).getTime() - (startAt?.getTime() || 0)) / 60000) : 30)
-        : (svc?.durationMin || 30)
+      const svc = servicesArg.find(s => s.id === String(b.service_id || ''))
+      const barber = barbersArg.find(br => br.id === String(b.barber_id || ''))
+      const durMin = isBlock ? (b.end_at ? Math.round((new Date(b.end_at).getTime() - (startAt?.getTime() || 0)) / 60000) : 30) : (svc?.durationMin || 30)
       return {
-        id: b.id || b.booking_id || uid(),
-        type: isBlock ? 'block' as const : 'booking' as const,
-        barberId: String(b.barber_id || b.barberId || ''),
-        barberName: barber?.name || String(b.barber_name || ''),
-        clientName: String(b.client_name || b.clientName || 'Client'),
-        clientPhone: String(b.client_phone || ''),
-        serviceId: String(b.service_id || b.serviceId || ''),
-        serviceName: svc?.name || String(b.service_name || ''),
-        date: b.start_at ? b.start_at.slice(0, 10) : todayStr,
+        id: String(b.id || uid()), type: isBlock ? 'block' as const : 'booking' as const,
+        barberId: String(b.barber_id || ''), barberName: barber?.name || String(b.barber_name || ''),
+        clientName: String(b.client_name || 'Client'), clientPhone: String(b.client_phone || ''),
+        serviceId: String(b.service_id || ''), serviceName: svc?.name || String(b.service_name || ''),
+        date: b.start_at ? b.start_at.slice(0,10) : todayStr,
         startMin: clamp(startMin), durMin: Math.max(5, durMin),
-        status: String(b.status || 'booked'),
-        paid: !!(b.paid || b.is_paid || b.payment_status === 'paid'),
-        paymentMethod: String(b.payment_method || ''),
-        notes: String(b.notes || b.customer_note || ''),
-        tipAmount: Number(b.tip || b.tip_amount || 0),
-        _raw: b,
+        status: String(b.status || 'booked'), paid: !!(b.paid || b.is_paid),
+        paymentMethod: String(b.payment_method || ''), notes: String(b.notes || ''),
+        tipAmount: Number(b.tip || 0), _raw: b,
       } as CalEvent
     })
   }, [todayStr])
@@ -278,25 +557,23 @@ export default function CalendarPage() {
     try {
       const [b, s] = await Promise.all([loadBarbers(), loadServices()])
       setBarbers(b); setServices(s)
-      const evs = await loadBookings(b, s); setEvents(evs)
-    } catch (err) { console.warn(err) }
+      setEvents(await loadBookings(b, s))
+    } catch(e) { console.warn(e) }
   }, [loadBarbers, loadServices, loadBookings])
 
   useEffect(() => {
     setLoading(true)
     Promise.all([loadBarbers(), loadServices()]).then(async ([b, s]) => {
       setBarbers(b); setServices(s)
-      const evs = await loadBookings(b, s); setEvents(evs); setLoading(false)
-    }).catch(err => { console.warn(err); setLoading(false) })
+      setEvents(await loadBookings(b, s)); setLoading(false)
+    }).catch(e => { console.warn(e); setLoading(false) })
   }, [todayStr])
 
   const reload = useCallback(() => {
-    if (!barbers.length) return
     loadBookings(barbers, services).then(setEvents).catch(console.warn)
   }, [barbers, services, loadBookings])
 
-  const totalSlots = (END_HOUR - START_HOUR) * 12
-  const totalH = totalSlots * SLOT_H
+  const totalH = (END_HOUR - START_HOUR) * 12 * SLOT_H
   const minToY = (min: number) => ((min - START_HOUR * 60) / 5) * SLOT_H
   const nowY = minToY(nowMin)
   const showNow = nowMin >= START_HOUR * 60 && nowMin <= END_HOUR * 60
@@ -306,17 +583,14 @@ export default function CalendarPage() {
     if (isBarber && e.type !== 'block' && e.barberId !== myBarberId) return false
     return true
   })
-  const filtered = search
-    ? todayEvents.filter(e => [e.clientName, e.barberName, e.serviceName].join(' ').toLowerCase().includes(search.toLowerCase()))
-    : todayEvents
+  const filtered = search ? todayEvents.filter(e => [e.clientName, e.barberName, e.serviceName].join(' ').toLowerCase().includes(search.toLowerCase())) : todayEvents
 
-  // ── Drag ─────────────────────────────────────────────────────────────────
+  // ── Drag ──────────────────────────────────────────────────────────────────
   function startDrag(e: React.MouseEvent | React.TouchEvent, ev: CalEvent, barberIdx: number) {
     e.preventDefault(); e.stopPropagation()
     const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
     const col = colRefs.current[barberIdx]; if (!col) return
-    const rect = col.getBoundingClientRect()
-    const clickedMin = Math.round((clientY - rect.top) / SLOT_H) * 5 + START_HOUR * 60
+    const clickedMin = Math.round((clientY - col.getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
     setDrag({ eventId: ev.id, offsetMin: clickedMin - ev.startMin, ghostBarberIdx: barberIdx, ghostMin: ev.startMin })
   }
 
@@ -324,16 +598,11 @@ export default function CalendarPage() {
     if (!drag) return
     const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX
     const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY
-    let newBarberIdx = drag.ghostBarberIdx
-    colRefs.current.forEach((col, i) => {
-      if (!col) return
-      const rect = col.getBoundingClientRect()
-      if (clientX >= rect.left && clientX <= rect.right) newBarberIdx = i
-    })
-    const col = colRefs.current[newBarberIdx]; if (!col) return
-    const rect = col.getBoundingClientRect()
-    const rawMin = Math.round((clientY - rect.top) / SLOT_H) * 5 + START_HOUR * 60 - drag.offsetMin
-    setDrag(d => d ? { ...d, ghostBarberIdx: newBarberIdx, ghostMin: Math.max(START_HOUR * 60, Math.min(rawMin, END_HOUR * 60 - 5)) } : d)
+    let newBI = drag.ghostBarberIdx
+    colRefs.current.forEach((col, i) => { if (!col) return; const r = col.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) newBI = i })
+    const col = colRefs.current[newBI]; if (!col) return
+    const rawMin = Math.round((clientY - col.getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60 - drag.offsetMin
+    setDrag(d => d ? { ...d, ghostBarberIdx: newBI, ghostMin: clamp(rawMin) } : d)
   }
 
   function onDragEnd() {
@@ -357,56 +626,37 @@ export default function CalendarPage() {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         await apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), {
           method: 'PATCH',
-          body: JSON.stringify({ barber_id: updated.barberId, start_at: startAt.toISOString(), ...(updated.type === 'block' ? { end_at: new Date(startAt.getTime() + updated.durMin * 60000).toISOString() } : {}) })
+          body: JSON.stringify({ barber_id: updated.barberId, start_at: startAt.toISOString(), ...(updated.type === 'block' ? { end_at: new Date(startAt.getTime() + updated.durMin*60000).toISOString() } : {}) })
         })
-      } catch (err: any) { console.warn('drag patch:', err.message) }
+      } catch(e: any) { console.warn(e.message) }
     }
   }
 
   useEffect(() => {
     if (!drag) return
-    const move = (e: MouseEvent | TouchEvent) => onDragMove(e)
+    const move = (e: MouseEvent|TouchEvent) => onDragMove(e)
     const end = () => onDragEnd()
     window.addEventListener('mousemove', move); window.addEventListener('mouseup', end)
     window.addEventListener('touchmove', move, { passive: false }); window.addEventListener('touchend', end)
-    return () => {
-      window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', end)
-      window.removeEventListener('touchmove', move); window.removeEventListener('touchend', end)
-    }
+    return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', end); window.removeEventListener('touchmove', move); window.removeEventListener('touchend', end) }
   }, [drag, events, barbers])
 
-  // ── Create / Block ────────────────────────────────────────────────────────
+  // ── Create / Block ─────────────────────────────────────────────────────────
   function openCreateBlock(barberId: string, startMin: number) {
     const id = 'block_' + Date.now()
     const barber = barbers.find(b => b.id === barberId)
-    const blockEv: CalEvent = {
-      id, type: 'block', barberId, barberName: barber?.name || '',
-      clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Blocked',
-      date: todayStr, startMin: clamp(startMin), durMin: 30,
-      status: 'block', paid: false, notes: '', _raw: null
-    }
-    setEvents(prev => [...prev, blockEv])
+    setEvents(prev => [...prev, { id, type: 'block', barberId, barberName: barber?.name || '', clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Blocked', date: todayStr, startMin: clamp(startMin), durMin: 30, status: 'block', paid: false, notes: '', _raw: null }])
     const startAt = new Date(todayStr + 'T' + minToHHMM(clamp(startMin)) + ':00')
-    apiFetch('/api/bookings', {
-      method: 'POST',
-      body: JSON.stringify({ barber_id: barberId, type: 'block', status: 'block', client_name: 'BLOCKED', service_id: '', start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + 30 * 60000).toISOString(), notes: 'Blocked by manager' })
-    }).then(res => {
-      const savedId = res?.booking?.id || res?.id
-      if (savedId) setEvents(prev => prev.map(e => e.id === id ? { ...e, _raw: { id: savedId } } : e))
-    }).catch(console.warn)
+    apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: barberId, type: 'block', status: 'block', client_name: 'BLOCKED', service_id: '', start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + 30*60000).toISOString(), notes: 'Blocked by manager' }) })
+      .then(res => { const savedId = res?.booking?.id || res?.id; if (savedId) setEvents(prev => prev.map(e => e.id === id ? { ...e, _raw: { id: savedId } } : e)) })
+      .catch(console.warn)
   }
 
   function openCreate(barberId: string, startMin: number) {
     const id = uid()
     const barber = barbers.find(b => b.id === barberId)
     const defaultSvc = services.find(s => !s.barberIds.length || s.barberIds.includes(barberId))
-    const newEv: CalEvent = {
-      id, barberId, barberName: barber?.name || '', clientName: '', clientPhone: '',
-      serviceId: defaultSvc?.id || '', serviceName: defaultSvc?.name || '',
-      date: todayStr, startMin: clamp(startMin), durMin: defaultSvc?.durationMin || 30,
-      status: 'booked', paid: false, notes: '', _raw: null
-    }
-    setEvents(prev => [...prev, newEv])
+    setEvents(prev => [...prev, { id, barberId, barberName: barber?.name || '', clientName: '', clientPhone: '', serviceId: defaultSvc?.id || '', serviceName: defaultSvc?.name || '', date: todayStr, startMin: clamp(startMin), durMin: defaultSvc?.durationMin || 30, status: 'booked', paid: false, notes: '', _raw: null }])
     setModal({ open: true, eventId: id, isNew: true })
   }
 
@@ -414,23 +664,16 @@ export default function CalendarPage() {
     const ev = events.find(e => e.id === modal.eventId); if (!ev) return
     const updated = { ...ev, ...patch }
     setEvents(prev => prev.map(e => e.id === ev.id ? updated : e))
-    const isNew = !ev._raw?.id
     try {
-      if (isNew) {
+      if (!ev._raw?.id) {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
-        const res = await apiFetch('/api/bookings', {
-          method: 'POST',
-          body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), notes: updated.notes || '', status: 'booked', reference_photo_url: updated.photoUrl || '' })
-        })
+        const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), notes: updated.notes || '', status: 'booked', reference_photo_url: updated.photoUrl || '' }) })
         const savedId = res?.booking?.id || res?.id
-        if (savedId) setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, _raw: res?.booking || { id: savedId }, id: String(savedId) } : e))
+        if (savedId) setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, _raw: { id: savedId }, id: String(savedId) } : e))
       } else {
-        await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: updated.status, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '' })
-        })
+        await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: updated.status, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '' }) })
       }
-    } catch (err: any) { console.warn('save:', err.message) }
+    } catch(e: any) { console.warn('save:', e.message) }
     setModal({ open: false, eventId: null, isNew: false })
   }
 
@@ -439,10 +682,7 @@ export default function CalendarPage() {
     if (!window.confirm('Delete this booking?')) return
     setEvents(prev => prev.filter(e => e.id !== ev.id))
     setModal({ open: false, eventId: null, isNew: false })
-    if (ev._raw?.id) {
-      try { await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'DELETE' }) }
-      catch (err: any) { console.warn('delete:', err.message) }
-    }
+    if (ev._raw?.id) { try { await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'DELETE' }) } catch(e: any) { console.warn(e.message) } }
   }
 
   function handlePayment(method: string, tip: number) {
@@ -454,178 +694,122 @@ export default function CalendarPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         .cal-event:hover { filter: brightness(1.12); }
-        input[type=date],input[type=time] { color-scheme: dark; }
-        select option { background: #111; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
+        select option { background: #111; }
+        input[type=date],input[type=time] { color-scheme: dark; }
       `}</style>
-
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
 
         {/* Topbar */}
-        <div style={{ padding: '10px 18px 12px', background: 'linear-gradient(to bottom,rgba(0,0,0,.90),rgba(0,0,0,.70))', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', flexShrink: 0 }}>
+        <div style={{ padding: '10px 18px 12px', background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
               <h2 style={{ margin: 0, fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 15 }}>Calendar</h2>
-              <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase' }}>
-                {anchor.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-              </p>
+              <p style={{ margin: '3px 0 0', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.08em' }}>{anchor.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              {[
-                { label: 'Date', onClick: () => setDatePickerOpen(true) },
-                { label: '←', onClick: () => setAnchor(a => { const x = new Date(a); x.setDate(x.getDate()-1); return x }) },
-                { label: 'Today', onClick: () => { const d = new Date(); d.setHours(0,0,0,0); setAnchor(d) } },
-                { label: '→', onClick: () => setAnchor(a => { const x = new Date(a); x.setDate(x.getDate()+1); return x }) },
-              ].map(b => (
-                <button key={b.label} onClick={b.onClick} style={{ height: 40, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>{b.label}</button>
+              {[{l:'Date',fn:() => setDatePickerOpen(true)},{l:'←',fn:() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()-1); return x })},{l:'Today',fn:() => { const d=new Date(); d.setHours(0,0,0,0); setAnchor(d) }},{l:'→',fn:() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()+1); return x })}].map(b => (
+                <button key={b.l} onClick={b.fn} style={{ height: 40, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>{b.l}</button>
               ))}
-              <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)}
-                style={{ height: 40, width: 'min(240px,50vw)', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13 }} />
-              {isOwnerOrAdmin && (
-                <button onClick={() => setSettingsOpen(true)} style={{ height: 40, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Settings</button>
-              )}
-              <button onClick={() => {
-                const barberId = isBarber ? myBarberId : (barbers[0]?.id || '')
-                openCreate(barberId, clamp(new Date().getHours() * 60))
-              }} style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', boxShadow: '0 0 18px rgba(10,132,255,.25)' }}>
-                + New booking
-              </button>
-              <button onClick={reload} style={{ height: 40, width: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 16, fontFamily: 'inherit' }}>↻</button>
+              <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} style={{ height: 40, width: 'min(200px,40vw)', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13 }} />
+              {isOwnerOrAdmin && <button onClick={() => setSettingsOpen(true)} style={{ height: 40, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Settings</button>}
+              <button onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', boxShadow: '0 0 18px rgba(10,132,255,.25)' }}>+ New booking</button>
+              <button onClick={reload} style={{ height: 40, width: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16 }}>↻</button>
             </div>
           </div>
         </div>
 
-        {/* Calendar */}
+        {/* Calendar grid */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
           <div style={{ minWidth: 90 + barbers.length * COL_MIN }}>
             {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${barbers.length}, minmax(${COL_MIN}px, 1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
-              <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', borderRight: '1px solid rgba(255,255,255,.10)' }}>Time</div>
+            <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${barbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
+              <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,.10)', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', textAlign: 'center' }}>Time</div>
               {barbers.map((b, i) => (
-                <div key={b.id} style={{ padding: '10px 12px', borderRight: i < barbers.length - 1 ? '1px solid rgba(255,255,255,.08)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {b.photo ? <img src={b.photo} alt={b.name} style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} />
-                    : <div style={{ width: 10, height: 10, borderRadius: 999, background: b.color, flexShrink: 0 }} />}
-                  <div>
-                    <div style={{ fontWeight: 900, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.name}</div>
-                    {b.level && <div style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)' }}>{b.level}</div>}
-                  </div>
+                <div key={b.id} style={{ padding: '10px 12px', borderRight: i < barbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {b.photo ? <img src={b.photo} alt={b.name} style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} /> : <div style={{ width: 10, height: 10, borderRadius: 999, background: b.color, flexShrink: 0 }} />}
+                  <div><div style={{ fontWeight: 900, fontSize: 13 }}>{b.name}</div>{b.level && <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgba(255,255,255,.35)' }}>{b.level}</div>}</div>
                 </div>
               ))}
             </div>
 
             {/* Body */}
-            <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${barbers.length}, minmax(${COL_MIN}px, 1fr))`, height: totalH, position: 'relative' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${barbers.length}, minmax(${COL_MIN}px,1fr))`, height: totalH, position: 'relative' }}>
               {/* Time labels */}
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
                 {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
-                  <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i * SLOT_H * 12, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 8, color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.08em' }}>
-                    {pad2(START_HOUR + i)}:00
-                  </div>
+                  <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*SLOT_H*12, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 8, color: 'rgba(255,255,255,.40)', fontSize: 11 }}>{pad2(START_HOUR+i)}:00</div>
                 ))}
               </div>
 
-              {/* Barber columns */}
+              {/* Columns */}
               {barbers.map((barber, bi) => {
                 const colEvents = filtered.filter(e => e.barberId === barber.id)
                 return (
                   <div key={barber.id} ref={el => { colRefs.current[bi] = el }}
-                    style={{ position: 'relative', borderRight: bi < barbers.length - 1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'rgba(0,0,0,.06)', transition: 'background .15s' }}
+                    style={{ position: 'relative', borderRight: bi < barbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'rgba(0,0,0,.06)', transition: 'background .15s' }}
                     onClick={e => {
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       if (isBarber && barber.id !== myBarberId) return
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                      const min = Math.round((e.clientY - rect.top) / SLOT_H) * 5 + START_HOUR * 60
-                      if (isOwnerOrAdmin) {
-                        setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) })
-                      } else {
-                        openCreate(barber.id, clamp(min))
-                      }
+                      const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
+                      isOwnerOrAdmin ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
                     }}>
-
                     {/* Grid lines */}
-                    {Array.from({ length: (END_HOUR - START_HOUR) * 12 }, (_, i) => (
-                      <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i * SLOT_H, height: 1, background: i % 12 === 0 ? 'rgba(255,255,255,.12)' : i % 4 === 0 ? 'rgba(255,255,255,.05)' : 'rgba(255,255,255,.02)', pointerEvents: 'none' }} />
+                    {Array.from({ length: (END_HOUR-START_HOUR)*12 }, (_, i) => (
+                      <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*SLOT_H, height: 1, background: i%12===0 ? 'rgba(255,255,255,.12)' : i%4===0 ? 'rgba(255,255,255,.05)' : 'rgba(255,255,255,.02)', pointerEvents: 'none' }} />
                     ))}
-
                     {/* Now line */}
-                    {showNow && bi === 0 && (
+                    {showNow && bi===0 && (
                       <div style={{ position: 'absolute', left: 0, right: 0, top: nowY, height: 2, background: 'rgba(10,132,255,.95)', boxShadow: '0 0 22px rgba(10,132,255,.35)', pointerEvents: 'none', zIndex: 20 }}>
-                        <div style={{ position: 'absolute', left: 8, top: -4, width: 10, height: 10, borderRadius: 999, background: '#0a84ff', boxShadow: '0 0 0 3px rgba(10,132,255,.18)' }} />
+                        <div style={{ position: 'absolute', left: 8, top: -4, width: 10, height: 10, borderRadius: 999, background: '#0a84ff' }} />
                       </div>
                     )}
-
                     {/* Ghost */}
-                    {drag?.ghostBarberIdx === bi && (() => {
+                    {drag?.ghostBarberIdx===bi && (() => {
                       const dragEv = events.find(e => e.id === drag.eventId); if (!dragEv) return null
-                      const ghostTop = minToY(drag.ghostMin)
-                      const ghostH = Math.max(SLOT_H * 6, (dragEv.durMin / 5) * SLOT_H)
-                      return (
-                        <div style={{ position: 'absolute', left: 8, right: 8, top: ghostTop, height: ghostH - 2, borderRadius: 14, border: '2px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.12)', pointerEvents: 'none', zIndex: 40 }}>
-                          <div style={{ padding: '6px 10px', fontWeight: 900, fontSize: 11, color: '#d7ecff' }}>{dragEv.clientName} — {minToHHMM(drag.ghostMin)}</div>
-                        </div>
-                      )
+                      return <div style={{ position: 'absolute', left: 8, right: 8, top: minToY(drag.ghostMin), height: Math.max(SLOT_H*6, (dragEv.durMin/5)*SLOT_H)-2, borderRadius: 14, border: '2px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.12)', pointerEvents: 'none', zIndex: 40 }}><div style={{ padding: '6px 10px', fontWeight: 900, fontSize: 11, color: '#d7ecff' }}>{dragEv.clientName} — {minToHHMM(drag.ghostMin)}</div></div>
                     })()}
-
                     {/* Events */}
                     {colEvents.map(ev => {
                       const top = minToY(ev.startMin)
-                      const height = Math.max(SLOT_H * 6, (ev.durMin / 5) * SLOT_H)
+                      const height = Math.max(SLOT_H*6, (ev.durMin/5)*SLOT_H)
                       const isBlock = ev.type === 'block' || ev.status === 'block'
                       const canDrag = isBlock ? isOwnerOrAdmin : (!isBarber || ev.barberId === myBarberId)
 
-                      if (isBlock) {
-                        return (
-                          <div key={ev.id}
-                            style={{ position: 'absolute', left: 4, right: 4, top, height: height - 2, borderRadius: 10, background: 'repeating-linear-gradient(45deg,rgba(255,107,107,.10) 0px,rgba(255,107,107,.10) 6px,rgba(255,107,107,.04) 6px,rgba(255,107,107,.04) 12px)', border: `1px solid ${drag?.eventId === ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.28)'}`, zIndex: drag?.eventId === ev.id ? 50 : 3, overflow: 'hidden', cursor: isOwnerOrAdmin ? (drag?.eventId === ev.id ? 'grabbing' : 'grab') : 'default', opacity: drag?.eventId === ev.id ? 0.5 : 1, userSelect: 'none' }}
-                            onMouseDown={e => { if (!isOwnerOrAdmin || e.button !== 0) return; e.stopPropagation(); startDrag(e, ev, bi) }}
-                            onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); startDrag(e, ev, bi) }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                                <span style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(255,107,107,.80)', fontWeight: 900 }}>Blocked {minToHHMM(ev.startMin)}–{minToHHMM(ev.startMin + ev.durMin)}</span>
-                              </div>
-                              {isOwnerOrAdmin && (
-                                <button onMouseDown={e => e.stopPropagation()}
-                                  onClick={e => { e.stopPropagation(); setEvents(prev => prev.filter(x => x.id !== ev.id)); if (ev._raw?.id) apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), { method: 'DELETE' }).catch(console.warn) }}
-                                  style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: 'rgba(255,107,107,.90)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, flexShrink: 0, fontFamily: 'inherit' }}>✕</button>
-                              )}
+                      if (isBlock) return (
+                        <div key={ev.id}
+                          style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, background: 'repeating-linear-gradient(45deg,rgba(255,107,107,.10) 0px,rgba(255,107,107,.10) 6px,rgba(255,107,107,.04) 6px,rgba(255,107,107,.04) 12px)', border: `1px solid ${drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.28)'}`, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'hidden', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'grab') : 'default', opacity: drag?.eventId===ev.id ? 0.5 : 1, userSelect: 'none' }}
+                          onMouseDown={e => { if (!isOwnerOrAdmin || e.button!==0) return; e.stopPropagation(); startDrag(e, ev, bi) }}
+                          onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); startDrag(e, ev, bi) }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                              <span style={{ fontSize: 10, textTransform: 'uppercase', color: 'rgba(255,107,107,.80)', fontWeight: 900 }}>Blocked {minToHHMM(ev.startMin)}–{minToHHMM(ev.startMin+ev.durMin)}</span>
                             </div>
-                            {isOwnerOrAdmin && (
-                              <div onMouseDown={e => {
-                                e.stopPropagation(); e.preventDefault()
-                                const startY = e.clientY, startDur = ev.durMin
-                                const onMove = (me: MouseEvent) => { const addMin = Math.round((me.clientY - startY) / SLOT_H) * 5; setEvents(prev => prev.map(x => x.id === ev.id ? { ...x, durMin: Math.max(5, startDur + addMin) } : x)) }
-                                const onUp = () => {
-                                  window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp)
-                                  const updEv = events.find(x => x.id === ev.id)
-                                  if (updEv?._raw?.id) { const startAt = new Date(updEv.date + 'T' + minToHHMM(updEv.startMin) + ':00'); apiFetch('/api/bookings/' + encodeURIComponent(String(updEv._raw.id)), { method: 'PATCH', body: JSON.stringify({ end_at: new Date(startAt.getTime() + updEv.durMin * 60000).toISOString() }) }).catch(console.warn) }
-                                }
-                                window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp)
-                              }} style={{ position: 'absolute', left: 10, right: 10, bottom: 4, height: 8, borderRadius: 999, background: 'rgba(255,107,107,.25)', cursor: 'ns-resize' }} />
-                            )}
+                            {isOwnerOrAdmin && <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setEvents(prev => prev.filter(x => x.id!==ev.id)); if (ev._raw?.id) apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'DELETE'}).catch(console.warn) }} style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: 'rgba(255,107,107,.90)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontFamily: 'inherit' }}>✕</button>}
                           </div>
-                        )
-                      }
+                          {isOwnerOrAdmin && <div onMouseDown={e => {
+                            e.stopPropagation(); e.preventDefault()
+                            const startY = e.clientY, startDur = ev.durMin
+                            const onMove = (me: MouseEvent) => { setEvents(prev => prev.map(x => x.id===ev.id ? {...x, durMin: Math.max(5, startDur + Math.round((me.clientY-startY)/SLOT_H)*5)} : x)) }
+                            const onUp = () => { window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); const u = events.find(x=>x.id===ev.id); if (u?._raw?.id) { const sa=new Date(u.date+'T'+minToHHMM(u.startMin)+':00'); apiFetch('/api/bookings/'+encodeURIComponent(String(u._raw.id)),{method:'PATCH',body:JSON.stringify({end_at:new Date(sa.getTime()+u.durMin*60000).toISOString()})}).catch(console.warn) } }
+                            window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp)
+                          }} style={{ position: 'absolute', left: 10, right: 10, bottom: 4, height: 8, borderRadius: 999, background: 'rgba(255,107,107,.25)', cursor: 'ns-resize' }} />}
+                        </div>
+                      )
 
                       return (
                         <div key={ev.id} className="cal-event"
-                          style={{ position: 'absolute', left: 8, right: 8, top, height: height - 2, borderRadius: 14, border: `1px solid ${drag?.eventId === ev.id ? 'rgba(10,132,255,.75)' : 'rgba(255,255,255,.14)'}`, background: `linear-gradient(180deg,${barber.color}44,${barber.color}22)`, padding: '8px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId === ev.id ? 50 : 5, opacity: drag?.eventId === ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
-                          onMouseDown={e => { if (!canDrag || e.button !== 0) return; startDrag(e, ev, bi) }}
+                          style={{ position: 'absolute', left: 8, right: 8, top, height: height-2, borderRadius: 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.75)' : 'rgba(255,255,255,.14)'}`, background: `linear-gradient(180deg,${barber.color}44,${barber.color}22)`, padding: '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
+                          onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; startDrag(e, ev, bi) }}
                           onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
-                            <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-                              {isBarber ? ev.clientName : ev.clientName}
-                            </div>
+                            <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{ev.clientName}</div>
                             {ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />}
                           </div>
-                          {height > 40 && (
-                            <div style={{ marginTop: 4, fontSize: 11, color: 'rgba(255,255,255,.70)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {minToHHMM(ev.startMin)} · {ev.serviceName}
-                            </div>
-                          )}
+                          {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToHHMM(ev.startMin)} · {ev.serviceName}</div>}
                         </div>
                       )
                     })}
@@ -642,20 +826,15 @@ export default function CalendarPage() {
       {/* Context menu */}
       {contextMenu && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setContextMenu(null)}>
-          <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: 'linear-gradient(180deg,rgba(30,30,30,.98),rgba(18,18,18,.98))', backdropFilter: 'blur(18px)', boxShadow: '0 12px 40px rgba(0,0,0,.6)', padding: 6, minWidth: 190, fontFamily: 'Inter,sans-serif' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', padding: '6px 10px 4px' }}>
-              {minToHHMM(contextMenu.min)} · {barbers.find(b => b.id === contextMenu.barberId)?.name}
-            </div>
+          <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: 'linear-gradient(180deg,rgba(30,30,30,.98),rgba(18,18,18,.98))', backdropFilter: 'blur(18px)', boxShadow: '0 12px 40px rgba(0,0,0,.6)', padding: 6, minWidth: 190, fontFamily: 'Inter,sans-serif' }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', padding: '6px 10px 4px' }}>{minToHHMM(contextMenu.min)} · {barbers.find(b=>b.id===contextMenu.barberId)?.name}</div>
             {[
-              { label: 'New booking', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, bg: 'rgba(10,132,255,.18)', border: 'rgba(10,132,255,.35)', color: '#e9e9e9', action: () => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) } },
-              { label: 'Block this time', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffd0d0" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, bg: 'rgba(255,107,107,.12)', border: 'rgba(255,107,107,.30)', color: '#ffd0d0', action: () => { setContextMenu(null); openCreateBlock(contextMenu.barberId, contextMenu.min) } },
+              { label: 'New booking', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, bg: 'rgba(10,132,255,.18)', brd: 'rgba(10,132,255,.35)', col: '#e9e9e9', fn: () => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) } },
+              { label: 'Block this time', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffd0d0" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, bg: 'rgba(255,107,107,.12)', brd: 'rgba(255,107,107,.30)', col: '#ffd0d0', fn: () => { setContextMenu(null); openCreateBlock(contextMenu.barberId, contextMenu.min) } },
             ].map(item => (
-              <button key={item.label} onClick={item.action}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: 'none', background: 'transparent', color: item.color, cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
-                onMouseEnter={e => (e.currentTarget.style.background = item.bg)}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                <span style={{ width: 28, height: 28, borderRadius: 8, background: item.bg, border: `1px solid ${item.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{item.icon}</span>
+              <button key={item.label} onClick={item.fn} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: 'none', background: 'transparent', color: item.col, cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
+                onMouseEnter={e => (e.currentTarget.style.background=item.bg)} onMouseLeave={e => (e.currentTarget.style.background='transparent')}>
+                <span style={{ width: 28, height: 28, borderRadius: 8, background: item.bg, border: `1px solid ${item.brd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{item.icon}</span>
                 {item.label}
               </button>
             ))}
@@ -671,8 +850,8 @@ export default function CalendarPage() {
             <div style={{ width: 'min(380px,92vw)', borderRadius: 22, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(28,28,28,.98),rgba(16,16,16,.98))', boxShadow: '0 24px 80px rgba(0,0,0,.55)', padding: 20, color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
               <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: 'rgba(255,255,255,.70)', marginBottom: 14 }}>Move booking</div>
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 12, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 4 }}>{dragConfirm.newBarberName}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#0a84ff', letterSpacing: '.02em', marginBottom: 4 }}>{minToHHMM(dragConfirm.newMin)}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.08em' }}>{dragConfirm.newBarberName}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#0a84ff', marginBottom: 4 }}>{minToHHMM(dragConfirm.newMin)}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)' }}>{ev.clientName} · {ev.serviceName}</div>
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -685,14 +864,10 @@ export default function CalendarPage() {
       })()}
 
       {/* Date picker */}
-      {datePickerOpen && (
-        <DatePickerModal current={anchor} onSelect={d => { const x = new Date(d); x.setHours(0,0,0,0); setAnchor(x) }} onClose={() => setDatePickerOpen(false)} />
-      )}
+      {datePickerOpen && <DatePickerModal current={anchor} onSelect={d => { const x=new Date(d); x.setHours(0,0,0,0); setAnchor(x) }} onClose={() => setDatePickerOpen(false)} />}
 
       {/* Settings */}
-      {settingsOpen && (
-        <SettingsModal barbers={barbers} services={services} onClose={() => setSettingsOpen(false)} onReload={reloadAll} />
-      )}
+      {settingsOpen && <SettingsModal barbers={barbers} services={services} onClose={() => setSettingsOpen(false)} onReload={reloadAll} />}
 
       {/* Booking modal */}
       {modal.open && (
@@ -701,30 +876,12 @@ export default function CalendarPage() {
           barberId={selectedEvent?.barberId || barbers[0]?.id || ''}
           barberName={selectedEvent?.barberName || barbers[0]?.name || ''}
           date={selectedEvent?.date || todayStr}
-          startMin={selectedEvent?.startMin || 9 * 60}
-          barbers={barbers}
-          services={services}
-          isOwnerOrAdmin={isOwnerOrAdmin}
-          myBarberId={myBarberId}
-          existingEvent={selectedEvent ? {
-            id: selectedEvent.id,
-            clientName: selectedEvent.clientName,
-            clientPhone: selectedEvent.clientPhone,
-            serviceId: selectedEvent.serviceId,
-            status: selectedEvent.status,
-            notes: selectedEvent.notes,
-            paid: selectedEvent.paid,
-            paymentMethod: selectedEvent.paymentMethod,
-            photoUrl: selectedEvent._raw?.reference_photo_url || selectedEvent._raw?.photo_url || '',
-            _raw: selectedEvent._raw,
-          } : null}
-          onClose={() => {
-            if (modal.isNew) setEvents(prev => prev.filter(e => e.id !== modal.eventId))
-            setModal({ open: false, eventId: null, isNew: false })
-          }}
-          onSave={handleSave}
-          onDelete={handleDelete}
-          onPayment={handlePayment}
+          startMin={selectedEvent?.startMin || 9*60}
+          barbers={barbers} services={services}
+          isOwnerOrAdmin={isOwnerOrAdmin} myBarberId={myBarberId}
+          existingEvent={selectedEvent ? { id: selectedEvent.id, clientName: selectedEvent.clientName, clientPhone: selectedEvent.clientPhone, serviceId: selectedEvent.serviceId, status: selectedEvent.status, notes: selectedEvent.notes, paid: selectedEvent.paid, paymentMethod: selectedEvent.paymentMethod, photoUrl: selectedEvent._raw?.reference_photo_url || selectedEvent._raw?.photo_url || '', _raw: selectedEvent._raw } : null}
+          onClose={() => { if (modal.isNew) setEvents(prev => prev.filter(e => e.id !== modal.eventId)); setModal({ open: false, eventId: null, isNew: false }) }}
+          onSave={handleSave} onDelete={handleDelete} onPayment={handlePayment}
         />
       )}
     </Shell>
