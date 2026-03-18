@@ -115,32 +115,6 @@ function Chip({ label, type }: { label: string; type: string }) {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const SLOT_H = 11
-const START_HOUR = 9
-const END_HOUR = 21
-const COL_MIN = 190
-const BARBER_COLORS = ['#99d100','#a86bff','#0a84ff','#ffb000','#ff5aa5','#35d6c7','#ff6b6b']
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-const DAY_DEFAULTS: DaySchedule[] = [
-  { enabled: false, startMin: 10*60, endMin: 20*60 },
-  { enabled: true,  startMin: 10*60, endMin: 20*60 },
-  { enabled: true,  startMin: 10*60, endMin: 20*60 },
-  { enabled: true,  startMin: 10*60, endMin: 20*60 },
-  { enabled: true,  startMin: 10*60, endMin: 20*60 },
-  { enabled: true,  startMin: 10*60, endMin: 20*60 },
-  { enabled: true,  startMin: 10*60, endMin: 20*60 },
-]
-interface DaySchedule { enabled: boolean; startMin: number; endMin: number }
-const pad2 = (n: number) => String(n).padStart(2, '0')
-const minToHHMM = (min: number) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
-const isoDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`
-const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
-const fmtDateLong = (d: Date) => d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-const uid = () => 'e_' + Math.random().toString(16).slice(2)
-const clamp = (min: number) => Math.max(START_HOUR * 60, Math.min(min, END_HOUR * 60 - 5))
-function minToTimeStr(min: number) { return `${pad2(Math.floor(min/60))}:${pad2(min%60)}` }
 function timeStrToMin(s: string) { const [h,m] = s.split(':').map(Number); return (h||0)*60+(m||0) }
 
 async function apiFetch(path: string, opts?: RequestInit) {
