@@ -495,6 +495,9 @@ export default function CalendarPage() {
   const isOwnerOrAdmin = currentUser?.role === 'owner' || currentUser?.role === 'admin'
   const myBarberId = currentUser?.barber_id || ''
 
+  // Barber sees only their own column
+  const visibleBarbers = isBarber ? barbers.filter(b => b.id === myBarberId) : barbers
+
   const todayStr = isoDate(anchor)
   const selectedEvent = events.find(e => e.id === modal.eventId) || null
 
@@ -722,12 +725,12 @@ export default function CalendarPage() {
 
         {/* Calendar grid */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
-          <div style={{ minWidth: 90 + barbers.length * COL_MIN }}>
+          <div style={{ minWidth: 90 + visibleBarbers.length * COL_MIN }}>
             {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${barbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
               <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,.10)', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', textAlign: 'center' }}>Time</div>
-              {barbers.map((b, i) => (
-                <div key={b.id} style={{ padding: '10px 12px', borderRight: i < barbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+              {visibleBarbers.map((b, i) => (
+                <div key={b.id} style={{ padding: '10px 12px', borderRight: i < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
                   {b.photo ? <img src={b.photo} alt={b.name} style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} /> : <div style={{ width: 10, height: 10, borderRadius: 999, background: b.color, flexShrink: 0 }} />}
                   <div><div style={{ fontWeight: 900, fontSize: 13 }}>{b.name}</div>{b.level && <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgba(255,255,255,.35)' }}>{b.level}</div>}</div>
                 </div>
@@ -735,7 +738,7 @@ export default function CalendarPage() {
             </div>
 
             {/* Body */}
-            <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${barbers.length}, minmax(${COL_MIN}px,1fr))`, height: totalH, position: 'relative' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, height: totalH, position: 'relative' }}>
               {/* Time labels */}
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
                 {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
@@ -744,11 +747,11 @@ export default function CalendarPage() {
               </div>
 
               {/* Columns */}
-              {barbers.map((barber, bi) => {
+              {visibleBarbers.map((barber, bi) => {
                 const colEvents = filtered.filter(e => e.barberId === barber.id)
                 return (
                   <div key={barber.id} ref={el => { colRefs.current[bi] = el }}
-                    style={{ position: 'relative', borderRight: bi < barbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'rgba(0,0,0,.06)', transition: 'background .15s' }}
+                    style={{ position: 'relative', borderRight: bi < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'rgba(0,0,0,.06)', transition: 'background .15s' }}
                     onClick={e => {
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       if (isBarber && barber.id !== myBarberId) return
