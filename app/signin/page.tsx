@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 
 export default function SignInPage() {
@@ -7,6 +8,7 @@ export default function SignInPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     if (!username || !password) { setError('Enter username and password.'); return }
@@ -20,14 +22,23 @@ export default function SignInPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Login failed')
-      
+
+      // Save to localStorage
       localStorage.setItem('ELEMENT_TOKEN', data.token)
       localStorage.setItem('ELEMENT_USER', JSON.stringify(data.user))
-      
+
+      // Verify it saved
+      const saved = localStorage.getItem('ELEMENT_TOKEN')
+      if (!saved) throw new Error('Failed to save session')
+
       const role = data.user?.role || 'barber'
       const dest = role === 'barber' ? '/calendar' : '/dashboard'
-      
-      window.location.replace(dest)
+
+      // Hard redirect after short delay to ensure localStorage is persisted
+      setTimeout(() => {
+        window.location.href = dest
+      }, 100)
+
     } catch (err: any) {
       setError(err.message || 'Login failed')
       setLoading(false)
@@ -59,7 +70,7 @@ export default function SignInPage() {
           </div>
           {error && <div style={{ padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', fontSize: 13, marginBottom: 12 }}>{error}</div>}
           <button type="submit" disabled={loading}
-            style={{ width: '100%', height: 52, marginTop: 8, borderRadius: 14, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', fontSize: 14, fontWeight: 900, letterSpacing: '.06em', textTransform: 'uppercase', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+            style={{ width: '100%', height: 52, marginTop: 8, borderRadius: 14, border: '1px solid rgba(10,132,255,.65)', background: loading ? 'rgba(10,132,255,.08)' : 'rgba(10,132,255,.14)', color: '#d7ecff', fontSize: 14, fontWeight: 900, letterSpacing: '.06em', textTransform: 'uppercase', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
