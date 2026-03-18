@@ -12,6 +12,12 @@ interface Barber {
   photo?: string
   color: string
   serverId?: string
+  about?: string
+  basePrice?: string
+  publicRole?: string
+  radarLabels?: string[]
+  radarValues?: number[]
+  username?: string
 }
 
 interface Service {
@@ -574,6 +580,12 @@ export default function CalendarPage() {
       photo: String(b.photo_url || b.photoUrl || b.photo || '').trim(),
       color: BARBER_COLORS[i % BARBER_COLORS.length],
       serverId: String(b.id || ''),
+      about: String(b.about || b.description || b.bio || '').trim(),
+      basePrice: String(b.base_price || b.price || '').trim(),
+      publicRole: String(b.public_role || b.level || '').trim(),
+      radarLabels: Array.isArray(b.radar_labels) ? b.radar_labels : ['FADE','LONG','BEARD','STYLE','DETAIL'],
+      radarValues: Array.isArray(b.radar_values) ? b.radar_values.map(Number) : [4.5,4.5,4.5,4.5,4.5],
+      username: String(b.username || '').trim(),
     })).filter((b: Barber) => b.id && b.name)
   }, [])
 
@@ -945,6 +957,209 @@ export default function CalendarPage() {
   )
 }
 
+// ─── BARBER EDIT CARD ────────────────────────────────────────────────────────
+function BarberEditCard({ b, onDelete, onSaved, onError, inputStyle, labelStyle, btnStyle, primaryBtnStyle, dangerBtnStyle }: {
+  b: Barber
+  onDelete: (id: string, name: string) => void
+  onSaved: () => void
+  onError: (e: string) => void
+  inputStyle: React.CSSProperties
+  labelStyle: React.CSSProperties
+  btnStyle: React.CSSProperties
+  primaryBtnStyle: React.CSSProperties
+  dangerBtnStyle: React.CSSProperties
+}) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  // Editable fields — initialized from barber data
+  const [level, setLevel] = useState(b.level || '')
+  const [price, setPrice] = useState(b.basePrice || '')
+  const [about, setAbout] = useState(b.about || '')
+  const [publicRole, setPublicRole] = useState(b.publicRole || b.level || '')
+  const [radarLabels, setRadarLabels] = useState((b.radarLabels || ['FADE','LONG','BEARD','STYLE','DETAIL']).join(','))
+  const [radarValues, setRadarValues] = useState((b.radarValues || [4.5,4.5,4.5,4.5,4.5]).join(','))
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState('')
+  const [sched, setSched] = useState<DaySchedule[]>(DAY_DEFAULTS.map(d => ({...d})))
+  const [schedLoaded, setSchedLoaded] = useState(false)
+
+  // Update fields if barber data changes (after reload)
+  React.useEffect(() => {
+    setLevel(b.level || '')
+    setPrice(b.basePrice || '')
+    setAbout(b.about || '')
+    setPublicRole(b.publicRole || b.level || '')
+    setRadarLabels((b.radarLabels || ['FADE','LONG','BEARD','STYLE','DETAIL']).join(','))
+    setRadarValues((b.radarValues || [4.5,4.5,4.5,4.5,4.5]).join(','))
+  }, [b.id, b.level, b.about])
+
+  function handleOpen() {
+    setOpen(v => !v)
+    if (!schedLoaded) {
+      // Try to load schedule from API
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      fetch(`https://element-crm-api-431945333485.us-central1.run.app/api/barbers`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(r => r.json()).then(data => {
+        const list = Array.isArray(data) ? data : (data?.barbers || [])
+        const raw = list.find((x: any) => String(x.id) === String(b.id))
+        if (raw?.schedule?.perDay && Array.isArray(raw.schedule.perDay) && raw.schedule.perDay.length === 7) {
+          setSched(raw.schedule.perDay.map((d: any) => ({ enabled: !!d.enabled, startMin: Number(d.startMin)||10*60, endMin: Number(d.endMin)||20*60 })))
+        } else if (raw?.schedule?.days) {
+          const days: number[] = raw.schedule.days
+          setSched(DAY_DEFAULTS.map((def, i) => ({ ...def, enabled: days.includes(i), startMin: raw.schedule.startMin || 10*60, endMin: raw.schedule.endMin || 20*60 })))
+        }
+        setSchedLoaded(true)
+      }).catch(() => setSchedLoaded(true))
+    }
+  }
+
+  function handlePhoto(file: File | null) {
+    if (!file) return
+    setPhotoFile(file)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 900, scale = Math.min(1, MAX/img.width, MAX/img.height)
+        const w = Math.round(img.width*scale), h = Math.round(img.height*scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+        let q = 0.82, out = canvas.toDataURL('image/jpeg', q)
+        while (out.length > 900000 && q > 0.35) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q) }
+        setPhotoPreview(out)
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function save() {
+    setSaving(true)
+    try {
+      const enabledDays = sched.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
+      const startMins = sched.filter(d => d.enabled).map(d => d.startMin)
+      const endMins = sched.filter(d => d.enabled).map(d => d.endMin)
+      const schedPayload = {
+        startMin: startMins.length ? Math.min(...startMins) : 10*60,
+        endMin: endMins.length ? Math.max(...endMins) : 20*60,
+        days: enabledDays, perDay: sched
+      }
+      const rLabels = radarLabels.split(',').map(s => s.trim()).filter(Boolean)
+      const rValues = radarValues.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
+      const photoUrl = photoPreview || b.photo || ''
+
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      const res = await fetch(`https://element-crm-api-431945333485.us-central1.run.app/api/barbers/${encodeURIComponent(b.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          level, base_price: price,
+          public_role: publicRole || level,
+          about, description: about, bio: about,
+          radar_labels: rLabels.length ? rLabels : ['FADE','LONG','BEARD','STYLE','DETAIL'],
+          radar_values: rValues.length ? rValues : [4.5,4.5,4.5,4.5,4.5],
+          photo_url: photoUrl,
+          schedule: schedPayload, work_schedule: schedPayload,
+          public_off_days: DAY_NAMES.filter((_, i) => !sched[i].enabled),
+          public_enabled: true
+        })
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Save failed') }
+      setPhotoFile(null); setPhotoPreview('')
+      onSaved()
+    } catch (e: any) { onError(e.message) }
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ borderRadius: 16, border: `1px solid ${open ? 'rgba(10,132,255,.35)' : 'rgba(255,255,255,.10)'}`, background: open ? 'rgba(10,132,255,.04)' : 'rgba(0,0,0,.14)', transition: 'all .18s' }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {(photoPreview || b.photo)
+            ? <img src={photoPreview || b.photo} alt={b.name} style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} />
+            : <div style={{ width: 48, height: 48, borderRadius: 12, background: b.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, flexShrink: 0, color: '#fff' }}>{b.name[0]}</div>
+          }
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 900, fontSize: 14 }}>{b.name}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase', marginTop: 2 }}>
+              {b.level || 'Barber'}{b.basePrice ? ` · $${b.basePrice}` : ''}{b.username ? ` · @${b.username}` : ''}
+            </div>
+            {b.about && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>{b.about}</div>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button onClick={handleOpen} style={{ ...btnStyle, borderColor: open ? 'rgba(10,132,255,.55)' : undefined, background: open ? 'rgba(10,132,255,.12)' : undefined, color: open ? '#d7ecff' : undefined }}>
+            {open ? 'Collapse' : 'Edit'}
+          </button>
+          <button onClick={() => onDelete(b.id, b.name)} style={dangerBtnStyle}>Remove</button>
+        </div>
+      </div>
+
+      {/* Edit form */}
+      {open && (
+        <div style={{ padding: '0 14px 14px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
+          <div style={{ paddingTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={labelStyle}>Level / Rank</label>
+              <input value={level} onChange={e => setLevel(e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Base price ($)</label>
+              <input value={price} onChange={e => setPrice(e.target.value)} placeholder="55.99" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Public role</label>
+              <input value={publicRole} onChange={e => setPublicRole(e.target.value)} placeholder="Ambassador" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Radar labels</label>
+              <input value={radarLabels} onChange={e => setRadarLabels(e.target.value)} placeholder="FADE,LONG,BEARD,STYLE,DETAIL" style={inputStyle} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>About / Bio (shown on public website)</label>
+              <textarea value={about} onChange={e => setAbout(e.target.value)} rows={3}
+                placeholder="Precision fades. Clean silhouette. Premium finish — built for clients who want it perfect from every angle."
+                style={{ ...inputStyle, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Radar values (0–5, comma separated)</label>
+              <input value={radarValues} onChange={e => setRadarValues(e.target.value)} placeholder="4.5,4.5,4.5,4.5,4.5" style={inputStyle} />
+            </div>
+
+            {/* Photo */}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Photo</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ height: 40, padding: '0 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                  {photoFile ? photoFile.name : 'Change photo…'}
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handlePhoto(e.target.files?.[0] || null)} />
+                </label>
+                {(photoPreview || b.photo) && <img src={photoPreview || b.photo} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)' }} onError={e => (e.currentTarget.style.display='none')} />}
+                {photoPreview && <button onClick={() => { setPhotoFile(null); setPhotoPreview('') }} style={{ ...dangerBtnStyle, height: 30, padding: '0 10px', fontSize: 11 }}>✕</button>}
+              </div>
+            </div>
+          </div>
+
+          {/* Schedule */}
+          <div style={{ marginTop: 12 }}>
+            <label style={labelStyle}>Working schedule</label>
+            <SchedGrid schedule={sched} onChange={setSched} />
+          </div>
+
+          <button onClick={save} disabled={saving} style={{ ...primaryBtnStyle, width: '100%', height: 44, marginTop: 12 }}>
+            {saving ? 'Saving…' : 'Save changes — update on website'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 // ─── SETTINGS MODAL ───────────────────────────────────────────────────────────
 function SettingsModal({
   barbers, services, onClose, onReload
@@ -1196,48 +1411,21 @@ function SettingsModal({
               </div>
             </div>
 
-            <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 8 }}>Current barbers</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 8 }}>Current barbers ({barbers.length})</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {barbers.map(b => (
-                <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.18)', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 999, background: b.color, flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontWeight: 900, fontSize: 13 }}>{b.name}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>{b.level || 'Barber'}</div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <label style={{ height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: 11, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                      Upload photo
-                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
-                        const file = e.target.files?.[0]
-                        if (!file) return
-                        const reader = new FileReader()
-                        reader.onload = async () => {
-                          const img = new Image()
-                          img.onload = async () => {
-                            const MAX = 900, scale = Math.min(1, MAX/img.width, MAX/img.height)
-                            const w = Math.round(img.width*scale), h = Math.round(img.height*scale)
-                            const canvas = document.createElement('canvas')
-                            canvas.width = w; canvas.height = h
-                            canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-                            let q = 0.82, out = canvas.toDataURL('image/jpeg', q)
-                            while (out.length > 900000 && q > 0.35) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q) }
-                            try {
-                              await apiFetch('/api/barbers/' + encodeURIComponent(b.id), { method: 'PATCH', body: JSON.stringify({ photo_url: out }) })
-                              setMsg('Photo updated for ' + b.name + ' ✓')
-                              onReload()
-                            } catch (err: any) { setMsg('Error: ' + err.message) }
-                          }
-                          img.src = reader.result as string
-                        }
-                        reader.readAsDataURL(file)
-                      }} />
-                    </label>
-                    <button onClick={() => deleteBarber(b.id, b.name)} style={dangerBtnStyle}>Remove</button>
-                  </div>
-                </div>
+                <BarberEditCard
+                  key={b.id}
+                  b={b}
+                  onDelete={deleteBarber}
+                  onSaved={() => { setMsg('Saved ✓ — updated on website'); onReload() }}
+                  onError={(e: string) => setMsg('Error: ' + e)}
+                  inputStyle={inputStyle}
+                  labelStyle={labelStyle}
+                  btnStyle={btnStyle}
+                  primaryBtnStyle={primaryBtnStyle}
+                  dangerBtnStyle={dangerBtnStyle}
+                />
               ))}
             </div>
           </div>
