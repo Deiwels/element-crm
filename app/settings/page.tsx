@@ -460,6 +460,32 @@ export default function SettingsPage() {
                         <option value="0">100% to owner</option>
                       </select>
                     </Field>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={lbl}>Tip options shown on Terminal screen</label>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginBottom: 8 }}>3 preset percentages + "No tip" button shown on Square Terminal</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                        {[0,1,2].map(i => (
+                          <div key={i}>
+                            <label style={{ ...lbl, marginBottom: 4 }}>Option {i+1} (%)</label>
+                            <input type="number" min={0} max={100} step={1}
+                              value={(payroll.tip_options?.[i]) ?? [15,20,25][i]}
+                              onChange={e => {
+                                const opts = [...(payroll.tip_options || [15,20,25])]
+                                opts[i] = Number(e.target.value)
+                                setNested('payroll','tip_options',opts)
+                              }}
+                              style={inp} />
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.14)', fontSize: 12, color: 'rgba(255,255,255,.55)' }}>
+                        Preview on Terminal: {' '}
+                        {(payroll.tip_options || [15,20,25]).map((p: number, i: number) => (
+                          <span key={i} style={{ marginRight: 8, padding: '2px 10px', borderRadius: 999, border: '1px solid rgba(10,132,255,.40)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', fontSize: 11 }}>{p}%</span>
+                        ))}
+                        <span style={{ padding: '2px 10px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.55)', fontSize: 11 }}>No tip</span>
+                      </div>
+                    </div>
                     <Field label="Pay period">
                       <select value={payroll.period || 'weekly'} onChange={e => setNested('payroll','period',e.target.value)} style={inp}>
                         <option value="daily">Daily closeout</option>

@@ -609,14 +609,30 @@ function PaymentPanel({ ev, services, onPayment }: {
     if (!backendId) { setHint('Save booking first'); return }
     if (!price) { setHint('Service has no price'); return }
     setHint(`Sending $${price.toFixed(2)} to Terminal…`); setPolling(true)
+    // Get tip options from settings (default 15/20/25%)
+    const tipOptions: number[] = shopSettings?.payroll?.tip_options || [15, 20, 25]
     try {
       const res = await apiFetch('/api/payments/terminal', {
         method: 'POST',
-        body: JSON.stringify({ booking_id: String(backendId), amount: priceCalc.total, currency: 'USD', client_name: ev?._raw?.client_name || '', service_name: svc?.name || '', service_amount: basePrice, tax_amount: priceCalc.tax, fee_amount: priceCalc.fees })
+        body: JSON.stringify({
+          booking_id: String(backendId),
+          amount: priceCalc.total,
+          currency: 'USD',
+          client_name: ev?._raw?.client_name || '',
+          service_name: svc?.name || '',
+          service_amount: basePrice,
+          tax_amount: priceCalc.tax,
+          fee_amount: priceCalc.fees,
+          // Tip options for Square Terminal screen
+          tip_options: tipOptions,
+          tip_percentages: tipOptions,
+          allow_tipping: true,
+        })
       })
       const checkoutId = res?.checkout_id
       if (!checkoutId) { setHint('No checkout ID. Check Terminal manually.'); setPolling(false); return }
-      setHint('Waiting for payment…')
+      const tipOptStr = (shopSettings?.payroll?.tip_options || [15,20,25]).join('% / ') + '%'
+      setHint(`Waiting for payment… Tip options: ${tipOptStr} / No tip`)
       let count = 0
       pollRef.current = setInterval(async () => {
         count++
@@ -658,6 +674,19 @@ function PaymentPanel({ ev, services, onPayment }: {
         Accept payment {price > 0 && <span style={{ color: '#e9e9e9', fontWeight: 900 }}> — ${price.toFixed(2)}</span>}
       </div>
       <PriceBreakdown />
+      {/* Tip options preview for terminal */}
+      {method === 'terminal' && (() => {
+        const opts: number[] = shopSettings?.payroll?.tip_options || [15, 20, 25]
+        return (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' as const, marginBottom: 8 }}>
+            <span style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)' }}>Tip on screen:</span>
+            {opts.map((p: number) => (
+              <span key={p} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, border: '1px solid rgba(143,240,177,.35)', background: 'rgba(143,240,177,.08)', color: '#c9ffe1' }}>{p}%</span>
+            ))}
+            <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.45)' }}>No tip</span>
+          </div>
+        )
+      })()}
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         {(['terminal','cash','zelle','other'] as const).map(m => (
           <button key={m} onClick={() => { setMethod(m); setHint(''); if (m === 'terminal') handleTerminal() }} disabled={polling} style={methodStyle(m)}>
