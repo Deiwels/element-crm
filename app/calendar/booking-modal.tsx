@@ -4,26 +4,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 const API_KEY = 'R1403ss81fxrx*rx1403'
 
-// ─── Shop settings cache ──────────────────────────────────────────────────────
-let _shopSettings: any = null
-let _settingsLoading = false
-let _settingsCallbacks: Array<(s: any) => void> = []
-
+// ─── Shop settings — always fresh, no permanent cache ────────────────────────
 async function getShopSettings() {
-  if (_shopSettings) return _shopSettings
-  if (_settingsLoading) return new Promise<any>(r => _settingsCallbacks.push(r))
-  _settingsLoading = true
   try {
     const token = localStorage.getItem('ELEMENT_TOKEN') || ''
     const res = await fetch(API + '/api/settings', {
       headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }
     })
-    _shopSettings = res.ok ? await res.json() : {}
-  } catch { _shopSettings = {} }
-  _settingsLoading = false
-  _settingsCallbacks.forEach(cb => cb(_shopSettings))
-  _settingsCallbacks = []
-  return _shopSettings
+    return res.ok ? await res.json() : {}
+  } catch { return {} }
 }
 
 // ─── Price calculation ────────────────────────────────────────────────────────
