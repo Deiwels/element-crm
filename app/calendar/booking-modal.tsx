@@ -70,26 +70,44 @@ async function apiFetch(path: string, opts?: RequestInit) {
 }
 
 // ─── ClientSearch ─────────────────────────────────────────────────────────────
-function ClientSearch({ onSelect, isOwnerOrAdmin }: {
+function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: {
   onSelect: (c: Client | null, name: string) => void
   isOwnerOrAdmin: boolean
+  initialClient?: Client | null
+  initialName?: string
 }) {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialName || '')
   const [results, setResults] = useState<Client[]>([])
   const [loading, setLoading] = useState(false)
-  const [selected, setSelected] = useState<Client | null>(null)
+  const [selected, setSelected] = useState<Client | null>(initialClient || null)
   const [showNew, setShowNew] = useState(false)
   const [open, setOpen] = useState(false)
   const timerRef = useRef<any>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const search = useCallback((q: string) => {
+  // Reset when initialClient changes (new modal open)
+  useEffect(() => {
+    setSelected(initialClient || null)
+    setQuery(initialClient ? initialClient.name : (initialName || ''))
+    setResults([]); setShowNew(false); setOpen(false)
+  }, [initialClient?.id, initialName])
+
+  const doSearch = useCallback((q: string) => {
     if (q.length < 2) { setResults([]); setLoading(false); return }
     setLoading(true)
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(async () => {
       try {
         const data = await apiFetch(`/api/clients/search?q=${encodeURIComponent(q)}`)
-        setResults(Array.isArray(data?.clients) ? data.clients : Array.isArray(data) ? data : [])
+        const list = Array.isArray(data?.clients) ? data.clients : Array.isArray(data) ? data : []
+        setResults(list.map((c: any) => ({
+          id: String(c.id || c.uid || ''),
+          name: String(c.name || c.full_name || ''),
+          phone: String(c.phone || c.phone_number || ''),
+          email: String(c.email || ''),
+          notes: String(c.notes || ''),
+          visitCount: Number(c.visit_count || c.visits || 0),
+        })).filter((c: Client) => c.name))
       } catch { setResults([]) }
       setLoading(false)
     }, 300)
@@ -101,26 +119,30 @@ function ClientSearch({ onSelect, isOwnerOrAdmin }: {
   }
 
   function clear() {
-    setSelected(null); setQuery(''); setResults([]); setShowNew(false)
+    setSelected(null); setQuery(''); setResults([]); setShowNew(false); setOpen(false)
     onSelect(null, '')
+    setTimeout(() => inputRef.current?.focus(), 50)
   }
 
-  const inp: React.CSSProperties = { width: '100%', height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 14, fontFamily: 'inherit' }
+  const inp: React.CSSProperties = { width: '100%', height: 46, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 14, fontFamily: 'inherit' }
 
+  // Show client card if selected
   if (selected) {
     return (
-      <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(10,132,255,.35)', background: 'rgba(10,132,255,.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(10,132,255,.20)', border: '1px solid rgba(10,132,255,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>👤</div>
-          <div>
-            <div style={{ fontWeight: 900, fontSize: 14 }}>{selected.name}</div>
+      <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(10,132,255,.40)', background: 'rgba(10,132,255,.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(10,132,255,.22)', border: '1px solid rgba(10,132,255,.40)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 900, fontSize: 15 }}>{selected.name}</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginTop: 2 }}>
-              {isOwnerOrAdmin ? (selected.phone || '—') : (selected.phone ? maskPhone(selected.phone) : '—')}
-              {selected.visitCount ? ` · ${selected.visitCount} visits` : ''}
+              {isOwnerOrAdmin ? (selected.phone || 'No phone') : (selected.phone ? maskPhone(selected.phone) : 'No phone')}
+              {selected.visitCount ? ` · ${selected.visitCount} visit${selected.visitCount !== 1 ? 's' : ''}` : ''}
             </div>
           </div>
         </div>
-        <button onClick={clear} style={{ height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>Change</button>
+        <button onClick={clear} style={{ height: 32, padding: '0 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.70)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 }}>Change</button>
       </div>
     )
   }
@@ -129,43 +151,47 @@ function ClientSearch({ onSelect, isOwnerOrAdmin }: {
     <div style={{ position: 'relative' }}>
       <div style={{ position: 'relative' }}>
         <input
+          ref={inputRef}
           value={query}
-          onChange={e => { setQuery(e.target.value); search(e.target.value); setOpen(true); onSelect(null, e.target.value) }}
-          onFocus={() => setOpen(true)}
-          placeholder="Search by name or phone…"
+          onChange={e => { setQuery(e.target.value); doSearch(e.target.value); setOpen(true); onSelect(null, e.target.value) }}
+          onFocus={() => { if (query.length >= 2) setOpen(true) }}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="Search client by name or phone…"
           style={inp}
           autoComplete="off"
         />
-        {loading && <div style={{ position: 'absolute', right: 12, top: 14, width: 16, height: 16, border: '2px solid rgba(255,255,255,.20)', borderTop: '2px solid #0a84ff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+        {loading
+          ? <div style={{ position: 'absolute', right: 14, top: 15, width: 16, height: 16, border: '2px solid rgba(255,255,255,.20)', borderTop: '2px solid #0a84ff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          : query
+            ? <button onMouseDown={e => { e.preventDefault(); clear() }} style={{ position: 'absolute', right: 10, top: 11, width: 24, height: 24, borderRadius: 6, border: 'none', background: 'rgba(255,255,255,.08)', color: 'rgba(255,255,255,.50)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
+            : null
+        }
       </div>
 
-      {open && query.length >= 2 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, marginTop: 4, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(30,30,30,.98),rgba(18,18,18,.98))', backdropFilter: 'blur(18px)', boxShadow: '0 12px 40px rgba(0,0,0,.6)', overflow: 'hidden' }}>
-          {loading ? (
-            <div style={{ padding: '14px 16px', fontSize: 13, color: 'rgba(255,255,255,.45)' }}>Searching…</div>
-          ) : results.length > 0 ? (
-            <>
-              {results.slice(0, 8).map(c => (
-                <div key={c.id} onClick={() => select(c)}
-                  style={{ padding: '12px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', gap: 10 }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.05)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{c.name}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 2 }}>
-                      {isOwnerOrAdmin ? c.phone || '—' : c.phone ? maskPhone(c.phone) : '—'}
-                      {c.visitCount ? ` · ${c.visitCount} visits` : ''}
-                    </div>
-                  </div>
+      {open && query.length >= 2 && !loading && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, marginTop: 4, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(28,28,28,.99),rgba(16,16,16,.99))', backdropFilter: 'blur(18px)', boxShadow: '0 12px 40px rgba(0,0,0,.7)', overflow: 'hidden', maxHeight: 280, overflowY: 'auto' }}>
+          {results.length > 0 ? results.slice(0, 8).map(c => (
+            <div key={c.id} onMouseDown={e => { e.preventDefault(); select(c) }}
+              style={{ padding: '11px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,.05)', display: 'flex', alignItems: 'center', gap: 10 }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(10,132,255,.10)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.50)" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{c.name}</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 1 }}>
+                  {isOwnerOrAdmin ? c.phone || 'No phone' : c.phone ? maskPhone(c.phone) : 'No phone'}
+                  {c.visitCount ? ` · ${c.visitCount} visits` : ''}
                 </div>
-              ))}
-            </>
-          ) : (
+              </div>
+            </div>
+          )) : (
             <div style={{ padding: '14px 16px' }}>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.45)', marginBottom: 10 }}>Client not found</div>
-              <button onClick={() => { setShowNew(true); setOpen(false) }}
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.40)', marginBottom: 10 }}>No client found for "{query}"</div>
+              <button onMouseDown={e => { e.preventDefault(); setOpen(false); setShowNew(true) }}
                 style={{ height: 36, padding: '0 14px', borderRadius: 10, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>
-                + Add new client
+                + Add "{query}" as new client
               </button>
             </div>
           )}
@@ -436,6 +462,7 @@ export function BookingModal({
 }: BookingModalProps) {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientName, setClientName] = useState('')
+  const [modalKey, setModalKey] = useState(0)  // force remount ClientSearch on open
   const [selBarberId, setSelBarberId] = useState(barberId)
   const [serviceId, setServiceId] = useState('')
   const [selStartMin, setSelStartMin] = useState(startMin)
@@ -451,12 +478,19 @@ export function BookingModal({
     if (!isOpen) return
     setSelBarberId(barberId)
     setSelStartMin(startMin)
+    setModalKey(k => k + 1)  // remount ClientSearch
     if (existingEvent) {
       setClientName(existingEvent.clientName || '')
       setServiceId(existingEvent.serviceId || '')
       setStatus(existingEvent.status || 'booked')
       setNotes(existingEvent.notes || '')
-      setPhotoUrl('')  // Upload state is always fresh; existing photo shown separately
+      setPhotoUrl('')
+      // Pre-fill client card if we have client info from existing event
+      if (existingEvent.clientName) {
+        setSelectedClient({ id: '', name: existingEvent.clientName, phone: existingEvent.clientPhone || '', visitCount: 0 })
+      } else {
+        setSelectedClient(null)
+      }
     } else {
       setClientName(''); setServiceId(''); setStatus('booked'); setNotes(''); setPhotoUrl('')
       setSelectedClient(null)
@@ -528,12 +562,15 @@ export function BookingModal({
             <div>
               <label style={lbl}>Client</label>
               <ClientSearch
+                key={modalKey}
                 isOwnerOrAdmin={isOwnerOrAdmin}
-                onSelect={(c, name) => { setSelectedClient(c); setClientName(name || c?.name || '') }}
+                initialClient={selectedClient}
+                initialName={!selectedClient ? clientName : undefined}
+                onSelect={(c, name) => {
+                  setSelectedClient(c)
+                  setClientName(c ? c.name : (name || ''))
+                }}
               />
-              {!selectedClient && clientName && (
-                <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Or type name manually" style={{ ...inp, marginTop: 8, fontSize: 13 }} />
-              )}
             </div>
 
             {/* Booking fields */}
