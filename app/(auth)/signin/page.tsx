@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 
-export default function SignInPage() {
+function SignInForm() {
   const { login } = useAuth()
   const router = useRouter()
   const params = useSearchParams()
@@ -83,5 +83,17 @@ export default function SignInPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={
+      <div className="fixed inset-0 bg-black flex items-center justify-center">
+        <div className="text-white/40 text-sm tracking-widest uppercase">Loading…</div>
+      </div>
+    }>
+      <SignInForm />
+    </Suspense>
   )
 }
