@@ -1,7 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 
 export default function SignInPage() {
@@ -9,8 +7,6 @@ export default function SignInPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
-
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     if (!username || !password) { setError('Enter username and password.'); return }
@@ -31,8 +27,7 @@ export default function SignInPage() {
       const role = data.user?.role || 'barber'
       const dest = role === 'barber' ? '/calendar' : '/dashboard'
       
-      router.push(dest)
-      router.refresh()
+      window.location.replace(dest)
     } catch (err: any) {
       setError(err.message || 'Login failed')
       setLoading(false)
