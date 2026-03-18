@@ -538,9 +538,15 @@ export default function CalendarPage() {
     if (ev._raw?.id) {
       try {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
+        const endAt = new Date(startAt.getTime() + updated.durMin * 60000)
+        const isBlock = updated.type === 'block'
         await apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), {
           method: 'PATCH',
-          body: JSON.stringify({ barber_id: updated.barberId, start_at: startAt.toISOString() })
+          body: JSON.stringify({
+            barber_id: updated.barberId,
+            start_at: startAt.toISOString(),
+            ...(isBlock ? { end_at: endAt.toISOString() } : {})
+          })
         })
       } catch (err: any) { console.warn('drag patch:', err.message) }
     }
@@ -705,13 +711,13 @@ export default function CalendarPage() {
     const blockEv: CalEvent = {
       id, type: 'block', barberId, barberName: barber?.name || '',
       clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Blocked',
-      date: todayStr, startMin: clamp(startMin), durMin: 60,
+      date: todayStr, startMin: clamp(startMin), durMin: 30,
       status: 'block', paid: false, notes: '', _raw: null
     }
     setEvents(prev => [...prev, blockEv])
     // Save to API
     const startAt = new Date(todayStr + 'T' + minToHHMM(startMin) + ':00')
-    const endAt = new Date(startAt.getTime() + 60 * 60000)
+    const endAt = new Date(startAt.getTime() + 30 * 60000)
     apiFetch('/api/bookings', {
       method: 'POST',
       body: JSON.stringify({
@@ -925,27 +931,73 @@ export default function CalendarPage() {
                       const isBlock = ev.type === 'block' || ev.status === 'block'
                       const color = barber.color
                       // Barber can only drag their own bookings, not blocks
-                      const canDrag = !isBlock && (!isBarber || ev.barberId === myBarberId)
+                      const canDrag = isBlock ? isOwnerOrAdmin : (!isBarber || ev.barberId === myBarberId)
                       // Mask client phone for barbers
                       const displayClient = isBarber && ev.clientPhone
                         ? ev.clientName
                         : ev.clientName
 
                       if (isBlock) {
-                        // Block — only owner/admin can remove it
+                        const canDragBlock = isOwnerOrAdmin
                         return (
                           <div key={ev.id}
-                            style={{ position: 'absolute', left: 4, right: 4, top, height: height - 2, borderRadius: 10, background: 'repeating-linear-gradient(45deg, rgba(255,107,107,.08) 0px, rgba(255,107,107,.08) 6px, rgba(255,107,107,.04) 6px, rgba(255,107,107,.04) 12px)', border: '1px solid rgba(255,107,107,.25)', zIndex: 3, overflow: 'hidden', cursor: isOwnerOrAdmin ? 'pointer' : 'default' }}
-                            onClick={e => {
-                              e.stopPropagation()
-                              if (!isOwnerOrAdmin) return
-                              if (!confirm('Remove this block?')) return
-                              setEvents(prev => prev.filter(x => x.id !== ev.id))
-                              if (ev._raw?.id) apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), { method: 'DELETE' }).catch(console.warn)
-                            }}>
-                            <div style={{ padding: '4px 8px', fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,107,107,.70)', fontWeight: 900 }}>
-                              {isOwnerOrAdmin ? '⊘ Blocked — click to remove' : '⊘ Blocked'}
+                            style={{ position: 'absolute', left: 4, right: 4, top, height: height - 2, borderRadius: 10, background: 'repeating-linear-gradient(45deg,rgba(255,107,107,.10) 0px,rgba(255,107,107,.10) 6px,rgba(255,107,107,.04) 6px,rgba(255,107,107,.04) 12px)', border: `1px solid ${drag?.eventId === ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.30)'}`, zIndex: drag?.eventId === ev.id ? 50 : 3, overflow: 'hidden', cursor: canDragBlock ? (drag?.eventId === ev.id ? 'grabbing' : 'grab') : 'default', opacity: drag?.eventId === ev.id ? 0.5 : 1, userSelect: 'none' }}
+                            onMouseDown={e => { if (!canDragBlock || e.button !== 0) return; e.stopPropagation(); startDrag(e, ev, bi) }}
+                            onTouchStart={e => { if (!canDragBlock) return; e.stopPropagation(); startDrag(e, ev, bi) }}>
+                            {/* Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                                <span style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,107,107,.80)', fontWeight: 900 }}>
+                                  Blocked {minToHHMM(ev.startMin)}–{minToHHMM(ev.startMin + ev.durMin)}
+                                </span>
+                              </div>
+                              {isOwnerOrAdmin && (
+                                <button
+                                  onMouseDown={e => e.stopPropagation()}
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    setEvents(prev => prev.filter(x => x.id !== ev.id))
+                                    if (ev._raw?.id) apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), { method: 'DELETE' }).catch(console.warn)
+                                  }}
+                                  style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.40)', background: 'rgba(255,107,107,.12)', color: 'rgba(255,107,107,.90)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, flexShrink: 0, fontFamily: 'inherit' }}>
+                                  ✕
+                                </button>
+                              )}
                             </div>
+                            {/* Resize handle — bottom */}
+                            {isOwnerOrAdmin && (
+                              <div
+                                onMouseDown={e => {
+                                  e.stopPropagation()
+                                  e.preventDefault()
+                                  const startY = e.clientY
+                                  const startDur = ev.durMin
+                                  const onMove = (me: MouseEvent) => {
+                                    const dy = me.clientY - startY
+                                    const addMin = Math.round(dy / SLOT_H) * 5
+                                    const newDur = Math.max(5, startDur + addMin)
+                                    setEvents(prev => prev.map(x => x.id === ev.id ? { ...x, durMin: newDur } : x))
+                                  }
+                                  const onUp = () => {
+                                    window.removeEventListener('mousemove', onMove)
+                                    window.removeEventListener('mouseup', onUp)
+                                    // Save updated duration to API
+                                    const updEv = events.find(x => x.id === ev.id)
+                                    if (updEv?._raw?.id) {
+                                      const startAt = new Date(updEv.date + 'T' + minToHHMM(updEv.startMin) + ':00')
+                                      const endAt = new Date(startAt.getTime() + updEv.durMin * 60000)
+                                      apiFetch('/api/bookings/' + encodeURIComponent(String(updEv._raw.id)), {
+                                        method: 'PATCH',
+                                        body: JSON.stringify({ end_at: endAt.toISOString() })
+                                      }).catch(console.warn)
+                                    }
+                                  }
+                                  window.addEventListener('mousemove', onMove)
+                                  window.addEventListener('mouseup', onUp)
+                                }}
+                                style={{ position: 'absolute', left: 10, right: 10, bottom: 4, height: 8, borderRadius: 999, background: 'rgba(255,107,107,.30)', cursor: 'ns-resize' }} />
+                            )}
                           </div>
                         )
                       }
@@ -1013,19 +1065,25 @@ export default function CalendarPage() {
             </div>
             <button
               onClick={() => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) }}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: 'none', background: 'transparent', color: '#e9e9e9', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: 'none', background: 'transparent', color: '#e9e9e9', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(10,132,255,.14)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              📅 New booking
+              <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              </span>
+              New booking
             </button>
             <button
               onClick={() => { setContextMenu(null); openCreateBlock(contextMenu.barberId, contextMenu.min) }}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: 'none', background: 'transparent', color: '#ffd0d0', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: 'none', background: 'transparent', color: '#ffd0d0', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,107,107,.12)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              ⊘ Block this time
+              <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,107,107,.12)', border: '1px solid rgba(255,107,107,.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffd0d0" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              </span>
+              Block this time
             </button>
           </div>
         </div>
