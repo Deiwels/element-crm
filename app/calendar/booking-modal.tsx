@@ -2,6 +2,65 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
+const API_KEY = 'R1403ss81fxrx*rx1403'
+
+// ─── Shop settings cache ──────────────────────────────────────────────────────
+let _shopSettings: any = null
+let _settingsLoading = false
+let _settingsCallbacks: Array<(s: any) => void> = []
+
+async function getShopSettings() {
+  if (_shopSettings) return _shopSettings
+  if (_settingsLoading) return new Promise<any>(r => _settingsCallbacks.push(r))
+  _settingsLoading = true
+  try {
+    const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+    const res = await fetch(API + '/api/settings', {
+      headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }
+    })
+    _shopSettings = res.ok ? await res.json() : {}
+  } catch { _shopSettings = {} }
+  _settingsLoading = false
+  _settingsCallbacks.forEach(cb => cb(_shopSettings))
+  _settingsCallbacks = []
+  return _shopSettings
+}
+
+// ─── Price calculation ────────────────────────────────────────────────────────
+function calcTotal(basePrice: number, settings: any) {
+  if (!basePrice) return { base: 0, tax: 0, fees: 0, total: 0, breakdown: [] }
+  const breakdown: { label: string; amount: number; type: string }[] = []
+
+  // Tax
+  let taxAmount = 0
+  const tax = settings?.tax
+  if (tax?.enabled && tax?.rate) {
+    const rate = Number(tax.rate) / 100
+    if (tax.included_in_price) {
+      const base = basePrice / (1 + rate)
+      taxAmount = Math.round((basePrice - base) * 100) / 100
+    } else {
+      taxAmount = Math.round(basePrice * rate * 100) / 100
+    }
+    breakdown.push({ label: tax.label || 'Tax', amount: taxAmount, type: 'tax' })
+  }
+
+  // Fees
+  let feesTotal = 0
+  const fees: any[] = (settings?.fees || []).filter((f: any) => f.enabled !== false)
+  for (const f of fees) {
+    let amt = 0
+    if (f.type === 'percent') amt = Math.round(basePrice * (Number(f.value||0)/100) * 100) / 100
+    else if (f.type === 'fixed') amt = Number(f.value || 0)
+    if (amt > 0) { feesTotal += amt; breakdown.push({ label: f.label || 'Fee', amount: amt, type: 'fee' }) }
+  }
+
+  const total = tax?.included_in_price
+    ? Math.round((basePrice + feesTotal) * 100) / 100
+    : Math.round((basePrice + taxAmount + feesTotal) * 100) / 100
+
+  return { base: basePrice, tax: taxAmount, fees: feesTotal, total, breakdown }
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Client {
@@ -493,12 +552,16 @@ function PaymentPanel({ ev, services, onPayment }: {
   const [tipAmt, setTipAmt] = useState(0)
   const [hint, setHint] = useState('')
   const [polling, setPolling] = useState(false)
+  const [shopSettings, setShopSettings] = useState<any>(null)
   const pollRef = useRef<any>(null)
 
-  const svc = services.find(s => s.id === ev?.serviceId)
-  const price = svc?.price ? Number(String(svc.price).replace(/[^\d.]/g, '')) : 0
-
+  useEffect(() => { getShopSettings().then(setShopSettings) }, [])
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
+
+  const svc = services.find(s => s.id === ev?.serviceId)
+  const basePrice = svc?.price ? Number(String(svc.price).replace(/[^\d.]/g, '')) : 0
+  const priceCalc = calcTotal(basePrice, shopSettings)
+  const price = priceCalc.total  // total with tax + fees
 
   if (ev?.paid) {
     return (
@@ -508,6 +571,23 @@ function PaymentPanel({ ev, services, onPayment }: {
       </div>
     )
   }
+
+  // Price breakdown display
+  const PriceBreakdown = () => priceCalc.breakdown.length > 0 ? (
+    <div style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(0,0,0,.10)', fontSize: 11, marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,.55)', marginBottom: 4 }}>
+        <span>Service</span><span>${basePrice.toFixed(2)}</span>
+      </div>
+      {priceCalc.breakdown.map((b, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: b.type === 'tax' ? 'rgba(255,207,63,.80)' : 'rgba(255,255,255,.50)', marginBottom: 2 }}>
+          <span>{b.label}</span><span>+${b.amount.toFixed(2)}</span>
+        </div>
+      ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, color: '#e9e9e9', borderTop: '1px solid rgba(255,255,255,.08)', marginTop: 6, paddingTop: 6 }}>
+        <span>Total</span><span>${priceCalc.total.toFixed(2)}</span>
+      </div>
+    </div>
+  ) : null
 
   const methodStyle = (m: string): React.CSSProperties => ({
     flex: 1, height: 38, borderRadius: 999, cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit',
@@ -532,7 +612,7 @@ function PaymentPanel({ ev, services, onPayment }: {
     try {
       const res = await apiFetch('/api/payments/terminal', {
         method: 'POST',
-        body: JSON.stringify({ booking_id: String(backendId), amount: price, currency: 'USD', client_name: ev?._raw?.client_name || '', service_name: svc?.name || '' })
+        body: JSON.stringify({ booking_id: String(backendId), amount: priceCalc.total, currency: 'USD', client_name: ev?._raw?.client_name || '', service_name: svc?.name || '', service_amount: basePrice, tax_amount: priceCalc.tax, fee_amount: priceCalc.fees })
       })
       const checkoutId = res?.checkout_id
       if (!checkoutId) { setHint('No checkout ID. Check Terminal manually.'); setPolling(false); return }
@@ -561,11 +641,11 @@ function PaymentPanel({ ev, services, onPayment }: {
     try {
       await apiFetch('/api/payments/terminal', {
         method: 'POST',
-        body: JSON.stringify({ booking_id: backendId ? String(backendId) : '', amount: price, tip, tip_amount: tip, source: method, payment_method: method, currency: 'USD', client_name: ev?._raw?.client_name || '', service_name: svc?.name || '' })
+        body: JSON.stringify({ booking_id: backendId ? String(backendId) : '', amount: priceCalc.total, tip, tip_amount: tip, source: method, payment_method: method, currency: 'USD', client_name: ev?._raw?.client_name || '', service_name: svc?.name || '', service_amount: basePrice, tax_amount: priceCalc.tax, fee_amount: priceCalc.fees })
       })
       if (backendId) {
         await apiFetch('/api/bookings/' + encodeURIComponent(String(backendId)), {
-          method: 'PATCH', body: JSON.stringify({ paid: true, payment_method: method, tip, service_amount: price })
+          method: 'PATCH', body: JSON.stringify({ paid: true, payment_method: method, tip, service_amount: basePrice, tax_amount: priceCalc.tax, fee_amount: priceCalc.fees, total_amount: priceCalc.total })
         })
       }
       setHint(`${method} payment recorded ✓`); onPayment(method, tip)
@@ -574,9 +654,10 @@ function PaymentPanel({ ev, services, onPayment }: {
 
   return (
     <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.16)', marginTop: 4 }}>
-      <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 10 }}>
-        Accept payment {price > 0 && <span style={{ color: 'rgba(255,255,255,.35)' }}>— ${price.toFixed(2)}</span>}
+      <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 8 }}>
+        Accept payment {price > 0 && <span style={{ color: '#e9e9e9', fontWeight: 900 }}> — ${price.toFixed(2)}</span>}
       </div>
+      <PriceBreakdown />
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         {(['terminal','cash','zelle','other'] as const).map(m => (
           <button key={m} onClick={() => { setMethod(m); setHint(''); if (m === 'terminal') handleTerminal() }} disabled={polling} style={methodStyle(m)}>
@@ -623,6 +704,8 @@ export function BookingModal({
   const [notes, setNotes] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
   const [lightbox, setLightbox] = useState(false)
+  const [shopSettings, setShopSettings] = useState<any>(null)
+  useEffect(() => { getShopSettings().then(setShopSettings) }, [])
   const [saving, setSaving] = useState(false)
 
   const isNew = !existingEvent?._raw?.id
@@ -741,7 +824,12 @@ export function BookingModal({
                 <label style={lbl}>Service</label>
                 <select value={serviceId} onChange={e => setServiceId(e.target.value)} style={inp}>
                   <option value="">Choose service…</option>
-                  {barberServices.map(s => <option key={s.id} value={s.id}>{s.name}{s.price ? ` — $${s.price}` : ''}</option>)}
+                  {barberServices.map(s => {
+                    const bp = s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0
+                    const calc = calcTotal(bp, shopSettings)
+                    const label = bp > 0 ? (calc.total !== bp ? ` — $${calc.total.toFixed(2)} (base $${bp.toFixed(2)})` : ` — $${bp.toFixed(2)}`) : ''
+                    return <option key={s.id} value={s.id}>{s.name}{label}</option>
+                  })}
                 </select>
               </div>
               <div>
