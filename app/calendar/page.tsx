@@ -490,7 +490,7 @@ export default function CalendarPage() {
     if (!col) return
     const rect = col.getBoundingClientRect()
     const y = clientY - rect.top
-    const clickedMin = Math.round(y / SLOT_H) * 30 + START_HOUR * 60
+    const clickedMin = Math.round(y / SLOT_H) * 5 + START_HOUR * 60
     const offsetMin = clickedMin - ev.startMin
     setDrag({ eventId: ev.id, offsetMin, ghostBarberIdx: barberIdx, ghostMin: ev.startMin })
   }
@@ -913,7 +913,7 @@ export default function CalendarPage() {
                       const dragEv = events.find(e => e.id === drag.eventId)
                       if (!dragEv) return null
                       const ghostTop = minToY(drag.ghostMin)
-                      const ghostH = Math.max(SLOT_H, (dragEv.durMin / 30) * SLOT_H)
+                      const ghostH = Math.max(SLOT_H * 3, (dragEv.durMin / 5) * SLOT_H)
                       return (
                         <div style={{ position: 'absolute', left: 8, right: 8, top: ghostTop, height: ghostH - 4, borderRadius: 14, border: '2px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.14)', pointerEvents: 'none', zIndex: 40, backdropFilter: 'blur(4px)' }}>
                           <div style={{ padding: '8px 10px', fontWeight: 900, fontSize: 12, color: '#d7ecff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -926,7 +926,7 @@ export default function CalendarPage() {
                     {/* Events */}
                     {colEvents.map(ev => {
                       const top = minToY(ev.startMin)
-                      const height = Math.max(SLOT_H * 2, (ev.durMin / 5) * SLOT_H)
+                      const height = Math.max(SLOT_H * 6, (ev.durMin / 5) * SLOT_H)  // min 30min height
                       const isBlock = ev.type === 'block' || ev.status === 'block'
                       const color = barber.color
                       // Barber can only drag their own bookings, not blocks
