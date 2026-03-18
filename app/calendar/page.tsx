@@ -719,6 +719,29 @@ function SettingsModal({
   const [bUsername, setBUsername] = useState('')
   const [bPassword, setBPassword] = useState('')
   const [bPrice, setBPrice] = useState('')
+  const [bPhotoFile, setBPhotoFile] = useState<File | null>(null)
+  const [bPhotoPreview, setBPhotoPreview] = useState('')
+
+  function handlePhotoChange(file: File | null) {
+    if (!file) return
+    setBPhotoFile(file)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 900, scale = Math.min(1, MAX/img.width, MAX/img.height)
+        const w = Math.round(img.width*scale), h = Math.round(img.height*scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+        let q = 0.82, out = canvas.toDataURL('image/jpeg', q)
+        while (out.length > 900000 && q > 0.35) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q) }
+        setBPhotoPreview(out)
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  }
 
   // Service form
   const [sName, setSName] = useState('')
@@ -751,10 +774,13 @@ function SettingsModal({
           username: bUsername.trim() || bName.toLowerCase().replace(/\s+/g, '.'),
           password: bPassword.trim(), barber_pin: bPassword.trim(),
           base_price: bPrice.trim(), active: true,
+          photo_url: bPhotoPreview || '',
           schedule: { startMin: 8*60, endMin: 20*60, days: [1,2,3,4,5,6] }
         })
       })
-      setMsg('Barber added ✓'); setBName(''); setBLevel(''); setBUsername(''); setBPassword(''); setBPrice('')
+      setMsg('Barber added ✓')
+      setBName(''); setBLevel(''); setBUsername(''); setBPassword(''); setBPrice('')
+      setBPhotoFile(null); setBPhotoPreview('')
       onReload()
     } catch (e: any) { setMsg('Error: ' + e.message) }
     setSaving(false)
@@ -857,7 +883,22 @@ function SettingsModal({
                   <input value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} style={inputStyle} />
                 </div>
               ))}
-              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Photo</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <label style={{ height: 44, padding: '0 16px', borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: 13, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                    {bPhotoFile ? bPhotoFile.name : 'Choose photo…'}
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handlePhotoChange(e.target.files?.[0] || null)} />
+                  </label>
+                  {bPhotoPreview && (
+                    <img src={bPhotoPreview} alt="preview" style={{ width: 44, height: 44, borderRadius: 12, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} />
+                  )}
+                  {bPhotoPreview && (
+                    <button onClick={() => { setBPhotoFile(null); setBPhotoPreview('') }} style={{ height: 32, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>✕</button>
+                  )}
+                </div>
+              </div>
+              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-end' }}>
                 <button onClick={addBarber} disabled={saving} style={{ ...primaryBtnStyle, width: '100%', height: 44 }}>
                   {saving ? 'Adding…' : '+ Add barber'}
                 </button>
@@ -872,10 +913,39 @@ function SettingsModal({
                     <div style={{ width: 8, height: 8, borderRadius: 999, background: b.color, flexShrink: 0 }} />
                     <div>
                       <div style={{ fontWeight: 900, fontSize: 13 }}>{b.name}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>{b.level || 'Barber'} · ID: {b.id.slice(0, 8)}…</div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>{b.level || 'Barber'}</div>
                     </div>
                   </div>
-                  <button onClick={() => deleteBarber(b.id, b.name)} style={dangerBtnStyle}>Remove</button>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <label style={{ height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: 11, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                      Upload photo
+                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        const reader = new FileReader()
+                        reader.onload = async () => {
+                          const img = new Image()
+                          img.onload = async () => {
+                            const MAX = 900, scale = Math.min(1, MAX/img.width, MAX/img.height)
+                            const w = Math.round(img.width*scale), h = Math.round(img.height*scale)
+                            const canvas = document.createElement('canvas')
+                            canvas.width = w; canvas.height = h
+                            canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+                            let q = 0.82, out = canvas.toDataURL('image/jpeg', q)
+                            while (out.length > 900000 && q > 0.35) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q) }
+                            try {
+                              await apiFetch('/api/barbers/' + encodeURIComponent(b.id), { method: 'PATCH', body: JSON.stringify({ photo_url: out }) })
+                              setMsg('Photo updated for ' + b.name + ' ✓')
+                              onReload()
+                            } catch (err: any) { setMsg('Error: ' + err.message) }
+                          }
+                          img.src = reader.result as string
+                        }
+                        reader.readAsDataURL(file)
+                      }} />
+                    </label>
+                    <button onClick={() => deleteBarber(b.id, b.name)} style={dangerBtnStyle}>Remove</button>
+                  </div>
                 </div>
               ))}
             </div>
