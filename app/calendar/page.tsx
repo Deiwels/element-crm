@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Shell from '@/components/Shell'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
@@ -369,7 +369,7 @@ function timeStrToMin(s: string) {
 function DatePickerModal({ current, onSelect, onClose }: {
   current: Date; onSelect: (d: Date) => void; onClose: () => void
 }) {
-  const [month, setMonth] = React.useState(() => {
+  const [month, setMonth] = useState(() => {
     const d = new Date(current); d.setDate(1); d.setHours(0,0,0,0); return d
   })
   const today = new Date(); today.setHours(0,0,0,0)
