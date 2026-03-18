@@ -354,6 +354,7 @@ export default function CalendarPage() {
   const [nowMin, setNowMin] = useState(0)
   const [loading, setLoading] = useState(true)
   const [dragging, setDragging] = useState<{ eventId: string; offsetMin: number } | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
 
   const todayStr = isoDate(anchor)
@@ -428,6 +429,17 @@ export default function CalendarPage() {
       } as CalEvent
     })
   }, [todayStr])
+
+  // Reload all (for Settings)
+  const reloadAll = useCallback(async () => {
+    try {
+      const [b, s] = await Promise.all([loadBarbers(), loadServices()])
+      setBarbers(b)
+      setServices(s)
+      const evs = await loadBookings(b, s)
+      setEvents(evs)
+    } catch (err) { console.warn(err) }
+  }, [loadBarbers, loadServices, loadBookings])
 
   // Initial load
   useEffect(() => {
@@ -565,6 +577,7 @@ export default function CalendarPage() {
                 + New booking
               </button>
               <button onClick={reload} style={{ height: 40, width: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 16, fontFamily: 'inherit' }}>↻</button>
+              <button onClick={() => setSettingsOpen(true)} style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Settings</button>
             </div>
           </div>
         </div>
@@ -674,6 +687,312 @@ export default function CalendarPage() {
           onPayment={handlePayment}
         />
       )}
+
+      {settingsOpen && (
+        <SettingsModal
+          barbers={barbers}
+          services={services}
+          onClose={() => setSettingsOpen(false)}
+          onReload={reloadAll}
+        />
+      )}
     </Shell>
+  )
+}
+
+// ─── SETTINGS MODAL ───────────────────────────────────────────────────────────
+function SettingsModal({
+  barbers, services, onClose, onReload
+}: {
+  barbers: Barber[]
+  services: Service[]
+  onClose: () => void
+  onReload: () => void
+}) {
+  const [tab, setTab] = useState<'barbers'|'services'|'clients'|'account'>('barbers')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  // Barber form
+  const [bName, setBName] = useState('')
+  const [bLevel, setBLevel] = useState('')
+  const [bUsername, setBUsername] = useState('')
+  const [bPassword, setBPassword] = useState('')
+  const [bPrice, setBPrice] = useState('')
+
+  // Service form
+  const [sName, setSName] = useState('')
+  const [sDur, setSDur] = useState('30')
+  const [sPrice, setSPrice] = useState('')
+  const [sBarber, setSBarber] = useState(barbers[0]?.id || '')
+
+  // Client form
+  const [cName, setCName] = useState('')
+  const [cPhone, setCPhone] = useState('')
+  const [cNotes, setCNotes] = useState('')
+  const [clients, setClients] = useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem('ELEMENT_CRM_CLIENTS_V1') || '[]') } catch { return [] }
+  })
+
+  function saveClients(list: any[]) {
+    localStorage.setItem('ELEMENT_CRM_CLIENTS_V1', JSON.stringify(list))
+    setClients(list)
+  }
+
+  async function addBarber() {
+    if (!bName.trim()) { setMsg('Name is required'); return }
+    if (!bPassword.trim()) { setMsg('Password is required'); return }
+    setSaving(true); setMsg('')
+    try {
+      await apiFetch('/api/barbers', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: bName.trim(), level: bLevel.trim(),
+          username: bUsername.trim() || bName.toLowerCase().replace(/\s+/g, '.'),
+          password: bPassword.trim(), barber_pin: bPassword.trim(),
+          base_price: bPrice.trim(), active: true,
+          schedule: { startMin: 8*60, endMin: 20*60, days: [1,2,3,4,5,6] }
+        })
+      })
+      setMsg('Barber added ✓'); setBName(''); setBLevel(''); setBUsername(''); setBPassword(''); setBPrice('')
+      onReload()
+    } catch (e: any) { setMsg('Error: ' + e.message) }
+    setSaving(false)
+  }
+
+  async function deleteBarber(id: string, name: string) {
+    if (!confirm(`Remove ${name}?`)) return
+    try {
+      await apiFetch(`/api/barbers/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ active: false }) })
+      setMsg('Barber removed'); onReload()
+    } catch (e: any) { setMsg('Error: ' + e.message) }
+  }
+
+  async function addService() {
+    if (!sName.trim()) { setMsg('Service name required'); return }
+    if (!sBarber) { setMsg('Choose barber'); return }
+    setSaving(true); setMsg('')
+    try {
+      const price_cents = Math.round(Number(sPrice.replace(/[^\d.]/g,'') || 0) * 100)
+      const existing = services.find(s => s.name.toLowerCase() === sName.trim().toLowerCase())
+      if (existing) {
+        const ids = new Set(existing.barberIds); ids.add(sBarber)
+        await apiFetch(`/api/services/${encodeURIComponent(existing.id)}`, { method: 'PATCH', body: JSON.stringify({ barber_ids: Array.from(ids), duration_minutes: Number(sDur), price_cents }) })
+      } else {
+        await apiFetch('/api/services', { method: 'POST', body: JSON.stringify({ name: sName.trim(), duration_minutes: Number(sDur), price_cents, version: '1', barber_ids: [sBarber] }) })
+      }
+      setMsg('Service saved ✓'); setSName(''); setSPrice(''); onReload()
+    } catch (e: any) { setMsg('Error: ' + e.message) }
+    setSaving(false)
+  }
+
+  async function deleteService(id: string, name: string) {
+    if (!confirm(`Delete service ${name}?`)) return
+    try {
+      await apiFetch(`/api/services/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      setMsg('Service deleted'); onReload()
+    } catch (e: any) { setMsg('Error: ' + e.message) }
+  }
+
+  function addClient() {
+    if (!cName.trim()) { setMsg('Client name required'); return }
+    const list = [...clients]
+    const idx = list.findIndex(c => c.name.toLowerCase() === cName.trim().toLowerCase())
+    if (idx >= 0) { list[idx] = { ...list[idx], phone: cPhone || list[idx].phone, notes: cNotes || list[idx].notes } }
+    else { list.unshift({ id: 'c_' + Date.now(), name: cName.trim(), phone: cPhone, notes: cNotes }) }
+    saveClients(list); setCName(''); setCPhone(''); setCNotes(''); setMsg('Client saved ✓')
+  }
+
+  function deleteClient(id: string) {
+    saveClients(clients.filter(c => c.id !== id))
+  }
+
+  const inputStyle: React.CSSProperties = { width: '100%', height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'Inter, sans-serif' }
+  const labelStyle: React.CSSProperties = { fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)', marginBottom: 6, display: 'block' }
+  const btnStyle: React.CSSProperties = { height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }
+  const dangerBtnStyle: React.CSSProperties = { ...btnStyle, borderColor: 'rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0' }
+  const primaryBtnStyle: React.CSSProperties = { ...btnStyle, borderColor: 'rgba(10,132,255,.75)', background: 'rgba(10,132,255,.14)', color: '#d7ecff' }
+
+  const TABS = [
+    { id: 'barbers', label: 'Barbers' },
+    { id: 'services', label: 'Services' },
+    { id: 'clients', label: 'Clients' },
+    { id: 'account', label: 'Account' },
+  ] as const
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 18, overflowY: 'auto' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ width: 'min(920px, 96vw)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.03))', backdropFilter: 'blur(18px)', padding: 16, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', color: '#e9e9e9', fontFamily: 'Inter, sans-serif' }}>
+
+        <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Settings</div>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginBottom: 12 }}>Services · Barbers · Clients</div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => { setTab(t.id); setMsg('') }}
+              style={{ height: 34, padding: '0 14px', borderRadius: 999, border: `1px solid ${tab === t.id ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.12)'}`, background: tab === t.id ? 'rgba(10,132,255,.12)' : 'rgba(255,255,255,.04)', color: tab === t.id ? '#d7ecff' : 'rgba(255,255,255,.85)', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 12 }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {msg && <div style={{ padding: '8px 12px', borderRadius: 10, background: msg.includes('Error') ? 'rgba(255,107,107,.08)' : 'rgba(143,240,177,.08)', border: `1px solid ${msg.includes('Error') ? 'rgba(255,107,107,.25)' : 'rgba(143,240,177,.25)'}`, color: msg.includes('Error') ? '#ffd0d0' : '#c9ffe1', fontSize: 12, marginBottom: 12 }}>{msg}</div>}
+
+        {/* ── BARBERS TAB ── */}
+        {tab === 'barbers' && (
+          <div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginBottom: 12 }}>Add new barber with login and PIN.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              {[
+                { label: 'Barber name', val: bName, set: setBName, ph: 'Nazar' },
+                { label: 'Level', val: bLevel, set: setBLevel, ph: 'Senior / Expert' },
+                { label: 'Login', val: bUsername, set: setBUsername, ph: 'nazar' },
+                { label: 'Password / PIN', val: bPassword, set: setBPassword, ph: '1234' },
+                { label: 'Base price', val: bPrice, set: setBPrice, ph: '55.99' },
+              ].map(f => (
+                <div key={f.label}>
+                  <label style={labelStyle}>{f.label}</label>
+                  <input value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} style={inputStyle} />
+                </div>
+              ))}
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <button onClick={addBarber} disabled={saving} style={{ ...primaryBtnStyle, width: '100%', height: 44 }}>
+                  {saving ? 'Adding…' : '+ Add barber'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 8 }}>Current barbers</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {barbers.map(b => (
+                <div key={b.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.18)', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 999, background: b.color, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontWeight: 900, fontSize: 13 }}>{b.name}</div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>{b.level || 'Barber'} · ID: {b.id.slice(0, 8)}…</div>
+                    </div>
+                  </div>
+                  <button onClick={() => deleteBarber(b.id, b.name)} style={dangerBtnStyle}>Remove</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── SERVICES TAB ── */}
+        {tab === 'services' && (
+          <div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginBottom: 12 }}>Create services and assign them to barbers.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div>
+                <label style={labelStyle}>Service name</label>
+                <input value={sName} onChange={e => setSName(e.target.value)} placeholder="Men's Haircut" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Duration (min)</label>
+                <select value={sDur} onChange={e => setSDur(e.target.value)} style={{ ...inputStyle }}>
+                  {['30','40','45','60','75','90'].map(d => <option key={d} value={d}>{d} min</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Price ($)</label>
+                <input value={sPrice} onChange={e => setSPrice(e.target.value)} placeholder="45" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Assign to barber</label>
+                <select value={sBarber} onChange={e => setSBarber(e.target.value)} style={{ ...inputStyle }}>
+                  {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <button onClick={addService} disabled={saving} style={{ ...primaryBtnStyle, width: '100%', height: 44 }}>
+                  {saving ? 'Saving…' : '+ Add / Assign service'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 8 }}>Current services</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {services.length === 0 && <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 13 }}>No services yet</div>}
+              {services.map(s => {
+                const assigned = s.barberIds.map(id => barbers.find(b => b.id === id)?.name).filter(Boolean)
+                return (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.18)', gap: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 900, fontSize: 13 }}>{s.name}</div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>
+                        {s.durationMin}min{s.price ? ` · $${s.price}` : ''} · {assigned.length ? assigned.join(', ') : '—'}
+                      </div>
+                    </div>
+                    <button onClick={() => deleteService(s.id, s.name)} style={dangerBtnStyle}>Delete</button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── CLIENTS TAB ── */}
+        {tab === 'clients' && (
+          <div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginBottom: 12 }}>Client database (saved locally).</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Client name</label>
+                <input value={cName} onChange={e => setCName(e.target.value)} placeholder="Client name" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Phone</label>
+                <input value={cPhone} onChange={e => setCPhone(e.target.value)} placeholder="+1 (___) ___-____" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Notes</label>
+                <input value={cNotes} onChange={e => setCNotes(e.target.value)} placeholder="Notes…" style={inputStyle} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <button onClick={addClient} style={{ ...primaryBtnStyle, width: '100%', height: 44 }}>+ Add client</button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+              {clients.length === 0 && <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 13 }}>No clients yet</div>}
+              {clients.slice(0, 100).map(c => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.18)', gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 900, fontSize: 13 }}>{c.name}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)' }}>{c.phone || '—'}{c.notes ? ' · ' + c.notes : ''}</div>
+                  </div>
+                  <button onClick={() => deleteClient(c.id)} style={dangerBtnStyle}>Delete</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── ACCOUNT TAB ── */}
+        {tab === 'account' && (
+          <div>
+            <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.18)', marginBottom: 10 }}>
+              <div style={{ fontWeight: 900, marginBottom: 4 }}>Current session</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)' }}>
+                {(() => { try { const u = JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null'); return u ? `${u.role} · ${u.name || u.username}` : 'Guest' } catch { return 'Guest' } })()}
+              </div>
+            </div>
+            <button onClick={() => {
+              localStorage.removeItem('ELEMENT_TOKEN')
+              localStorage.removeItem('ELEMENT_USER')
+              window.location.href = '/signin'
+            }} style={{ ...dangerBtnStyle, height: 44, width: '100%' }}>Log out</button>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+          <button onClick={onClose} style={btnStyle}>Close</button>
+        </div>
+      </div>
+    </div>
   )
 }
