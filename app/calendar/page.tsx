@@ -10,6 +10,7 @@ interface Barber {
   id: string; name: string; level?: string; photo?: string; color: string
   about?: string; basePrice?: string; publicRole?: string
   radarLabels?: string[]; radarValues?: number[]; username?: string
+  schedule?: { enabled: boolean; startMin: number; endMin: number }[]
 }
 interface Service {
   id: string; name: string; durationMin: number; price?: string; barberIds: string[]
@@ -25,8 +26,8 @@ interface DaySchedule { enabled: boolean; startMin: number; endMin: number }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SLOT_H = 11
-const START_HOUR = 9
-const END_HOUR = 21
+const START_HOUR = 0
+const END_HOUR = 24
 const COL_MIN = 190
 const BARBER_COLORS = ['#99d100','#a86bff','#0a84ff','#ffb000','#ff5aa5','#35d6c7','#ff6b6b']
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -253,7 +254,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
             <label style={lbl}>Working schedule</label>
             <SchedGrid schedule={sched} onChange={setSched} />
           </div>
-          <button onClick={save} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', marginTop: 12 }}>
+          <button onClick={save} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', marginTop: 12 }}>
             {saving ? 'Saving…' : 'Save changes — update on website'}
           </button>
         </div>
@@ -350,7 +351,7 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
 
         <div style={{ display: 'flex', gap: 6, padding: '14px 18px 0' }}>
           {tabs.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ height: 36, padding: '0 16px', borderRadius: 999, border: `1px solid ${tab === t ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.12)'}`, background: tab === t ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.04)', color: tab === t ? '#d7ecff' : '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit' }}>{t}</button>
+            <button key={t} onClick={() => setTab(t)} style={{ height: 36, padding: '0 16px', borderRadius: 999, border: `1px solid ${tab === t ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.12)'}`, background: tab === t ? 'rgba(10,132,255,.10)' : 'rgba(255,255,255,.04)', color: tab === t ? '#d7ecff' : '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit' }}>{t}</button>
           ))}
         </div>
 
@@ -411,7 +412,7 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
                     <SchedGrid schedule={bSchedule} onChange={setBSchedule} />
                   </div>
                 </div>
-                <button onClick={addBarber} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', marginTop: 12 }}>
+                <button onClick={addBarber} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', marginTop: 12 }}>
                   {saving ? 'Saving…' : '+ Add barber'}
                 </button>
               </div>
@@ -446,7 +447,7 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
                     </select>
                   </div>
                 </div>
-                <button onClick={addService} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
+                <button onClick={addService} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
                   {saving ? 'Saving…' : '+ Add service'}
                 </button>
               </div>
@@ -519,6 +520,13 @@ export default function CalendarPage() {
       radarLabels: Array.isArray(b.radar_labels) ? b.radar_labels : ['FADE','LONG','BEARD','STYLE','DETAIL'],
       radarValues: Array.isArray(b.radar_values) ? b.radar_values.map(Number) : [4.5,4.5,4.5,4.5,4.5],
       username: String(b.username || '').trim(),
+      schedule: Array.isArray(b.schedule || b.work_schedule)
+        ? (b.schedule || b.work_schedule).map((d: any) => ({
+            enabled: !!d.enabled,
+            startMin: Number(d.startMin ?? d.start_min ?? d.start ?? 10*60),
+            endMin: Number(d.endMin ?? d.end_min ?? d.end ?? 20*60),
+          }))
+        : undefined,
     })).filter((b: Barber) => b.id && b.name)
   }, [])
 
@@ -742,7 +750,12 @@ export default function CalendarPage() {
               {/* Time labels */}
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
                 {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
-                  <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*SLOT_H*12, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 8, color: 'rgba(255,255,255,.40)', fontSize: 11 }}>{pad2(START_HOUR+i)}:00</div>
+                  <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*SLOT_H*12, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 8, color: 'rgba(255,255,255,.40)', fontSize: 11 }}>{(() => {
+                    const h = START_HOUR + i
+                    if (h === 0) return '12 AM'
+                    if (h === 12) return '12 PM'
+                    return h < 12 ? `${h} AM` : `${h-12} PM`
+                  })()}</div>
                 ))}
               </div>
 
@@ -758,9 +771,39 @@ export default function CalendarPage() {
                       const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
                       isOwnerOrAdmin ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
                     }}>
+                    {/* Non-working hours overlay */}
+                    {(() => {
+                      const todayDow = new Date(anchor + 'T00:00:00').getDay() // 0=Sun
+                      const sched = barber.schedule
+                      if (!sched) return null
+                      const dayIdx = todayDow === 0 ? 6 : todayDow - 1 // Mon=0..Sun=6
+                      const day = sched[dayIdx]
+                      if (!day) return null
+                      const totalMin = (END_HOUR - START_HOUR) * 60
+                      const offColor = 'rgba(0,0,0,.42)'
+                      const offBorder = 'none'
+                      const blocks: React.ReactNode[] = []
+                      if (!day.enabled) {
+                        // Whole day off
+                        blocks.push(<div key="allday" style={{ position:'absolute', inset:0, background: offColor, pointerEvents:'none', zIndex:1 }}><div style={{ position:'sticky', top:'40%', textAlign:'center', fontSize:10, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(255,255,255,.20)', paddingTop:'40%' }}>Day off</div></div>)
+                      } else {
+                        // Before work start
+                        if (day.startMin > START_HOUR * 60) {
+                          const h = minToY(day.startMin)
+                          blocks.push(<div key="before" style={{ position:'absolute', left:0, right:0, top:0, height:h, background: offColor, pointerEvents:'none', zIndex:1 }} />)
+                        }
+                        // After work end
+                        if (day.endMin < END_HOUR * 60) {
+                          const t = minToY(day.endMin)
+                          const h = minToY(END_HOUR * 60) - t
+                          blocks.push(<div key="after" style={{ position:'absolute', left:0, right:0, top:t, height:h, background: offColor, pointerEvents:'none', zIndex:1 }} />)
+                        }
+                      }
+                      return blocks
+                    })()}
                     {/* Grid lines */}
                     {Array.from({ length: (END_HOUR-START_HOUR)*12 }, (_, i) => (
-                      <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*SLOT_H, height: 1, background: i%12===0 ? 'rgba(255,255,255,.12)' : i%4===0 ? 'rgba(255,255,255,.05)' : 'rgba(255,255,255,.02)', pointerEvents: 'none' }} />
+                      <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*SLOT_H, height: 1, background: i%12===0 ? 'rgba(255,255,255,.10)' : i%4===0 ? 'rgba(255,255,255,.04)' : 'rgba(255,255,255,.015)', pointerEvents: 'none' }} />
                     ))}
                     {/* Now line — full width across all columns */}
                     {showNow && (
@@ -804,7 +847,7 @@ export default function CalendarPage() {
 
                       return (
                         <div key={ev.id} className="cal-event"
-                          style={{ position: 'absolute', left: 8, right: 8, top, height: height-2, borderRadius: 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.75)' : 'rgba(255,255,255,.14)'}`, background: `linear-gradient(180deg,${barber.color}44,${barber.color}22)`, padding: '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
+                          style={{ position: 'absolute', left: 8, right: 8, top, height: height-2, borderRadius: 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: `linear-gradient(180deg,${barber.color}2e,${barber.color}16)`, padding: '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
                           onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; startDrag(e, ev, bi) }}
                           onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
