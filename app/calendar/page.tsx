@@ -386,7 +386,7 @@ export default function CalendarPage() {
     const data = await apiFetch('/api/services')
     const list = Array.isArray(data?.services) ? data.services : Array.isArray(data) ? data : []
     return list.map((s: any) => {
-      const durMs = s.durationMs ?? s.duration_minutes * 60000 ?? 0
+      const durMs = s.durationMs ?? (s.duration_minutes != null ? s.duration_minutes * 60000 : 0)
       const durMin = Math.max(1, Math.round(durMs / 60000) || 30)
       const priceStr = s.price != null ? String(s.price) : s.price_cents > 0 ? (s.price_cents / 100).toFixed(2) : ''
       return {
