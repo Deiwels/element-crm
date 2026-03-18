@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
@@ -23,48 +23,62 @@ const NAV = [
 
 export default function Shell({ children, page }: { children: React.ReactNode; page: string }) {
   const [user, setUser] = useState<User | null>(null)
-  const [checked, setChecked] = useState(false)
+  const [status, setStatus] = useState<'loading' | 'ok' | 'noauth'>('loading')
   const pathname = usePathname()
-  const router = useRouter()
 
   useEffect(() => {
     const token = localStorage.getItem('ELEMENT_TOKEN')
+    
     if (!token) {
-      router.push('/signin')
+      setStatus('noauth')
       return
     }
-    // Use cached user immediately
+
+    // Load cached user
     const stored = localStorage.getItem('ELEMENT_USER')
     if (stored) {
-      try { setUser(JSON.parse(stored)) } catch {}
+      try { 
+        setUser(JSON.parse(stored))
+        setStatus('ok')
+      } catch {
+        setStatus('ok')
+      }
+    } else {
+      setStatus('ok')
     }
-    setChecked(true)
-    // Verify in background
-    fetch(`${API}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+
+    // Verify in background — do NOT redirect on failure
+    fetch(`${API}/api/auth/me`, { 
+      headers: { Authorization: `Bearer ${token}` } 
+    })
       .then(r => r.json())
       .then(d => {
         if (d.user) {
           setUser(d.user)
           localStorage.setItem('ELEMENT_USER', JSON.stringify(d.user))
         }
-        // Don't redirect on API error - use cached user
       })
       .catch(() => {})
   }, [])
 
-  function logout() {
-    localStorage.removeItem('ELEMENT_TOKEN')
-    localStorage.removeItem('ELEMENT_USER')
-    window.location.href = '/signin'
+  // Only redirect if confirmed no token
+  useEffect(() => {
+    if (status === 'noauth') {
+      window.location.href = '/signin'
+    }
+  }, [status])
+
+  if (status === 'loading') {
+    return <div style={{ background: '#000', minHeight: '100vh' }} />
   }
 
-  if (!checked) {
+  if (status === 'noauth') {
     return <div style={{ background: '#000', minHeight: '100vh' }} />
   }
 
   const visibleNav = NAV.filter(item => {
-    if ('ownerOnly' in item && item.ownerOnly && user?.role !== 'owner') return false
-    if ('ownerAdmin' in item && item.ownerAdmin && user?.role === 'barber') return false
+    if ('ownerOnly' in item && (item as any).ownerOnly && user?.role !== 'owner') return false
+    if ('ownerAdmin' in item && (item as any).ownerAdmin && user?.role === 'barber') return false
     return true
   })
 
@@ -116,7 +130,11 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
                 <div className="user-name">{user?.name || user?.username || '—'}</div>
                 <div className="user-role">{user?.role || '—'}</div>
               </div>
-              <button className="logout-btn" onClick={logout}>Log out</button>
+              <button className="logout-btn" onClick={() => {
+                localStorage.removeItem('ELEMENT_TOKEN')
+                localStorage.removeItem('ELEMENT_USER')
+                window.location.href = '/signin'
+              }}>Log out</button>
             </div>
           </div>
         </aside>
