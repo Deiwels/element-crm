@@ -1,5 +1,6 @@
 {
   "framework": "nextjs",
+  "installCommand": "npm install --legacy-peer-deps",
   "env": {
     "NEXT_PUBLIC_API_URL": "https://element-crm-api-431945333485.us-central1.run.app"
   },
