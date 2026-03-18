@@ -30,6 +30,7 @@ interface Service {
 
 interface CalEvent {
   id: string
+  type?: 'booking' | 'block'  // block = unavailable slot
   barberId: string
   barberName: string
   clientName: string
@@ -114,7 +115,7 @@ function Chip({ label, type }: { label: string; type: string }) {
 
 // ─── BOOKING MODAL ────────────────────────────────────────────────────────────
 function BookingModal({
-  ev, barbers, services, onClose, onSave, onDelete, onPayment
+  ev, barbers, services, onClose, onSave, onDelete, onPayment, isOwnerOrAdmin
 }: {
   ev: CalEvent | null
   barbers: Barber[]
@@ -123,6 +124,7 @@ function BookingModal({
   onSave: (patch: Partial<CalEvent>) => void
   onDelete: () => void
   onPayment: (method: string, tip: number) => void
+  isOwnerOrAdmin: boolean
 }) {
   const [client, setClient] = useState('')
   const [barberId, setBarberId] = useState('')
@@ -292,7 +294,8 @@ function BookingModal({
           </div>
         </div>
 
-        {/* Payment block */}
+        {/* Payment block — only owner/admin */}
+        {isOwnerOrAdmin && (
         <div style={{ padding: 12, borderRadius: 16, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.18)', marginBottom: 12 }}>
           <div style={{ fontWeight: 900, marginBottom: 4 }}>Accept payment {price > 0 && <span style={{ color: 'rgba(255,255,255,.60)', fontSize: 13, fontWeight: 400 }}>— ${price.toFixed(2)}</span>}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginBottom: 10, marginTop: 10 }}>
@@ -336,6 +339,7 @@ function BookingModal({
           {pay.hint && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginTop: 8, padding: '4px 0' }}>{pay.hint}</div>}
         </div>
 
+        </div>)}
         {/* Footer */}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' as const }}>
           {!isNew && <button onClick={onDelete} style={{ height: 42, padding: '0 18px', borderRadius: 999, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit' }}>Delete</button>}
@@ -558,6 +562,14 @@ export default function CalendarPage() {
     }
   }, [drag, events, barbers])
 
+  // ── Auth / Role ─────────────────────────────────────────────────────────────
+  const [currentUser] = useState<{ uid: string; name: string; username: string; role: string; barber_id?: string } | null>(() => {
+    try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null }
+  })
+  const isBarber = currentUser?.role === 'barber'
+  const isOwnerOrAdmin = currentUser?.role === 'owner' || currentUser?.role === 'admin'
+  const myBarberId = currentUser?.barber_id || ''
+
   const todayStr = isoDate(anchor)
   const selectedEvent = events.find(e => e.id === modal.eventId) || null
 
@@ -676,10 +688,43 @@ export default function CalendarPage() {
   const showNow = nowMin >= START_HOUR * 60 && nowMin <= END_HOUR * 60
 
   // Filter events for today & barber column
-  const todayEvents = events.filter(e => e.date === todayStr)
+  const todayEvents = events.filter(e => {
+    if (e.date !== todayStr) return false
+    // Barber sees only their own bookings
+    if (isBarber && e.type !== 'block' && e.barberId !== myBarberId) return false
+    return true
+  })
   const filtered = search
     ? todayEvents.filter(e => [e.clientName, e.barberName, e.serviceName].join(' ').toLowerCase().includes(search.toLowerCase()))
     : todayEvents
+
+  // Create block (owner/admin only)
+  function openCreateBlock(barberId: string, startMin: number) {
+    const id = 'block_' + Date.now()
+    const barber = barbers.find(b => b.id === barberId)
+    const blockEv: CalEvent = {
+      id, type: 'block', barberId, barberName: barber?.name || '',
+      clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Blocked',
+      date: todayStr, startMin: clamp(startMin), durMin: 60,
+      status: 'block', paid: false, notes: '', _raw: null
+    }
+    setEvents(prev => [...prev, blockEv])
+    // Save to API
+    const startAt = new Date(todayStr + 'T' + minToHHMM(startMin) + ':00')
+    const endAt = new Date(startAt.getTime() + 60 * 60000)
+    apiFetch('/api/bookings', {
+      method: 'POST',
+      body: JSON.stringify({
+        barber_id: barberId, type: 'block', status: 'block',
+        client_name: 'BLOCKED', service_id: '',
+        start_at: startAt.toISOString(), end_at: endAt.toISOString(),
+        notes: 'Blocked by manager'
+      })
+    }).then(res => {
+      const savedId = res?.booking?.id || res?.id
+      if (savedId) setEvents(prev => prev.map(e => e.id === id ? { ...e, _raw: { id: savedId } } : e))
+    }).catch(console.warn)
+  }
 
   // Open create modal
   function openCreate(barberId: string, startMin: number) {
@@ -780,12 +825,25 @@ export default function CalendarPage() {
               ))}
               <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)}
                 style={{ height: 40, width: 'min(260px, 50vw)', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13 }} />
-              <button onClick={() => openCreate(barbers[0]?.id || '', clamp(new Date().getHours() * 60))}
-                style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', boxShadow: '0 0 18px rgba(10,132,255,.25)' }}>
+              {isOwnerOrAdmin && (
+                <button onClick={() => {
+                  const barberId = prompt('Block which barber ID? (or leave blank for first barber)')
+                  const targetId = barberId?.trim() || barbers[0]?.id || ''
+                  if (targetId) openCreateBlock(targetId, clamp(new Date().getHours() * 60))
+                }} style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,107,107,.50)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
+                  ⊘ Block
+                </button>
+              )}
+              <button onClick={() => {
+                const barberId = isBarber ? myBarberId : (barbers[0]?.id || '')
+                openCreate(barberId, clamp(new Date().getHours() * 60))
+              }} style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', boxShadow: '0 0 18px rgba(10,132,255,.25)' }}>
                 + New booking
               </button>
               <button onClick={reload} style={{ height: 40, width: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 16, fontFamily: 'inherit' }}>↻</button>
-              <button onClick={() => setSettingsOpen(true)} style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Settings</button>
+              {isOwnerOrAdmin && (
+                <button onClick={() => setSettingsOpen(true)} style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Settings</button>
+              )}
             </div>
           </div>
         </div>
@@ -833,6 +891,8 @@ export default function CalendarPage() {
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                       const y = e.clientY - rect.top
                       const min = Math.round(y / SLOT_H) * 5 + START_HOUR * 60
+                      // Barbers can only create in their own column
+                      if (isBarber && barber.id !== myBarberId) return
                       openCreate(barber.id, clamp(min))
                     }}>
 
@@ -866,19 +926,46 @@ export default function CalendarPage() {
                     {/* Events */}
                     {colEvents.map(ev => {
                       const top = minToY(ev.startMin)
-                      const height = Math.max(SLOT_H, (ev.durMin / 30) * SLOT_H)
+                      const height = Math.max(SLOT_H * 2, (ev.durMin / 5) * SLOT_H)
+                      const isBlock = ev.type === 'block' || ev.status === 'block'
                       const color = barber.color
+                      // Barber can only drag their own bookings, not blocks
+                      const canDrag = !isBlock && (!isBarber || ev.barberId === myBarberId)
+                      // Mask client phone for barbers
+                      const displayClient = isBarber && ev.clientPhone
+                        ? ev.clientName
+                        : ev.clientName
+
+                      if (isBlock) {
+                        // Block — only owner/admin can remove it
+                        return (
+                          <div key={ev.id}
+                            style={{ position: 'absolute', left: 4, right: 4, top, height: height - 2, borderRadius: 10, background: 'repeating-linear-gradient(45deg, rgba(255,107,107,.08) 0px, rgba(255,107,107,.08) 6px, rgba(255,107,107,.04) 6px, rgba(255,107,107,.04) 12px)', border: '1px solid rgba(255,107,107,.25)', zIndex: 3, overflow: 'hidden', cursor: isOwnerOrAdmin ? 'pointer' : 'default' }}
+                            onClick={e => {
+                              e.stopPropagation()
+                              if (!isOwnerOrAdmin) return
+                              if (!confirm('Remove this block?')) return
+                              setEvents(prev => prev.filter(x => x.id !== ev.id))
+                              if (ev._raw?.id) apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), { method: 'DELETE' }).catch(console.warn)
+                            }}>
+                            <div style={{ padding: '4px 8px', fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,107,107,.70)', fontWeight: 900 }}>
+                              {isOwnerOrAdmin ? '⊘ Blocked — click to remove' : '⊘ Blocked'}
+                            </div>
+                          </div>
+                        )
+                      }
+
                       return (
                         <div key={ev.id} className="cal-event"
-                          style={{ position: 'absolute', left: 8, right: 8, top, height: height - 4, borderRadius: 14, border: `1px solid ${drag?.eventId === ev.id ? 'rgba(10,132,255,.75)' : 'rgba(255,255,255,.14)'}`, background: `linear-gradient(180deg,${color}44,${color}22)`, padding: '8px 10px', cursor: drag ? 'grabbing' : 'grab', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId === ev.id ? 50 : 5, opacity: drag?.eventId === ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
-                          onMouseDown={e => { if (e.button !== 0) return; startDrag(e, ev, bi) }}
-                          onTouchStart={e => startDrag(e, ev, bi)}
+                          style={{ position: 'absolute', left: 8, right: 8, top, height: height - 2, borderRadius: 14, border: `1px solid ${drag?.eventId === ev.id ? 'rgba(10,132,255,.75)' : 'rgba(255,255,255,.14)'}`, background: `linear-gradient(180deg,${color}44,${color}22)`, padding: '8px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId === ev.id ? 50 : 5, opacity: drag?.eventId === ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
+                          onMouseDown={e => { if (!canDrag || e.button !== 0) return; startDrag(e, ev, bi) }}
+                          onTouchStart={e => { if (!canDrag) return; startDrag(e, ev, bi) }}
                           onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
-                            <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{ev.clientName}</div>
+                            <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{displayClient}</div>
                             {ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />}
                           </div>
-                          {height > 55 && (
+                          {height > 40 && (
                             <div style={{ marginTop: 4, fontSize: 11, color: 'rgba(255,255,255,.75)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {minToHHMM(ev.startMin)} · {ev.serviceName}
                             </div>
@@ -905,6 +992,7 @@ export default function CalendarPage() {
           ev={selectedEvent}
           barbers={barbers}
           services={services}
+          isOwnerOrAdmin={isOwnerOrAdmin}
           onClose={() => {
             if (modal.isNew) setEvents(prev => prev.filter(e => e.id !== modal.eventId))
             setModal({ open: false, eventId: null, isNew: false })
