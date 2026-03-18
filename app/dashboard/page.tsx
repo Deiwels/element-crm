@@ -73,10 +73,27 @@ export default function DashboardPage() {
     const today = isoToday()
     setLoading(true)
     try {
-      // Bookings — API already filters by barber_id for barber role via JWT
-      const bkRes = await fetch(`${API}/api/bookings?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`, { headers })
+      // Load barbers for name lookup
+      const [bkRes, brRes] = await Promise.all([
+        fetch(`${API}/api/bookings?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`, { headers }),
+        fetch(`${API}/api/barbers`, { headers }),
+      ])
       const bkData = await bkRes.json()
+      const brData = await brRes.json()
+      const barberList = Array.isArray(brData) ? brData : (brData?.barbers || [])
+      const barberMap: Record<string, string> = {}
+      barberList.forEach((b: any) => { if (b.id && b.name) barberMap[String(b.id)] = String(b.name) })
+
       let bks: Booking[] = Array.isArray(bkData?.bookings) ? bkData.bookings : Array.isArray(bkData) ? bkData : []
+
+      // Enrich with barber names
+      bks = bks.map(b => {
+        const bn = b.barber_name || b.barber || ''
+        // If barber_name looks like an ID (long alphanum) — replace with real name
+        const isId = bn.length > 16 && /^[A-Za-z0-9]+$/.test(bn)
+        const realName = b.barber_id ? barberMap[String(b.barber_id)] : undefined
+        return { ...b, barber_name: (isId || !bn) ? (realName || bn) : bn }
+      })
 
       // Extra client-side filter for barbers (safety)
       if (isBarber && myBarberId) {

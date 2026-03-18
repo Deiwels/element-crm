@@ -258,24 +258,24 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         html,body{height:100%;background:#000;color:#e9e9e9;font-family:Inter,system-ui,sans-serif;}
         a{color:#fff!important;text-decoration:none!important;}
         .shell{display:flex;height:100vh;width:100vw;overflow:hidden;}
-        .sidebar{width:240px;flex:0 0 240px;border-right:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);display:flex;flex-direction:column;height:100vh;}
-        .brand{padding:16px 14px;border-bottom:1px solid rgba(255,255,255,.08);}
-        .brand h1{font-family:"Julius Sans One",sans-serif;letter-spacing:.18em;font-size:13px;text-transform:uppercase;color:#e9e9e9;}
-        .brand-sub{font-size:10px;letter-spacing:.10em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-top:3px;}
-        .nav{display:flex;flex-direction:column;gap:4px;padding:10px 8px;flex:1;}
-        .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid transparent;transition:all .15s ease;cursor:pointer;}
-        .nav-item:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.08);}
-        .nav-item.active{border-color:rgba(10,132,255,.60);background:rgba(10,132,255,.10);}
+        .sidebar{width:240px;flex:0 0 240px;border-right:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(10,10,18,1),rgba(0,0,8,1));display:flex;flex-direction:column;height:100vh;}
+        .brand{padding:20px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06);}
+        .brand h1{font-family:"Julius Sans One",sans-serif;letter-spacing:.28em;font-size:16px;text-transform:uppercase;color:#e9e9e9;background:linear-gradient(135deg,#fff,rgba(255,255,255,.65));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+        .brand-sub{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.25);margin-top:5px;}
+        .nav{display:flex;flex-direction:column;gap:3px;padding:12px 10px;flex:1;}
+        .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid transparent;transition:all .18s ease;cursor:pointer;}
+        .nav-item:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.08);}
+        .nav-item.active{border-color:rgba(10,132,255,.50);background:rgba(10,132,255,.12);box-shadow:0 0 16px rgba(10,132,255,.15);}
         .nav-t{font-weight:700;font-size:13px;color:#e9e9e9;display:block;}
-        .nav-s{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.40);display:block;margin-top:1px;}
-        .user-bar{padding:10px;border-top:1px solid rgba(255,255,255,.08);}
+        .nav-s{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.35);display:block;margin-top:1px;}
+        .user-bar{padding:10px;border-top:1px solid rgba(255,255,255,.06);}
         .content{flex:1;min-width:0;height:100vh;overflow:hidden;background:#000;}
       `}</style>
 
       <div className="shell">
         <aside className="sidebar">
           <div className="brand">
-            <h1>Element CRM</h1>
+            <h1>ELEMENT</h1>
             <div className="brand-sub">{page}</div>
           </div>
           <nav className="nav">
