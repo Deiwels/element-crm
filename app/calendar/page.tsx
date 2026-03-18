@@ -343,6 +343,110 @@ function BookingModal({
   )
 }
 
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const DAY_DEFAULTS: DaySchedule[] = [
+  { enabled: false, startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+  { enabled: true,  startMin: 10*60, endMin: 20*60 },
+]
+
+interface DaySchedule { enabled: boolean; startMin: number; endMin: number }
+
+function minToTimeStr(min: number) {
+  return `${String(Math.floor(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}`
+}
+function timeStrToMin(s: string) {
+  const [h, m] = s.split(':').map(Number)
+  return (h||0)*60 + (m||0)
+}
+
+// ─── DATE PICKER ─────────────────────────────────────────────────────────────
+function DatePickerModal({ current, onSelect, onClose }: {
+  current: Date; onSelect: (d: Date) => void; onClose: () => void
+}) {
+  const [month, setMonth] = React.useState(() => {
+    const d = new Date(current); d.setDate(1); d.setHours(0,0,0,0); return d
+  })
+  const today = new Date(); today.setHours(0,0,0,0)
+  function prevMonth() { const m = new Date(month); m.setMonth(m.getMonth()-1); setMonth(m) }
+  function nextMonth() { const m = new Date(month); m.setMonth(m.getMonth()+1); setMonth(m) }
+  const firstDay = new Date(month)
+  const offset = (firstDay.getDay() + 6) % 7
+  const start = new Date(firstDay); start.setDate(1 - offset)
+  const days: Date[] = []
+  for (let i = 0; i < 42; i++) { const d = new Date(start); d.setDate(start.getDate() + i); days.push(d) }
+  const btn: React.CSSProperties = { height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.18)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 14, fontFamily: 'inherit' }
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 18 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ width: 'min(480px,95vw)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.03))', backdropFilter: 'blur(18px)', padding: 16, color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,.10)' }}>
+          <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 13 }}>Choose date</div>
+          <button onClick={onClose} style={{ height: 34, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>Close</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={prevMonth} style={{ height: 36, width: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 16, fontFamily: 'inherit' }}>←</button>
+            <button onClick={nextMonth} style={{ height: 36, width: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 16, fontFamily: 'inherit' }}>→</button>
+          </div>
+          <div style={{ fontWeight: 900, fontSize: 15 }}>{month.toLocaleDateString([], { month: 'long', year: 'numeric' })}</div>
+          <button onClick={() => { const t = new Date(); t.setDate(1); t.setHours(0,0,0,0); setMonth(t) }} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>Today</button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6, marginBottom: 6 }}>
+          {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
+            <div key={d} style={{ textAlign: 'center', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', padding: '4px 0' }}>{d}</div>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6 }}>
+          {days.map((d, i) => {
+            const inMonth = d.getMonth() === month.getMonth()
+            const isToday = +d === +today
+            const isSel = d.toDateString() === current.toDateString()
+            return (
+              <button key={i} onClick={() => { onSelect(d); onClose() }}
+                style={{ ...btn, opacity: inMonth ? 1 : 0.35, borderColor: isSel ? 'rgba(10,132,255,.75)' : isToday ? 'rgba(255,207,63,.55)' : 'rgba(255,255,255,.12)', background: isSel ? 'rgba(10,132,255,.12)' : 'rgba(0,0,0,.18)', boxShadow: isSel ? '0 0 0 1px rgba(10,132,255,.22) inset' : 'none' }}>
+                {d.getDate()}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── SCHEDULE GRID ───────────────────────────────────────────────────────────
+function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: (s: DaySchedule[]) => void }) {
+  function toggle(i: number) { const n = [...schedule]; n[i] = { ...n[i], enabled: !n[i].enabled }; onChange(n) }
+  function setTime(i: number, field: 'startMin'|'endMin', val: string) { const n = [...schedule]; n[i] = { ...n[i], [field]: timeStrToMin(val) }; onChange(n) }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6, margin: '8px 0' }}>
+      {DAY_NAMES.map((name, i) => {
+        const day = schedule[i]
+        return (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.10)'}`, borderRadius: 12, padding: '8px 6px', background: day.enabled ? 'rgba(10,132,255,.08)' : 'rgba(0,0,0,.18)', opacity: day.enabled ? 1 : 0.55, transition: 'all .18s' }}>
+            <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', textAlign: 'center', fontWeight: 900, color: 'rgba(255,255,255,.65)' }}>{name}</div>
+            <button onClick={() => toggle(i)} style={{ height: 28, borderRadius: 999, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.16)'}`, background: day.enabled ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.05)', color: day.enabled ? '#d7ecff' : '#fff', cursor: 'pointer', fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', fontWeight: 900, fontFamily: 'inherit', width: '100%' }}>
+              {day.enabled ? 'ON' : 'OFF'}
+            </button>
+            <div style={{ opacity: day.enabled ? 1 : 0.3, pointerEvents: day.enabled ? 'auto' : 'none' }}>
+              <label style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 2 }}>From</label>
+              <input type="time" value={minToTimeStr(day.startMin)} onChange={e => setTime(i,'startMin',e.target.value)} style={{ height: 30, borderRadius: 10, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 6px', fontSize: 11, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
+              <label style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', margin: '4px 0 2px' }}>To</label>
+              <input type="time" value={minToTimeStr(day.endMin)} onChange={e => setTime(i,'endMin',e.target.value)} style={{ height: 30, borderRadius: 10, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 6px', fontSize: 11, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+
 // ─── MAIN CALENDAR PAGE ───────────────────────────────────────────────────────
 export default function CalendarPage() {
   const [anchor, setAnchor] = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d })
