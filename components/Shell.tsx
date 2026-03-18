@@ -23,6 +23,19 @@ function ProfileModal({ user, onClose, onUpdated }: { user: User; onClose: () =>
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
   const [photo, setPhoto] = useState(user.photo || '')
+  // Load barber photo on mount
+  useEffect(() => {
+    if (user.barber_id && !user.photo) {
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      fetch(`${API}/api/barbers`, { headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
+        .then(r => r.json())
+        .then(data => {
+          const list = Array.isArray(data) ? data : (data?.barbers || [])
+          const me = list.find((b: any) => String(b.id) === String(user.barber_id))
+          if (me?.photo_url) setPhoto(me.photo_url)
+        }).catch(() => {})
+    }
+  }, [user.barber_id])
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
@@ -74,7 +87,7 @@ function ProfileModal({ user, onClose, onUpdated }: { user: User; onClose: () =>
       await apiFetch(`/api/users/${encodeURIComponent(user.uid)}`, { name })
       const updated = { ...user, name, photo }
       localStorage.setItem('ELEMENT_USER', JSON.stringify(updated))
-      onUpdated(updated); setMsg('Saved ✓')
+      onUpdated(updated); setMsg('Saved ✓ — updated on website')
     } catch (e: any) { setErr(e.message) }
     setSaving(false)
   }
@@ -198,10 +211,27 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
     const stored = localStorage.getItem('ELEMENT_USER')
     if (stored) { try { setUser(JSON.parse(stored)); setStatus('ok') } catch { setStatus('ok') } }
     else setStatus('ok')
-    fetch(`${API}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API}/api/auth/me`, { headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
       .then(r => r.json())
-      .then(d => {
-        if (d.user) { setUser(d.user); localStorage.setItem('ELEMENT_USER', JSON.stringify(d.user)) }
+      .then(async d => {
+        if (d.user) {
+          let userData = { ...d.user }
+          // Load barber photo from barbers collection if user is a barber
+          if (d.user.barber_id) {
+            try {
+              const br = await fetch(`${API}/api/barbers`, {
+                headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }
+              }).then(r => r.json())
+              const list = Array.isArray(br) ? br : (br?.barbers || [])
+              const myBarber = list.find((b: any) => String(b.id) === String(d.user.barber_id))
+              if (myBarber?.photo_url) {
+                userData = { ...userData, photo: myBarber.photo_url, name: myBarber.name || userData.name }
+              }
+            } catch {}
+          }
+          setUser(userData)
+          localStorage.setItem('ELEMENT_USER', JSON.stringify(userData))
+        }
       }).catch(() => {})
   }, [])
 

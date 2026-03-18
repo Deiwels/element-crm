@@ -23,15 +23,29 @@ export default function SignInPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Login failed')
 
+      // Load barber photo if barber role
+      let userData = { ...data.user }
+      if (data.user?.barber_id) {
+        try {
+          const br = await fetch('https://element-crm-api-431945333485.us-central1.run.app/api/barbers', {
+            headers: { Authorization: `Bearer ${data.token}`, 'X-API-KEY': 'R1403ss81fxrx*rx1403' }
+          }).then(r => r.json())
+          const list = Array.isArray(br) ? br : (br?.barbers || [])
+          const me = list.find((b: any) => String(b.id) === String(data.user.barber_id))
+          if (me?.photo_url) userData = { ...userData, photo: me.photo_url }
+          if (me?.name) userData = { ...userData, name: me.name }
+        } catch {}
+      }
+
       // Save to localStorage
       localStorage.setItem('ELEMENT_TOKEN', data.token)
-      localStorage.setItem('ELEMENT_USER', JSON.stringify(data.user))
+      localStorage.setItem('ELEMENT_USER', JSON.stringify(userData))
 
       // Verify it saved
       const saved = localStorage.getItem('ELEMENT_TOKEN')
       if (!saved) throw new Error('Failed to save session')
 
-      const role = data.user?.role || 'barber'
+      const role = userData.role || 'barber'
       const dest = role === 'barber' ? '/calendar' : '/dashboard'
 
       // Hard redirect after short delay to ensure localStorage is persisted
