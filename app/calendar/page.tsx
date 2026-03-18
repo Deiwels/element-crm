@@ -478,6 +478,7 @@ export default function CalendarPage() {
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; barberId: string; min: number } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
   // ── Drag handlers ──────────────────────────────────────────────────────────
@@ -824,15 +825,7 @@ export default function CalendarPage() {
               ))}
               <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)}
                 style={{ height: 40, width: 'min(260px, 50vw)', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13 }} />
-              {isOwnerOrAdmin && (
-                <button onClick={() => {
-                  const barberId = prompt('Block which barber ID? (or leave blank for first barber)')
-                  const targetId = barberId?.trim() || barbers[0]?.id || ''
-                  if (targetId) openCreateBlock(targetId, clamp(new Date().getHours() * 60))
-                }} style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,107,107,.50)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
-                  ⊘ Block
-                </button>
-              )}
+
               <button onClick={() => {
                 const barberId = isBarber ? myBarberId : (barbers[0]?.id || '')
                 openCreate(barberId, clamp(new Date().getHours() * 60))
@@ -887,12 +880,15 @@ export default function CalendarPage() {
                   style={{ position: 'relative', borderRight: bi < barbers.length - 1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag && drag.ghostBarberIdx === bi ? 'rgba(10,132,255,.04)' : 'rgba(0,0,0,.06)', transition: 'background .15s' }}
                     onClick={e => {
                       if ((e.target as HTMLElement).closest('.cal-event')) return
+                      if (isBarber && barber.id !== myBarberId) return
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                       const y = e.clientY - rect.top
                       const min = Math.round(y / SLOT_H) * 5 + START_HOUR * 60
-                      // Barbers can only create in their own column
-                      if (isBarber && barber.id !== myBarberId) return
-                      openCreate(barber.id, clamp(min))
+                      if (isOwnerOrAdmin) {
+                        setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) })
+                      } else {
+                        openCreate(barber.id, clamp(min))
+                      }
                     }}>
 
                     {/* Hour lines */}
@@ -1000,6 +996,39 @@ export default function CalendarPage() {
           onDelete={handleDelete}
           onPayment={handlePayment}
         />
+      )}
+
+      {/* Context menu */}
+      {contextMenu && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 150 }}
+          onClick={() => setContextMenu(null)}
+        >
+          <div
+            style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: 'linear-gradient(180deg,rgba(30,30,30,.98),rgba(18,18,18,.98))', backdropFilter: 'blur(18px)', boxShadow: '0 12px 40px rgba(0,0,0,.6)', padding: 6, minWidth: 180, fontFamily: 'Inter,sans-serif' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', padding: '6px 10px 4px' }}>
+              {minToHHMM(contextMenu.min)} · {barbers.find(b => b.id === contextMenu.barberId)?.name}
+            </div>
+            <button
+              onClick={() => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: 'none', background: 'transparent', color: '#e9e9e9', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(10,132,255,.14)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              📅 New booking
+            </button>
+            <button
+              onClick={() => { setContextMenu(null); openCreateBlock(contextMenu.barberId, contextMenu.min) }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: 'none', background: 'transparent', color: '#ffd0d0', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,107,107,.12)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              ⊘ Block this time
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Drag confirm modal */}
