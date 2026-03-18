@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { format } from 'date-fns'
+import { isOwnerOrAdmin } from '@/lib/roles'
 
 interface Booking {
   id: string
@@ -19,106 +19,103 @@ interface Payment {
   id: string
   amount: number
   tip_amount?: number
-  payment_method: string
-  created_at: string
+}
+
+function fmt(iso: string) {
+  const d = new Date(iso)
+  let h = d.getHours(), m = d.getMinutes()
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12 || 12
+  return `${h}:${String(m).padStart(2,'0')} ${ampm}`
+}
+
+function fmtDate(d: Date) {
+  return d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' })
+}
+
+const STATUS_CHIP: Record<string,string> = {
+  booked:  '',
+  arrived: 'ok',
+  done:    'done',
+  noshow:  'noshow',
 }
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const today = format(new Date(), 'yyyy-MM-dd')
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
   const from = `${today}T00:00:00.000Z`
-  const to = `${today}T23:59:59.000Z`
+  const to   = `${today}T23:59:59.999Z`
 
-  const { data: bookingsData } = useQuery({
-    queryKey: ['bookings', today],
+  const { data: bData } = useQuery({
+    queryKey: ['bookings-today', today],
     queryFn: () => api.get<{ bookings: Booking[] }>(`/api/bookings?from=${from}&to=${to}`),
   })
-
-  const { data: paymentsData } = useQuery({
-    queryKey: ['payments', today],
+  const { data: pData } = useQuery({
+    queryKey: ['payments-today', today],
     queryFn: () => api.get<{ payments: Payment[] }>(`/api/payments?date=${today}`),
-    enabled: user?.role !== 'barber',
+    enabled: isOwnerOrAdmin(user),
   })
 
-  const bookings = bookingsData?.bookings || []
-  const payments = paymentsData?.payments || []
-  const totalRevenue = payments.reduce((s, p) => s + (p.amount || 0) + (p.tip_amount || 0), 0)
-  const paidCount = bookings.filter(b => b.paid).length
-
-  const statusColor: Record<string, string> = {
-    booked: 'text-white/60 border-white/20',
-    arrived: 'text-emerald-300 border-emerald-400/35 bg-emerald-400/8',
-    done: 'text-yellow-200 border-yellow-400/35 bg-yellow-400/8',
-    noshow: 'text-red-300 border-red-400/35 bg-red-400/8',
-  }
+  const bookings = bData?.bookings || []
+  const payments = pData?.payments || []
+  const revenue  = payments.reduce((s,p) => s + (p.amount||0), 0)
+  const tips     = payments.reduce((s,p) => s + (p.tip_amount||0), 0)
+  const paid     = bookings.filter(b => b.paid).length
 
   return (
-    <div className="p-5 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="font-display tracking-[.18em] uppercase text-base">Dashboard</h2>
-        <p className="text-white/40 text-xs tracking-widest uppercase mt-1">
-          {format(new Date(), 'EEEE, MMMM d, yyyy')}
-        </p>
+    <div className="main">
+      <div className="topbar">
+        <div className="topbar-row">
+          <div>
+            <h2 className="page-title">Dashboard</h2>
+            <p className="sub">{fmtDate(now)}</p>
+          </div>
+        </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <div className="card p-4">
-          <div className="text-[11px] tracking-widest uppercase text-white/45 mb-2">Bookings Today</div>
-          <div className="text-3xl font-black">{bookings.length}</div>
+      {/* KPI */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:20}}>
+        <div className="kpi-card">
+          <div className="kpi-label">Bookings today</div>
+          <div className="kpi-value">{bookings.length}</div>
         </div>
-        <div className="card p-4">
-          <div className="text-[11px] tracking-widest uppercase text-white/45 mb-2">Paid</div>
-          <div className="text-3xl font-black text-emerald-300">{paidCount}</div>
+        <div className="kpi-card">
+          <div className="kpi-label">Paid</div>
+          <div className="kpi-value" style={{color:'#8ff0b1'}}>{paid}</div>
         </div>
-        {user?.role !== 'barber' && (
-          <>
-            <div className="card p-4">
-              <div className="text-[11px] tracking-widest uppercase text-white/45 mb-2">Revenue</div>
-              <div className="text-3xl font-black text-yellow-300">${totalRevenue.toFixed(0)}</div>
-            </div>
-            <div className="card p-4">
-              <div className="text-[11px] tracking-widest uppercase text-white/45 mb-2">Transactions</div>
-              <div className="text-3xl font-black">{payments.length}</div>
-            </div>
-          </>
-        )}
+        {isOwnerOrAdmin(user) && <>
+          <div className="kpi-card">
+            <div className="kpi-label">Revenue</div>
+            <div className="kpi-value" style={{color:'#ffcf3f'}}>${revenue.toFixed(0)}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Tips</div>
+            <div className="kpi-value" style={{color:'#8ff0b1'}}>${tips.toFixed(0)}</div>
+          </div>
+        </>}
       </div>
 
       {/* Bookings list */}
-      <div className="card overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/10">
-          <h3 className="text-[11px] tracking-widest uppercase text-white/60">
-            Today&apos;s Bookings
-          </h3>
+      <div className="card" style={{overflow:'hidden'}}>
+        <div style={{padding:'12px 18px',borderBottom:'1px solid rgba(255,255,255,.08)'}}>
+          <span style={{fontSize:11,letterSpacing:'.14em',textTransform:'uppercase',color:'rgba(255,255,255,.55)'}}>Today&apos;s Bookings</span>
         </div>
-        {bookings.length === 0 ? (
-          <div className="px-5 py-8 text-center text-white/30 text-sm">No bookings today</div>
-        ) : (
-          <div className="divide-y divide-white/6">
-            {bookings.map(b => (
-              <div key={b.id} className="flex items-center justify-between px-5 py-3 gap-3">
-                <div className="min-w-0">
-                  <div className="font-bold text-sm text-white truncate">{b.client_name}</div>
-                  <div className="text-[11px] text-white/45 tracking-wide">
-                    {b.barber_name} · {b.service_name} · {format(new Date(b.start_at), 'h:mm a')}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {b.paid && (
-                    <span className="text-[10px] tracking-widest uppercase px-2 py-1 rounded-full border border-emerald-400/40 bg-emerald-400/10 text-emerald-300">
-                      Paid
-                    </span>
-                  )}
-                  <span className={`text-[10px] tracking-widest uppercase px-2 py-1 rounded-full border ${statusColor[b.status] || statusColor.booked}`}>
-                    {b.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+        {bookings.length === 0 && (
+          <div style={{padding:'40px 18px',textAlign:'center',color:'rgba(255,255,255,.30)',fontSize:13}}>No bookings today</div>
         )}
+        {bookings.map(b => (
+          <div key={b.id} className="row" style={{borderRadius:0,border:'none',borderBottom:'1px solid rgba(255,255,255,.06)',margin:0}}>
+            <div className="rowLeft">
+              <div className="rowName">{b.client_name}</div>
+              <div className="rowMeta">{b.barber_name} · {b.service_name} · {fmt(b.start_at)}</div>
+            </div>
+            <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
+              {b.paid && <span className="chip paid">Paid</span>}
+              <span className={`chip ${STATUS_CHIP[b.status] || ''}`}>{b.status}</span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

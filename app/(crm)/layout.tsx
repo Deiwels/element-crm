@@ -3,144 +3,140 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
-import { can, isOwnerOrAdmin } from '@/lib/roles'
+import { isOwnerOrAdmin } from '@/lib/roles'
 import Link from 'next/link'
 
 const NAV = [
-  { href: '/dashboard', label: 'Dashboard', sub: 'Overview', icon: '◈' },
-  { href: '/calendar',  label: 'Calendar',  sub: 'Bookings', icon: '◷', pill: 'Live' },
-  { href: '/clients',   label: 'Clients',   sub: 'Database', icon: '◎' },
-  { href: '/payments',  label: 'Payments',  sub: 'Transactions', icon: '◉', ownerAdmin: true },
-  { href: '/payroll',   label: 'Payroll',   sub: 'Earnings', icon: '◈', ownerOnly: true },
-  { href: '/settings',  label: 'Settings',  sub: 'Configure', icon: '⚙', ownerAdmin: true },
-]
+  { id: 'dashboard', href: '/dashboard', label: 'Dashboard', sub: 'Today overview', pill: '', pillClass: '' },
+  { id: 'calendar',  href: '/calendar',  label: 'Calendar',  sub: 'Bookings grid',  pill: 'Day', pillClass: 'blue' },
+  { id: 'clients',   href: '/clients',   label: 'Clients',   sub: 'Search / notes', pill: '', pillClass: '' },
+  { id: 'payments',  href: '/payments',  label: 'Payments',  sub: 'Square + Terminal', pill: 'Live', pillClass: 'live', ownerAdmin: true },
+  { id: 'payroll',   href: '/payroll',   label: 'Payroll',   sub: 'Commission + tips', pill: '', pillClass: '', ownerOnly: true },
+  { id: 'settings',  href: '/settings',  label: 'Settings',  sub: 'Config & sync', pill: '', pillClass: '', ownerAdmin: true },
+] as const
+
+const ICONS: Record<string, React.ReactNode> = {
+  dashboard: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>,
+  calendar:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>,
+  clients:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  payments:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>,
+  payroll:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+  settings:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+}
 
 export default function CRMLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showPw, setShowPw] = useState(false)
+  const [pw, setPw] = useState({ cur: '', nw: '', cfm: '' })
+  const [pwErr, setPwErr] = useState('')
+  const [pwLoading, setPwLoading] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) router.push('/signin')
   }, [user, loading, router])
 
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center">
-        <div className="text-white/40 text-sm tracking-widest uppercase">Loading…</div>
-      </div>
-    )
-  }
-
+  if (loading) return <div className="loader"><div className="loader-dot"/></div>
   if (!user) return null
 
   const visibleNav = NAV.filter(item => {
-    if (item.ownerOnly && user.role !== 'owner') return false
-    if (item.ownerAdmin && !isOwnerOrAdmin(user)) return false
+    if ('ownerOnly' in item && item.ownerOnly && user.role !== 'owner') return false
+    if ('ownerAdmin' in item && item.ownerAdmin && !isOwnerOrAdmin(user)) return false
     return true
   })
 
-  const roleLabel = user.role === 'owner' ? 'Owner' : user.role === 'admin' ? 'Admin' : 'Barber'
+  async function savePw() {
+    setPwErr('')
+    if (!pw.cur || !pw.nw) { setPwErr('Fill all fields'); return }
+    if (pw.nw.length < 4) { setPwErr('Min 4 characters'); return }
+    if (pw.nw !== pw.cfm) { setPwErr('Passwords do not match'); return }
+    setPwLoading(true)
+    try {
+      const TOKEN = localStorage.getItem('ELEMENT_TOKEN') || ''
+      const r = await fetch('https://element-crm-api-431945333485.us-central1.run.app/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+        body: JSON.stringify({ current_password: pw.cur, new_password: pw.nw })
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || 'Error')
+      setShowPw(false); setPw({ cur: '', nw: '', cfm: '' })
+      alert('Password updated!')
+    } catch(e: any) { setPwErr(e.message) }
+    finally { setPwLoading(false) }
+  }
+
+  const currentLabel = visibleNav.find(n => pathname.startsWith(n.href))?.label?.toUpperCase() || 'DASHBOARD'
 
   return (
-    <div className="min-h-screen bg-black flex">
-      {/* Sidebar backdrop (mobile) */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+    <>
+      <button className={`burger${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(v => !v)}>
+        <span/><span/><span/>
+      </button>
+      <div className={`sb-backdrop${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(false)}/>
 
-      {/* Sidebar */}
-      <aside className={`
-        fixed inset-y-0 left-0 z-50 w-72 flex flex-col
-        border-r border-white/10 bg-gradient-to-b from-white/5 to-white/2 backdrop-blur-xl
-        transition-transform duration-250
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0 lg:static lg:z-auto
-      `}>
-        {/* Brand */}
-        <div className="flex items-center justify-between px-5 py-5 border-b border-white/10">
-          <div>
-            <h1 className="font-display tracking-[.18em] uppercase text-sm">Element</h1>
-            <p className="text-[10px] tracking-[.12em] uppercase text-white/40 mt-0.5">Staff CRM</p>
-          </div>
-          <span className="text-[11px] tracking-[.10em] uppercase px-3 py-1.5 rounded-full border border-white/12 bg-white/4 text-white/55">
-            {roleLabel}
-          </span>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
-          {visibleNav.map(item => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setSidebarOpen(false)}
-              className={`
-                flex items-center justify-between gap-3 px-3 py-3 rounded-2xl border transition-all
-                ${pathname === item.href
-                  ? 'border-blue-500/75 bg-blue-500/12 shadow-[0_0_18px_rgba(10,132,255,.25)]'
-                  : 'border-white/10 bg-black/10 hover:bg-white/6'
-                }
-              `}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-white/12 bg-white/5 flex-shrink-0 text-base">
-                  {item.icon}
-                </div>
-                <div className="min-w-0">
-                  <div className="font-black text-sm tracking-wide text-white">{item.label}</div>
-                  <div className="text-[11px] tracking-widest uppercase text-white/45">{item.sub}</div>
-                </div>
-              </div>
-              {item.pill && (
-                <span className="text-[10px] tracking-widest uppercase px-2.5 py-1 rounded-full border border-emerald-400/45 bg-emerald-400/8 text-emerald-300 flex-shrink-0">
-                  {item.pill}
-                </span>
-              )}
-            </Link>
-          ))}
-        </nav>
-
-        {/* User footer */}
-        <div className="p-3 border-t border-white/10">
-          <div className="flex items-center justify-between px-3 py-2">
+      <div className="shell">
+        <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
+          <div className="brand">
             <div>
-              <div className="text-sm font-bold text-white">{user.name}</div>
-              <div className="text-[11px] text-white/40 tracking-wide">{user.username}</div>
+              <h1>Element CRM</h1>
+              <div style={{fontSize:10,letterSpacing:'.10em',textTransform:'uppercase',color:'rgba(255,255,255,.40)',marginTop:3}}>{currentLabel}</div>
             </div>
-            <button
-              onClick={logout}
-              className="text-[11px] tracking-widest uppercase px-3 py-1.5 rounded-full border border-white/12 bg-white/4 text-white/55 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-300 transition-all"
-            >
-              Logout
-            </button>
+            <div className="brand-tag">v3</div>
           </div>
-        </div>
-      </aside>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile topbar */}
-        <div className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-black/80 backdrop-blur-xl sticky top-0 z-30">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="w-10 h-10 flex flex-col items-center justify-center gap-1.5 rounded-xl border border-white/18 bg-black/75"
-          >
-            <span className="w-4 h-0.5 bg-white rounded-full" />
-            <span className="w-4 h-0.5 bg-white rounded-full" />
-            <span className="w-4 h-0.5 bg-white rounded-full" />
-          </button>
-          <span className="font-display tracking-[.18em] uppercase text-sm">Element</span>
-        </div>
+          <nav className="nav">
+            {visibleNav.map(item => (
+              <Link key={item.id} href={item.href} className={pathname.startsWith(item.href) ? 'active' : ''} onClick={() => setSidebarOpen(false)}>
+                <div className="nav-left">
+                  <div className="ico">{ICONS[item.id]}</div>
+                  <div className="nav-label">
+                    <span className="nav-t">{item.label}</span>
+                    <span className="nav-s">{item.sub}</span>
+                  </div>
+                </div>
+                {item.pill && <span className={`pill ${item.pillClass}`}>{item.pill}</span>}
+              </Link>
+            ))}
+          </nav>
 
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
+          <div className="user-bar">
+            <div className="user-card">
+              <div className="user-info">
+                <div className="user-name">{user.name || user.username}</div>
+                <div className="user-role">{user.role}</div>
+              </div>
+              <div className="user-btns">
+                <button onClick={() => setShowPw(true)}>PW</button>
+                <button className="btn-out" onClick={logout}>Out</button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <div className="content">{children}</div>
       </div>
-    </div>
+
+      {showPw && (
+        <>
+          <div onClick={() => setShowPw(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.72)',backdropFilter:'blur(10px)',zIndex:9500}}/>
+          <div style={{position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',width:'min(360px,90vw)',borderRadius:20,border:'1px solid rgba(255,255,255,.12)',background:'linear-gradient(180deg,rgba(30,30,30,.98),rgba(18,18,18,.98))',boxShadow:'0 24px 80px rgba(0,0,0,.7)',padding:24,zIndex:9501}}>
+            <div style={{fontFamily:'"Julius Sans One",sans-serif',letterSpacing:'.16em',textTransform:'uppercase',fontSize:11,color:'rgba(255,255,255,.45)',marginBottom:14}}>Change password</div>
+            {[['Current password', pw.cur, (v:string)=>setPw(p=>({...p,cur:v}))],['New password', pw.nw, (v:string)=>setPw(p=>({...p,nw:v}))],['Confirm new password', pw.cfm, (v:string)=>setPw(p=>({...p,cfm:v}))]].map(([ph, val, fn], i) => (
+              <input key={i} type="password" placeholder={ph as string} value={val as string}
+                onChange={e => (fn as any)(e.target.value)}
+                style={{height:44,borderRadius:12,border:'1px solid rgba(255,255,255,.12)',background:'rgba(0,0,0,.30)',color:'#fff',padding:'0 14px',fontFamily:'inherit',fontSize:14,outline:'none',width:'100%',marginBottom:10,display:'block'}}/>
+            ))}
+            {pwErr && <div style={{fontSize:12,color:'#ffd0d0',padding:'8px 12px',borderRadius:8,background:'rgba(255,107,107,.08)',border:'1px solid rgba(255,107,107,.25)',marginBottom:10}}>{pwErr}</div>}
+            <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+              <button onClick={() => setShowPw(false)} style={{height:40,padding:'0 18px',borderRadius:999,cursor:'pointer',fontWeight:700,fontFamily:'inherit',border:'1px solid rgba(255,255,255,.14)',background:'rgba(255,255,255,.06)',color:'#fff'}}>Cancel</button>
+              <button onClick={savePw} disabled={pwLoading} style={{height:40,padding:'0 18px',borderRadius:999,cursor:'pointer',fontWeight:900,fontFamily:'inherit',border:'1px solid rgba(10,132,255,.65)',background:'rgba(10,132,255,.16)',color:'#d7ecff'}}>{pwLoading ? 'Saving...' : 'Save'}</button>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   )
 }
