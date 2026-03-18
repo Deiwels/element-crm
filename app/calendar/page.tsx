@@ -966,6 +966,11 @@ function SettingsModal({
   const [bPrice, setBPrice] = useState('')
   const [bPhotoFile, setBPhotoFile] = useState<File | null>(null)
   const [bPhotoPreview, setBPhotoPreview] = useState('')
+  const [bAbout, setBAbout] = useState('')
+  const [bPublicRole, setBPublicRole] = useState('')
+  const [bRadarLabels, setBRadarLabels] = useState('FADE,LONG,BEARD,STYLE,DETAIL')
+  const [bRadarValues, setBRadarValues] = useState('4.5,4.5,4.5,4.5,4.5')
+  const [bSchedule, setBSchedule] = useState<DaySchedule[]>(DAY_DEFAULTS.map(d => ({...d})))
 
   function handlePhotoChange(file: File | null) {
     if (!file) return
@@ -1012,19 +1017,44 @@ function SettingsModal({
     if (!bPassword.trim()) { setMsg('Password is required'); return }
     setSaving(true); setMsg('')
     try {
+      const enabledDays = bSchedule.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
+      const startMins = bSchedule.filter(d => d.enabled).map(d => d.startMin)
+      const endMins = bSchedule.filter(d => d.enabled).map(d => d.endMin)
+      const schedPayload = {
+        startMin: startMins.length ? Math.min(...startMins) : 10*60,
+        endMin: endMins.length ? Math.max(...endMins) : 20*60,
+        days: enabledDays, perDay: bSchedule
+      }
+      const radarLabels = bRadarLabels.split(',').map(s => s.trim()).filter(Boolean)
+      const radarValues = bRadarValues.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
       await apiFetch('/api/barbers', {
         method: 'POST',
         body: JSON.stringify({
-          name: bName.trim(), level: bLevel.trim(),
+          name: bName.trim(),
+          level: bLevel.trim(),
           username: bUsername.trim() || bName.toLowerCase().replace(/\s+/g, '.'),
-          password: bPassword.trim(), barber_pin: bPassword.trim(),
-          base_price: bPrice.trim(), active: true,
+          password: bPassword.trim(),
+          barber_pin: bPassword.trim(),
+          base_price: bPrice.trim(),
+          public_role: bPublicRole.trim() || bLevel.trim(),
+          about: bAbout.trim(),
+          description: bAbout.trim(),
+          bio: bAbout.trim(),
+          radar_labels: radarLabels.length ? radarLabels : ['FADE','LONG','BEARD','STYLE','DETAIL'],
+          radar_values: radarValues.length ? radarValues : [4.5,4.5,4.5,4.5,4.5],
+          active: true,
+          public_enabled: true,
           photo_url: bPhotoPreview || '',
-          schedule: { startMin: 8*60, endMin: 20*60, days: [1,2,3,4,5,6] }
+          schedule: schedPayload,
+          work_schedule: schedPayload,
+          public_off_days: DAY_NAMES.filter((_, i) => !bSchedule[i].enabled)
         })
       })
-      setMsg('Barber added ✓')
+      setMsg('Barber added ✓ — visible on website')
       setBName(''); setBLevel(''); setBUsername(''); setBPassword(''); setBPrice('')
+      setBAbout(''); setBPublicRole('')
+      setBRadarLabels('FADE,LONG,BEARD,STYLE,DETAIL'); setBRadarValues('4.5,4.5,4.5,4.5,4.5')
+      setBSchedule(DAY_DEFAULTS.map(d => ({...d})))
       setBPhotoFile(null); setBPhotoPreview('')
       onReload()
     } catch (e: any) { setMsg('Error: ' + e.message) }
@@ -1117,17 +1147,33 @@ function SettingsModal({
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginBottom: 12 }}>Add new barber with login and PIN.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
               {[
-                { label: 'Barber name', val: bName, set: setBName, ph: 'Nazar' },
-                { label: 'Level', val: bLevel, set: setBLevel, ph: 'Senior / Expert' },
+                { label: 'Barber name *', val: bName, set: setBName, ph: 'Nazar' },
+                { label: 'Level / Rank', val: bLevel, set: setBLevel, ph: 'Senior / Expert / Ambassador' },
                 { label: 'Login', val: bUsername, set: setBUsername, ph: 'nazar' },
-                { label: 'Password / PIN', val: bPassword, set: setBPassword, ph: '1234' },
-                { label: 'Base price', val: bPrice, set: setBPrice, ph: '55.99' },
+                { label: 'Password / PIN *', val: bPassword, set: setBPassword, ph: '1234' },
+                { label: 'Base price ($)', val: bPrice, set: setBPrice, ph: '55.99' },
+                { label: 'Public role', val: bPublicRole, set: setBPublicRole, ph: 'Ambassador' },
               ].map(f => (
                 <div key={f.label}>
                   <label style={labelStyle}>{f.label}</label>
                   <input value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} style={inputStyle} />
                 </div>
               ))}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>About / Bio (shown on public website)</label>
+                <textarea value={bAbout} onChange={e => setBAbout(e.target.value)}
+                  placeholder="Precision fades. Clean silhouette. Premium finish — built for clients who want it perfect from every angle."
+                  rows={3}
+                  style={{ ...inputStyle, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
+              </div>
+              <div>
+                <label style={labelStyle}>Radar labels (comma separated)</label>
+                <input value={bRadarLabels} onChange={e => setBRadarLabels(e.target.value)} placeholder="FADE,LONG,BEARD,STYLE,DETAIL" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Radar values (0–5, comma separated)</label>
+                <input value={bRadarValues} onChange={e => setBRadarValues(e.target.value)} placeholder="4.5,4.5,4.5,4.5,4.5" style={inputStyle} />
+              </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={labelStyle}>Photo</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
