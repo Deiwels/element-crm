@@ -379,8 +379,13 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
         /* Mobile: compensate for fixed burger button */
         @media(max-width:768px){
-          /* Add padding-top so content starts below burger area — handled per-page */
           .content{ position:relative; }
+          /* Center page title h2 on mobile — burger is on left so title must be centered */
+          .page-title{
+            text-align:center!important;
+            width:100%;
+            display:block!important;
+          }
         }
 
         /* Burger */
