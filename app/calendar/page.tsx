@@ -777,35 +777,7 @@ export default function CalendarPage() {
                 const colEvents = filtered.filter(e => e.barberId === barber.id)
                 return (
                   <div key={barber.id} ref={el => { colRefs.current[bi] = el }}
-                    style={(() => {
-                      const todayDow = new Date(anchor + 'T00:00:00').getDay()
-                      const sched = barber.schedule
-                      const dayIdx = todayDow === 0 ? 6 : todayDow - 1
-                      const day = sched?.[dayIdx]
-                      const baseGray = 'rgba(255,255,255,.025)'
-                      const offGray  = 'rgba(80,80,90,.18)'
-
-                      let bg = drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'rgba(0,0,0,.06)'
-
-                      if (day) {
-                        if (!day.enabled) {
-                          // Whole day — solid gray
-                          bg = offGray
-                        } else {
-                          // Gradient: gray → clear → gray
-                          const startPct = Math.round((day.startMin / (END_HOUR * 60 - START_HOUR * 60)) * 100)
-                          const endPct   = Math.round((day.endMin   / (END_HOUR * 60 - START_HOUR * 60)) * 100)
-                          bg = `linear-gradient(to bottom, ${offGray} 0%, ${offGray} ${startPct}%, rgba(0,0,0,.04) ${startPct}%, rgba(0,0,0,.04) ${endPct}%, ${offGray} ${endPct}%, ${offGray} 100%)`
-                        }
-                      }
-
-                      return {
-                        position: 'relative' as const,
-                        borderRight: bi < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none',
-                        background: bg,
-                        transition: 'background .15s',
-                      }
-                    })()}
+                    style={{ position: 'relative', borderRight: bi < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'transparent', transition: 'background .15s' }}
                     onClick={e => {
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       if (isBarber && barber.id !== myBarberId) return
