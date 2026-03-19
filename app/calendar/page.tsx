@@ -522,16 +522,20 @@ export default function CalendarPage() {
     setWorkHours(next as any)
   }, [barbers, anchor])
 
-  // Scroll to current time on mount
+  // Scroll to current time — runs after barbers load so DOM is ready
   useEffect(() => {
+    if (!barbers.length) return
     const container = scrollContainerRef.current
     if (!container) return
     const now = new Date()
     const currentMin = now.getHours() * 60 + now.getMinutes()
     const y = ((currentMin - START_HOUR * 60) / 5) * SLOT_H
     const offset = Math.max(0, y - container.clientHeight * 0.3)
-    container.scrollTop = offset
-  }, [])
+    // Use requestAnimationFrame to ensure layout is complete
+    requestAnimationFrame(() => {
+      container.scrollTop = offset
+    })
+  }, [barbers])
 
   // Off-block resize handlers
   useEffect(() => {
