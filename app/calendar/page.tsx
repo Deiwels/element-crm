@@ -910,7 +910,7 @@ export default function CalendarPage() {
                       const ey = minToY(endMin)
 
                       // Same stripe pattern as red block but gray
-                      const STRIPE = 'repeating-linear-gradient(45deg,rgba(255,255,255,.035) 0px,rgba(255,255,255,.035) 2px,transparent 2px,transparent 10px)'
+                      const STRIPE = 'repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0px,rgba(255,255,255,.07) 3px,transparent 3px,transparent 9px)'
                       const BG = 'rgba(0,0,0,.72)'
                       const BORDER_COLOR = 'rgba(255,255,255,.12)'
                       const TIME_PILL = { fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: 'rgba(0,0,0,.50)', border: '1px solid rgba(255,255,255,.18)', color: 'rgba(255,255,255,.55)', letterSpacing: '.04em', fontFamily: 'Inter,sans-serif' } as React.CSSProperties
