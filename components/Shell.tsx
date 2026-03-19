@@ -313,8 +313,12 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
         /* Brand */
         .brand{
-          padding:14px 18px 14px;
+          padding:12px 18px 12px;
           border-bottom:1px solid rgba(255,255,255,.06);
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          text-align:center;
         }
         .brand h1{
           font-family:"Julius Sans One",sans-serif;
@@ -364,7 +368,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
         /* User bar */
         .user-bar{
-          padding:12px;
+          padding:8px 12px 10px;
           border-bottom:1px solid rgba(255,255,255,.06);
         }
         .user-card{
