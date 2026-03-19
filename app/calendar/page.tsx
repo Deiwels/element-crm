@@ -861,22 +861,7 @@ export default function CalendarPage() {
         @media(max-width:768px){
           body { overscroll-behavior: none; touch-action: pan-x pan-y; }
           .cal-scroll-lock { touch-action: none !important; overflow: hidden !important; }
-          /* Center topbar title+date on mobile */
-          .cal-topbar-left{
-            width:100%;
-            display:flex;
-            flex-direction:column;
-            align-items:center;
-            text-align:center;
-            padding-left:0 !important;
-          }
-          .cal-topbar-left h2{
-            text-align:center !important;
-          }
-          .cal-topbar-left p{
-            text-align:center !important;
-          }
-          /* Mobile topbar — compact single row */
+          /* Mobile topbar — single row, title centered */
           .cal-topbar-row{
             flex-direction:row !important;
             align-items:center !important;
@@ -884,15 +869,29 @@ export default function CalendarPage() {
             gap:0 !important;
             flex-wrap:nowrap !important;
           }
-          /* Left title block */
+          /* Title block — indent left so burger (56px) doesn't overlap */
           .cal-topbar-left{
             flex:1;
             min-width:0;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            text-align:center;
+            padding-left:56px !important; /* clear burger button */
+          }
+          .cal-topbar-left h2{
+            text-align:center !important;
+            font-size:13px !important;
+            letter-spacing:.22em !important;
+          }
+          .cal-topbar-left p{
+            text-align:center !important;
+            font-size:10px !important;
           }
           /* Buttons row — compact, right side */
           .cal-topbar-btns{
             flex-wrap:nowrap !important;
-            gap:6px !important;
+            gap:5px !important;
           }
           /* Hide text labels on mobile — show only icons */
           .cal-btn-text{ display:none !important; }
