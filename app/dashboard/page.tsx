@@ -109,8 +109,25 @@ export default function DashboardPage() {
       }
       setBookings(bks)
 
-      // Load barbers list
-      setBarbers(barberList)
+      // Parse barbers schedule same as calendar — flat {startMin, endMin, days} from server
+      const parsedBarbers = barberList.map((b: any) => {
+        const raw = b.schedule || b.work_schedule
+        let schedule = null
+        if (raw && typeof raw === 'object') {
+          if (Array.isArray(raw)) {
+            schedule = { startMin: raw[1]?.startMin ?? 10*60, endMin: raw[1]?.endMin ?? 20*60, days: raw.map((d: any, i: number) => d.enabled ? i : -1).filter((i: number) => i >= 0) }
+          } else if (raw.startMin !== undefined) {
+            // Flat object — what server normalizeSchedule returns
+            schedule = {
+              startMin: Number(raw.startMin ?? 10*60),
+              endMin: Number(raw.endMin ?? 20*60),
+              days: Array.isArray(raw.days) ? raw.days.map(Number) : [1,2,3,4,5,6]
+            }
+          }
+        }
+        return { ...b, schedule }
+      })
+      setBarbers(parsedBarbers)
 
       // Load shop settings for owner/admin
       if (!isBarber) {
