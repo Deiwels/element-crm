@@ -157,13 +157,25 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
   const [radarValues, setRadarValues] = useState((b.radarValues || [4.5,4.5,4.5,4.5,4.5]).join(','))
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
-  const [sched, setSched] = useState<DaySchedule[]>(DAY_DEFAULTS.map(d => ({...d})))
+  const [sched, setSched] = useState<DaySchedule[]>(() => {
+    // Load from barber's actual schedule if available
+    if (b.schedule && b.schedule.length === 7) {
+      return b.schedule.map(d => ({ enabled: d.enabled, startMin: d.startMin, endMin: d.endMin }))
+    }
+    return DAY_DEFAULTS.map(d => ({...d}))
+  })
 
   useEffect(() => {
     setLevel(b.level || ''); setPrice(b.basePrice || ''); setAbout(b.about || '')
     setPublicRole(b.publicRole || '')
     setRadarLabels((b.radarLabels || ['FADE','LONG','BEARD','STYLE','DETAIL']).join(','))
     setRadarValues((b.radarValues || [4.5,4.5,4.5,4.5,4.5]).join(','))
+    // Sync schedule from server data
+    if (b.schedule && b.schedule.length === 7) {
+      setSched(b.schedule.map(d => ({ enabled: d.enabled, startMin: d.startMin, endMin: d.endMin })))
+    } else {
+      setSched(DAY_DEFAULTS.map(d => ({...d})))
+    }
   }, [b.id])
 
   function handlePhoto(file: File | null) {
