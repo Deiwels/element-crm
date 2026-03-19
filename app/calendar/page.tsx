@@ -495,24 +495,25 @@ export default function CalendarPage() {
   const [workHours, setWorkHours] = useState<Record<string, { startMin: number; endMin: number }>>({})
   const offResize = useRef<{ barberId: string; type: 'top' | 'bottom'; startY: number; origMin: number } | null>(null)
 
-  // Build workHours from loaded barbers
+  // Build workHours from loaded barbers — always refresh when barbers or anchor changes
   useEffect(() => {
     if (!barbers.length) return
-    setWorkHours(prev => {
-      const next = { ...prev }
-      barbers.forEach(b => {
-        if (next[b.id]) return // keep manually edited
-        const dow = new Date(anchor + 'T00:00:00').getDay()
-        const didx = dow === 0 ? 6 : dow - 1
-        const day = b.schedule?.[didx]
-        if (day) {
-          next[b.id] = { startMin: day.startMin, endMin: day.endMin }
-        } else {
-          next[b.id] = { startMin: 10 * 60, endMin: 20 * 60 }
-        }
-      })
-      return next
+    const dow = new Date(anchor + 'T00:00:00').getDay()
+    const didx = dow === 0 ? 6 : dow - 1
+    const next: Record<string, { startMin: number; endMin: number }> = {}
+    barbers.forEach(b => {
+      const day = b.schedule?.[didx]
+      if (day && day.enabled !== false) {
+        next[b.id] = { startMin: day.startMin, endMin: day.endMin }
+      } else if (day && day.enabled === false) {
+        // Day off — whole day gray
+        next[b.id] = { startMin: 0, endMin: 0 }
+      } else {
+        // No schedule — default 10:00–20:00
+        next[b.id] = { startMin: 10 * 60, endMin: 20 * 60 }
+      }
     })
+    setWorkHours(next)
   }, [barbers, anchor])
 
   // Scroll to current time on mount
@@ -595,38 +596,53 @@ export default function CalendarPage() {
   const loadBarbers = useCallback(async () => {
     const data = await apiFetch('/api/barbers')
     const list = Array.isArray(data) ? data : (data?.barbers || [])
-    // DEBUG — remove after fix
-    if (list.length > 0) {
-      console.log('[BARBERS] raw[0]:', JSON.stringify({
-        id: list[0].id,
-        name: list[0].name,
-        schedule: list[0].schedule,
-        work_schedule: list[0].work_schedule,
-      }, null, 2))
-    }
-    return list.map((b: any, i: number) => ({
-      id: String(b.id || ''), name: String(b.name || '').trim(),
-      level: String(b.level || '').trim(), photo: String(b.photo_url || b.photo || '').trim(),
-      color: BARBER_COLORS[i % BARBER_COLORS.length],
-      about: String(b.about || b.description || '').trim(),
-      basePrice: String(b.base_price || '').trim(),
-      publicRole: String(b.public_role || '').trim(),
-      radarLabels: Array.isArray(b.radar_labels) ? b.radar_labels : ['FADE','LONG','BEARD','STYLE','DETAIL'],
-      radarValues: Array.isArray(b.radar_values) ? b.radar_values.map(Number) : [4.5,4.5,4.5,4.5,4.5],
-      username: String(b.username || '').trim(),
-      schedule: (() => {
-        const raw = b.schedule || b.work_schedule
-        if (!raw) return undefined
-        // Saved as array
-        const arr = Array.isArray(raw) ? raw : Array.isArray(raw.perDay) ? raw.perDay : null
-        if (!arr) return undefined
-        return arr.map((d: any) => ({
-          enabled: !!d.enabled,
-          startMin: Number(d.startMin ?? d.start_min ?? 10*60),
-          endMin: Number(d.endMin ?? d.end_min ?? 20*60),
-        }))
-      })(),
-    })).filter((b: Barber) => b.id && b.name)
+    return list.map((b: any, i: number) => {
+      // Extract work hours from any schedule format the API returns
+      const rawSched = b.schedule || b.work_schedule
+      let parsedSchedule: { enabled: boolean; startMin: number; endMin: number }[] | undefined
+
+      if (rawSched) {
+        if (Array.isArray(rawSched)) {
+          // Format: array of day objects
+          parsedSchedule = rawSched.map((d: any) => ({
+            enabled: !!d.enabled,
+            startMin: Number(d.startMin ?? d.start_min ?? 10*60),
+            endMin: Number(d.endMin ?? d.end_min ?? 20*60),
+          }))
+        } else if (typeof rawSched === 'object') {
+          if (Array.isArray(rawSched.perDay)) {
+            // Format: { startMin, endMin, perDay: [...] }
+            parsedSchedule = rawSched.perDay.map((d: any) => ({
+              enabled: !!d.enabled,
+              startMin: Number(d.startMin ?? d.start_min ?? 10*60),
+              endMin: Number(d.endMin ?? d.end_min ?? 20*60),
+            }))
+          } else if (rawSched.startMin !== undefined || rawSched.start_min !== undefined) {
+            // Format: { startMin, endMin } — single flat object, apply to all 7 days
+            const sm = Number(rawSched.startMin ?? rawSched.start_min ?? 10*60)
+            const em = Number(rawSched.endMin ?? rawSched.end_min ?? 20*60)
+            parsedSchedule = Array.from({ length: 7 }, (_, i) => ({
+              enabled: i !== 0, // Sun off by default
+              startMin: sm,
+              endMin: em,
+            }))
+          }
+        }
+      }
+
+      return {
+        id: String(b.id || ''), name: String(b.name || '').trim(),
+        level: String(b.level || '').trim(), photo: String(b.photo_url || b.photo || '').trim(),
+        color: BARBER_COLORS[i % BARBER_COLORS.length],
+        about: String(b.about || b.description || '').trim(),
+        basePrice: String(b.base_price || '').trim(),
+        publicRole: String(b.public_role || '').trim(),
+        radarLabels: Array.isArray(b.radar_labels) ? b.radar_labels : ['FADE','LONG','BEARD','STYLE','DETAIL'],
+        radarValues: Array.isArray(b.radar_values) ? b.radar_values.map(Number) : [4.5,4.5,4.5,4.5,4.5],
+        username: String(b.username || '').trim(),
+        schedule: parsedSchedule,
+      }
+    }).filter((b: Barber) => b.id && b.name)
   }, [])
 
   const loadServices = useCallback(async () => {
