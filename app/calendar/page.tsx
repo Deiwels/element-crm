@@ -479,7 +479,7 @@ export default function CalendarPage() {
   const [services, setServices] = useState<Service[]>([])
   const [events, setEvents] = useState<CalEvent[]>([])
   const [search, setSearch] = useState('')
-  const [isMobile, setIsMobile] = useState(false)
+  const [isMobile, setIsMobile] = useState(false) // mobile detection
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768)
     check()
