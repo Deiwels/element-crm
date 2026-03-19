@@ -969,9 +969,9 @@ export default function CalendarPage() {
 
         {/* Calendar grid */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', touchAction: drag ? 'none' : 'pan-x pan-y' }} ref={scrollContainerRef}>
-          <div style={{ minWidth: 90 + visibleBarbers.length * COL_MIN }}>
+          <div style={{ minWidth: (isMobile ? 46 : 90) + visibleBarbers.length * COL_MIN }}>
             {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `${isMobile ? 46 : 90}px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
               <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,.10)', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', textAlign: 'center' }}>Time</div>
               {visibleBarbers.map((b, i) => (
                 <div key={b.id} style={{ padding: '10px 12px', borderRight: i < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -982,7 +982,7 @@ export default function CalendarPage() {
             </div>
 
             {/* Body */}
-            <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, height: totalH, position: 'relative' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `${isMobile ? 46 : 90}px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, height: totalH, position: 'relative' }}>
               {/* Time labels */}
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
                 {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
