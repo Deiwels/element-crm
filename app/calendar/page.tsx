@@ -891,6 +891,8 @@ export default function CalendarPage() {
           .cal-search-icon{ display:flex !important; }
           .cal-settings-btn{ display:none !important; }
           .cal-settings-icon{ display:flex !important; }
+          /* Hide Calendar title + date on mobile */
+          .cal-topbar-left{ display:none !important; }
         }
         select option { background: #111; }
         input[type=date],input[type=time] { color-scheme: dark; }
