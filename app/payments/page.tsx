@@ -396,15 +396,16 @@ export default function PaymentsPage() {
           </div>
 
           {/* Details panel */}
-          <div style={{ overflowY: 'auto', padding: mobileDetail ? '0 0 14px' : 14, display: 'flex', flexDirection: 'column', gap: 10, background: 'rgba(0,0,0,.08)' }} className={`pay-details${mobileDetail && selectedId ? ' visible' : ''}`}
-            style={{ overflowY: 'auto', background: 'rgba(0,0,0,.08)', ...(mobileDetail && selectedId ? { position: 'fixed' as const, inset: 0, zIndex: 90, display: 'flex', flexDirection: 'column' as const } : { padding: 14, display: 'flex', flexDirection: 'column' as const, gap: 10 }) }}>
+          <div style={mobileDetail && selectedId
+            ? { position: 'fixed' as const, inset: 0, zIndex: 90, background: 'rgba(0,0,0,.97)', overflowY: 'auto' as const, display: 'flex', flexDirection: 'column' as const }
+            : { overflowY: 'auto' as const, padding: 14, display: 'flex', flexDirection: 'column' as const, gap: 10, background: 'rgba(0,0,0,.08)' }}>
             {mobileDetail && selectedId && (
               <div style={{ position: 'sticky', top: 0, zIndex: 10, padding: '10px 14px', background: 'rgba(0,0,0,.90)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                 <button onClick={() => setMobileDetail(false)} style={{ height: 34, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>← Back</button>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,.45)' }}>Payment detail</span>
               </div>
             )}
-            <div style={{ padding: mobileDetail ? '0 14px 14px' : 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+            <div style={{ padding: mobileDetail ? '14px' : 0, display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
             {!selectedPayment ? (
               <div style={{ color: 'rgba(255,255,255,.30)', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>Click any payment to view details</div>
             ) : (() => {
@@ -462,7 +463,7 @@ export default function PaymentsPage() {
                 </div>
               </>
             })()}
-          </div>
+            </div>
           </div>
         </div>
       </div>
