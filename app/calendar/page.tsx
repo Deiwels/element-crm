@@ -594,6 +594,17 @@ export default function CalendarPage() {
     tick(); const t = setInterval(tick, 30000); return () => clearInterval(t)
   }, [])
 
+  // Per-day schedule overrides stored in localStorage
+  // Key: 'sched_override_<barberId>' = {dow: {startMin, endMin}, ...}
+  function getSchedOverrides(barberId: string): Record<number, { startMin: number; endMin: number }> {
+    try { return JSON.parse(localStorage.getItem('sched_override_' + barberId) || '{}') } catch { return {} }
+  }
+  function saveSchedOverride(barberId: string, dow: number, startMin: number, endMin: number) {
+    const cur = getSchedOverrides(barberId)
+    cur[dow] = { startMin, endMin }
+    localStorage.setItem('sched_override_' + barberId, JSON.stringify(cur))
+  }
+
   const loadBarbers = useCallback(async () => {
     const data = await apiFetch('/api/barbers')
     const list = Array.isArray(data) ? data : (data?.barbers || [])
@@ -631,6 +642,18 @@ export default function CalendarPage() {
         }
       }
 
+      // Apply per-day localStorage overrides on top of server schedule
+      let finalSchedule = parsedSchedule
+      if (finalSchedule) {
+        const overrides = getSchedOverrides(String(b.id || ''))
+        if (Object.keys(overrides).length > 0) {
+          finalSchedule = finalSchedule.map((day, dow) => {
+            const ov = overrides[dow]
+            return ov ? { ...day, startMin: ov.startMin, endMin: ov.endMin } : day
+          })
+        }
+      }
+
       return {
         id: String(b.id || ''), name: String(b.name || '').trim(),
         level: String(b.level || '').trim(), photo: String(b.photo_url || b.photo || '').trim(),
@@ -641,7 +664,7 @@ export default function CalendarPage() {
         radarLabels: Array.isArray(b.radar_labels) ? b.radar_labels : ['FADE','LONG','BEARD','STYLE','DETAIL'],
         radarValues: Array.isArray(b.radar_values) ? b.radar_values.map(Number) : [4.5,4.5,4.5,4.5,4.5],
         username: String(b.username || '').trim(),
-        schedule: parsedSchedule,
+        schedule: finalSchedule,
       }
     }).filter((b: Barber) => b.id && b.name)
   }, [])
@@ -1069,14 +1092,28 @@ export default function CalendarPage() {
           try {
             const barber = barbers.find(b => b.id === barberId)
             const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
-            // Update ALL days with same dow index (every Monday, every Tuesday etc.)
-            const newSched = baseSched.map((d, i) => i === dow ? { ...d, startMin, endMin } : d)
+
+            // 1. Save this day's override to localStorage
+            saveSchedOverride(barberId, dow, startMin, endMin)
+
+            // 2. Build updated schedule applying ALL localStorage overrides
+            const allOverrides = getSchedOverrides(barberId)
+            const newSched = baseSched.map((d, i) => {
+              const ov = allOverrides[i]
+              return ov ? { ...d, startMin: ov.startMin, endMin: ov.endMin } : d
+            })
             const enabledDays = newSched.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
+
+            // 3. Server stores global startMin/endMin (min/max of all enabled days)
+            const enabledDays2 = newSched.filter(d => d.enabled)
+            const globalStart = enabledDays2.length ? Math.min(...enabledDays2.map(d => d.startMin)) : startMin
+            const globalEnd   = enabledDays2.length ? Math.max(...enabledDays2.map(d => d.endMin))   : endMin
+
             await apiFetch('/api/barbers/' + encodeURIComponent(barberId), {
               method: 'PATCH',
               body: JSON.stringify({
-                schedule: { startMin, endMin, days: enabledDays },
-                work_schedule: { startMin, endMin, days: enabledDays }
+                schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays },
+                work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays }
               })
             })
             loadBarbers().then(list => setBarbers(list))
