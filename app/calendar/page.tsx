@@ -533,13 +533,18 @@ export default function CalendarPage() {
       radarLabels: Array.isArray(b.radar_labels) ? b.radar_labels : ['FADE','LONG','BEARD','STYLE','DETAIL'],
       radarValues: Array.isArray(b.radar_values) ? b.radar_values.map(Number) : [4.5,4.5,4.5,4.5,4.5],
       username: String(b.username || '').trim(),
-      schedule: Array.isArray(b.schedule || b.work_schedule)
-        ? (b.schedule || b.work_schedule).map((d: any) => ({
-            enabled: !!d.enabled,
-            startMin: Number(d.startMin ?? d.start_min ?? d.start ?? 10*60),
-            endMin: Number(d.endMin ?? d.end_min ?? d.end ?? 20*60),
-          }))
-        : undefined,
+      schedule: (() => {
+        const raw = b.schedule || b.work_schedule
+        if (!raw) return undefined
+        // Saved as array
+        const arr = Array.isArray(raw) ? raw : Array.isArray(raw.perDay) ? raw.perDay : null
+        if (!arr) return undefined
+        return arr.map((d: any) => ({
+          enabled: !!d.enabled,
+          startMin: Number(d.startMin ?? d.start_min ?? 10*60),
+          endMin: Number(d.endMin ?? d.end_min ?? 20*60),
+        }))
+      })(),
     })).filter((b: Barber) => b.id && b.name)
   }, [])
 
