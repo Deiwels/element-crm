@@ -170,9 +170,9 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
     setPublicRole(b.publicRole || '')
     setRadarLabels((b.radarLabels || ['FADE','LONG','BEARD','STYLE','DETAIL']).join(','))
     setRadarValues((b.radarValues || [4.5,4.5,4.5,4.5,4.5]).join(','))
-    // Sync schedule from server data
+    // Sync schedule from server data (b.schedule is 7-element array [Sun..Sat])
     if (b.schedule && b.schedule.length === 7) {
-      setSched(b.schedule.map(d => ({ enabled: d.enabled, startMin: d.startMin, endMin: d.endMin })))
+      setSched(b.schedule.map((d: any) => ({ enabled: !!d.enabled, startMin: Number(d.startMin) || 10*60, endMin: Number(d.endMin) || 20*60 })))
     } else {
       setSched(DAY_DEFAULTS.map(d => ({...d})))
     }
@@ -200,8 +200,13 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
   async function save() {
     setSaving(true)
     try {
+      // days[] uses JS getDay() numbering: 0=Sun,1=Mon..6=Sat (same as DAY_NAMES index)
       const enabledDays = sched.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
-      const schedPayload = { startMin: Math.min(...sched.filter(d=>d.enabled).map(d=>d.startMin), 10*60), endMin: Math.max(...sched.filter(d=>d.enabled).map(d=>d.endMin), 20*60), days: enabledDays, perDay: sched }
+      const enabledScheds = sched.filter(d => d.enabled)
+      const startMin = enabledScheds.length ? Math.min(...enabledScheds.map(d => d.startMin)) : 10*60
+      const endMin   = enabledScheds.length ? Math.max(...enabledScheds.map(d => d.endMin))   : 20*60
+      // Send flat schedule — server normalizeSchedule() stores {startMin, endMin, days}
+      const schedPayload = { startMin, endMin, days: enabledDays }
       const rLabels = radarLabels.split(',').map(s => s.trim()).filter(Boolean)
       const rValues = radarValues.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
       await apiFetch(`/api/barbers/${encodeURIComponent(b.id)}`, {
