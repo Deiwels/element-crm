@@ -784,7 +784,7 @@ export default function CalendarPage() {
                       const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
                       isOwnerOrAdmin ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
                     }}>
-                    {/* Non-working hours overlay with work-hours label */}
+                    {/* Non-working / working hours overlay */}
                     {(() => {
                       const todayDow = new Date(anchor + 'T00:00:00').getDay()
                       const sched = barber.schedule
@@ -793,22 +793,18 @@ export default function CalendarPage() {
                       const day = sched[dayIdx]
                       if (!day) return null
 
-                      const OFF = 'rgba(0,0,0,.50)'
-                      const labelStyle: React.CSSProperties = {
-                        position: 'absolute', left: 0, right: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase',
-                        color: 'rgba(255,255,255,.22)', pointerEvents: 'none', userSelect: 'none',
-                        fontFamily: 'Inter,sans-serif',
-                      }
-
+                      // Whole day off
                       if (!day.enabled) {
-                        // Whole day off — show label in the middle of the column
                         return (
-                          <div key="allday" style={{ position:'absolute', inset:0, background: OFF, pointerEvents:'none', zIndex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                            <div style={{ fontSize:10, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(255,255,255,.20)', textAlign:'center', lineHeight:1.8 }}>
+                          <div style={{
+                            position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
+                            background: 'repeating-linear-gradient(45deg, rgba(255,255,255,.015) 0px, rgba(255,255,255,.015) 1px, transparent 1px, transparent 8px)',
+                            backgroundColor: 'rgba(0,0,0,.45)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <span style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.18)', fontFamily: 'Inter,sans-serif' }}>
                               Day off
-                            </div>
+                            </span>
                           </div>
                         )
                       }
@@ -817,39 +813,89 @@ export default function CalendarPage() {
                       const endY   = minToY(day.endMin)
                       const totalY = minToY(END_HOUR * 60)
 
-                      return (<>
-                        {/* Before work — with "works from HH:MM" label */}
-                        {day.startMin > START_HOUR * 60 && (
-                          <div key="before" style={{ position:'absolute', left:0, right:0, top:0, height:startY, background: OFF, pointerEvents:'none', zIndex:1 }}>
-                            <div style={{ ...labelStyle, bottom: 8, top: 'auto', gap: 5 }}>
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.30)" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                              {minToHHMM(day.startMin)}
-                            </div>
-                          </div>
-                        )}
+                      // Hatched pattern for off-hours, clean for work hours
+                      const hatch = 'repeating-linear-gradient(45deg, rgba(255,255,255,.018) 0px, rgba(255,255,255,.018) 1px, transparent 1px, transparent 8px)'
 
-                        {/* Working hours — subtle highlight with time range label */}
-                        <div key="working" style={{ position:'absolute', left:0, right:0, top:startY, height: endY - startY, pointerEvents:'none', zIndex:1 }}>
-                          {/* Top border — start of work */}
-                          <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:'rgba(255,255,255,.06)' }} />
-                          {/* Work hours time label — shown at top of work zone */}
-                          <div style={{ position:'absolute', top:6, left:0, right:0, display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontSize:9, letterSpacing:'.10em', textTransform:'uppercase', color:'rgba(255,255,255,.18)', pointerEvents:'none', userSelect:'none' }}>
-                            {minToHHMM(day.startMin)} — {minToHHMM(day.endMin)}
-                          </div>
-                          {/* Bottom border — end of work */}
-                          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, background:'rgba(255,255,255,.06)' }} />
-                        </div>
-
-                        {/* After work — with "works until HH:MM" label */}
-                        {day.endMin < END_HOUR * 60 && (
-                          <div key="after" style={{ position:'absolute', left:0, right:0, top:endY, height: totalY - endY, background: OFF, pointerEvents:'none', zIndex:1 }}>
-                            <div style={{ ...labelStyle, top: 8, gap: 5 }}>
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.30)" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                              {minToHHMM(day.endMin)}
+                      return (
+                        <>
+                          {/* ── Before work hours ── */}
+                          {day.startMin > START_HOUR * 60 && (
+                            <div style={{
+                              position: 'absolute', left: 0, right: 0, top: 0, height: startY,
+                              zIndex: 1, pointerEvents: 'none',
+                              background: hatch, backgroundColor: 'rgba(0,0,0,.42)',
+                            }}>
+                              {/* "Starts at" badge — pinned to bottom of off zone */}
+                              <div style={{
+                                position: 'absolute', bottom: 6, left: 0, right: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                                pointerEvents: 'none',
+                              }}>
+                                <div style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                                  padding: '3px 9px', borderRadius: 999,
+                                  background: 'rgba(255,255,255,.07)',
+                                  border: '1px solid rgba(255,255,255,.10)',
+                                  fontSize: 10, fontWeight: 700, letterSpacing: '.06em',
+                                  color: 'rgba(255,255,255,.40)', fontFamily: 'Inter,sans-serif',
+                                }}>
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                  </svg>
+                                  {minToHHMM(day.startMin)}
+                                </div>
+                              </div>
                             </div>
+                          )}
+
+                          {/* ── Work hours — clean, slightly lighter ── */}
+                          <div style={{
+                            position: 'absolute', left: 0, right: 0, top: startY,
+                            height: endY - startY, zIndex: 1, pointerEvents: 'none',
+                          }}>
+                            {/* Top border line — start of shift */}
+                            <div style={{
+                              position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+                              background: 'rgba(255,255,255,.14)',
+                            }} />
+                            {/* Bottom border line — end of shift */}
+                            <div style={{
+                              position: 'absolute', bottom: 0, left: 0, right: 0, height: 1,
+                              background: 'rgba(255,255,255,.14)',
+                            }} />
                           </div>
-                        )}
-                      </>)
+
+                          {/* ── After work hours ── */}
+                          {day.endMin < END_HOUR * 60 && (
+                            <div style={{
+                              position: 'absolute', left: 0, right: 0, top: endY,
+                              height: totalY - endY, zIndex: 1, pointerEvents: 'none',
+                              background: hatch, backgroundColor: 'rgba(0,0,0,.42)',
+                            }}>
+                              {/* "Ends at" badge — pinned to top of off zone */}
+                              <div style={{
+                                position: 'absolute', top: 6, left: 0, right: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                pointerEvents: 'none',
+                              }}>
+                                <div style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                                  padding: '3px 9px', borderRadius: 999,
+                                  background: 'rgba(255,255,255,.07)',
+                                  border: '1px solid rgba(255,255,255,.10)',
+                                  fontSize: 10, fontWeight: 700, letterSpacing: '.06em',
+                                  color: 'rgba(255,255,255,.40)', fontFamily: 'Inter,sans-serif',
+                                }}>
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                  </svg>
+                                  {minToHHMM(day.endMin)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )
                     })()}
                     {/* Grid lines */}
                     {Array.from({ length: (END_HOUR-START_HOUR)*12 }, (_, i) => (
