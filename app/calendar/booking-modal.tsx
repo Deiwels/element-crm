@@ -270,11 +270,11 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
 
   if (selected) {
     return (
-      <div style={{ borderRadius: 14, border: '1px solid rgba(10,132,255,.35)', background: 'rgba(10,132,255,.06)', overflow: 'hidden' }}>
+      <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', overflow: 'hidden' }}>
         {/* Client header */}
         <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(10,132,255,.22)', border: '1px solid rgba(10,132,255,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
             <div style={{ minWidth: 0 }}>
@@ -319,7 +319,7 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
                 <button onClick={() => { setClientNotes(selected?.notes || ''); setEditingNotes(false) }}
                   style={{ height: 28, padding: '0 12px', borderRadius: 7, border: '1px solid rgba(255,255,255,.10)', background: 'transparent', color: 'rgba(255,255,255,.55)', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>Cancel</button>
                 <button onClick={saveClientNotes} disabled={savingNotes}
-                  style={{ height: 28, padding: '0 14px', borderRadius: 7, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
+                  style={{ height: 28, padding: '0 14px', borderRadius: 7, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.08)', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
                   {savingNotes ? 'Saving…' : 'Save'}
                 </button>
               </div>
@@ -380,7 +380,7 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
 
       {/* Not found — ask for name */}
       {notFound && (
-        <div style={{ padding: '14px', borderRadius: 14, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(10,132,255,.05)', animation: 'slideDown .18s ease' }}>
+        <div style={{ padding: '14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.04)', animation: 'slideDown .18s ease' }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginBottom: 12 }}>
             No client found for <strong style={{ color: '#fff' }}>{phone}</strong> — fill in their details:
           </div>
@@ -440,10 +440,10 @@ function NewClientForm({ initialName, onCreated, onCancel }: {
     setSaving(false)
   }
 
-  const inp: React.CSSProperties = { width: '100%', height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
+  const inp: React.CSSProperties = { width: '100%', height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
 
   return (
-    <div style={{ marginTop: 8, padding: '14px', borderRadius: 14, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(10,132,255,.05)', animation: 'slideDown .2s ease' }}>
+    <div style={{ marginTop: 8, padding: '14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.04)', animation: 'slideDown .2s ease' }}>
       <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 12 }}>New client</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
         <div style={{ gridColumn: '1 / -1' }}>
@@ -563,7 +563,7 @@ function PaymentPanel({ ev, services, onPayment }: {
 
   // Price breakdown display
   const PriceBreakdown = () => priceCalc.breakdown.length > 0 ? (
-    <div style={{ padding: '10px 12px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', fontSize: 11, marginBottom: 10 }}>
+    <div style={{ padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', fontSize: 11, marginBottom: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,.55)', marginBottom: 4 }}>
         <span>Service</span><span>${basePrice.toFixed(2)}</span>
       </div>
@@ -658,7 +658,7 @@ function PaymentPanel({ ev, services, onPayment }: {
   }
 
   return (
-    <div style={{ padding: '14px', borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', backdropFilter: 'blur(20px)', marginTop: 4 }}>
+    <div style={{ padding: '14px', borderRadius: 18, border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.04)', marginTop: 4 }}>
       <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 8 }}>
         Accept payment {price > 0 && <span style={{ color: '#e9e9e9', fontWeight: 900 }}> — ${price.toFixed(2)}</span>}
       </div>
@@ -697,7 +697,7 @@ function PaymentPanel({ ev, services, onPayment }: {
         <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(143,240,177,.06)', border: '1px solid rgba(143,240,177,.18)', fontSize: 12, color: 'rgba(143,240,177,.85)', marginBottom: 8 }}>Cash collected by barber directly</div>
       )}
       {method !== 'terminal' && (
-        <button onClick={handleManual} style={{ width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
+        <button onClick={handleManual} style={{ width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.22)', background: 'rgba(255,255,255,.10)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
           Confirm {method} payment
         </button>
       )}
@@ -782,7 +782,7 @@ export function BookingModal({
 
   if (!isOpen) return null
 
-  const inp: React.CSSProperties = { width: '100%', height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
+  const inp: React.CSSProperties = { width: '100%', height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', display: 'block', marginBottom: 5 }
 
   return (
@@ -794,12 +794,12 @@ export function BookingModal({
         .bm-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:3px }
         select option { background:#111 }
       `}</style>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.40)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 80, overflowY: 'auto' }}
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80, padding: '20px 16px' }}
         onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-        <div className="bm-scroll" style={{ width: 'min(680px,100vw)', borderRadius: '28px 28px 0 0', border: '1px solid rgba(255,255,255,.14)', background: 'rgba(14,14,22,.72)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 -4px 60px rgba(0,0,0,.40), 0 0 0 0.5px rgba(255,255,255,.08)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+        <div className="bm-scroll" style={{ width: 'min(640px,100%)', maxHeight: 'calc(100vh - 40px)', borderRadius: 24, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60), inset 0 0 0 0.5px rgba(255,255,255,.07)', overflowY: 'auto', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
 
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px 14px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 14px', borderBottom: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)' }}>
             <div>
               <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: '#e9e9e9' }}>
                 {isNew ? 'New appointment' : `Edit — ${existingEvent?.clientName}`}
@@ -811,7 +811,7 @@ export function BookingModal({
             <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontFamily: 'inherit' }}>✕</button>
           </div>
 
-          <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
             {/* Client search */}
             <div>
@@ -858,7 +858,7 @@ export function BookingModal({
               </div>
               <div>
                 <label style={lbl}>Duration → end time</label>
-                <div style={{ height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.12)', padding: '0 12px', display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,.60)' }}>
+                <div style={{ height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', padding: '0 12px', display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,.60)' }}>
                   {durMin}min → {minToHHMM(selStartMin + durMin)}
                 </div>
               </div>
@@ -915,7 +915,7 @@ export function BookingModal({
                 <button onClick={onDelete} style={{ height: 42, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>Delete</button>
               )}
               <button onClick={onClose} style={{ height: 42, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Close</button>
-              <button onClick={handleSave} disabled={saving} style={{ height: 42, padding: '0 20px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: saving ? .5 : 1 }}>
+              <button onClick={handleSave} disabled={saving} style={{ height: 42, padding: '0 20px', borderRadius: 999, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: saving ? .5 : 1 }}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>

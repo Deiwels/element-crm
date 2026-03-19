@@ -49,7 +49,7 @@ const CSS = `
 
   .nav{display:flex;flex-direction:column;gap:3px;padding:12px 10px;flex:1;overflow-y:auto;}
   .nav-item{
-    display:flex;align-items:center;gap:10px;padding:11px 13px;
+    display:flex;align-items:center;gap:10px;padding:9px 12px;
     border-radius:14px;border:1px solid transparent;
     transition:all .18s ease;cursor:pointer;
   }
@@ -380,7 +380,10 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
                 onClick={() => setSidebarOpen(false)}
                 className={`nav-item${pathname === item.href ? ' active' : ''}`}
               >
-                <div>
+                <div style={{ width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 15, background: pathname === item.href ? 'rgba(10,132,255,.20)' : 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.07)' }}>
+                  {({'dashboard':'⬛','calendar':'📅','clients':'👤','payments':'💳','payroll':'💰','settings':'⚙️'} as Record<string,string>)[item.id] || '•'}
+                </div>
+                <div style={{ minWidth: 0 }}>
                   <span className="nav-t">{item.label}</span>
                   <span className="nav-s">{item.sub}</span>
                 </div>
