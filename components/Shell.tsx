@@ -313,7 +313,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
         /* Brand */
         .brand{
-          padding:28px 18px 18px;
+          padding:14px 18px 14px;
           border-bottom:1px solid rgba(255,255,255,.06);
         }
         .brand h1{
@@ -453,7 +453,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
           /* Brand — centered text, clear burger with padding */
           .brand{
-            padding:16px 18px;
+            padding:10px 18px;
             display:flex;
             flex-direction:column;
             align-items:center;
