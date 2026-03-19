@@ -730,11 +730,15 @@ export default function CalendarPage() {
               endMin: Number(d.endMin ?? d.end_min ?? 20*60),
             }))
           } else if (rawSched.startMin !== undefined || rawSched.start_min !== undefined) {
-            // Format: { startMin, endMin } — single flat object, apply to all 7 days
+            // Format: { startMin, endMin, days:[0,1,2,3,4,5,6] } — server normalizeSchedule output
             const sm = Number(rawSched.startMin ?? rawSched.start_min ?? 10*60)
             const em = Number(rawSched.endMin ?? rawSched.end_min ?? 20*60)
+            // days[] contains JS getDay() indices of WORKING days (0=Sun..6=Sat)
+            const workDays: number[] = Array.isArray(rawSched.days)
+              ? rawSched.days.map(Number)
+              : [1,2,3,4,5,6] // default Mon-Sat if no days specified
             parsedSchedule = Array.from({ length: 7 }, (_, i) => ({
-              enabled: i !== 0, // Sun off by default
+              enabled: workDays.includes(i), // use server data, not hardcoded!
               startMin: sm,
               endMin: em,
             }))
