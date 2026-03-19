@@ -268,43 +268,6 @@ export default function DashboardPage() {
         {/* Main grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 14 }}>
 
-          {/* Appointments */}
-          <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)' }}>
-                {isBarber ? 'My appointments today' : "Today's appointments"}
-              </span>
-              {isOwnerOrAdmin && allBarberNames.length > 1 && (
-                <select value={filterBarber} onChange={e => setFilterBarber(e.target.value)}
-                  style={{ height: 30, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 8px', fontSize: 11, outline: 'none' }}>
-                  <option value="">All barbers</option>
-                  {allBarberNames.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-              )}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 520, overflowY: 'auto' }}>
-              {loading ? (
-                <div style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,.30)', fontSize: 12, letterSpacing: '.10em' }}>Loading…</div>
-              ) : filtered.length === 0 ? (
-                <div style={{ padding: 32, textAlign: 'center', color: 'rgba(255,255,255,.30)', fontSize: 12 }}>No bookings today</div>
-              ) : filtered.map((b, i) => (
-                <div key={b.id || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.14)' }}>
-                  <span style={{ width: 44, fontWeight: 900, fontSize: 13, flexShrink: 0 }}>{fmtTime(b.start_at)}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 900, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.client_name || 'Client'}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {!isBarber && <>{b.barber_name || b.barber || '—'} · </>}{b.service_name || b.service || '—'}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    {(b.paid || b.is_paid || b.payment_status === 'paid') && <Chip label="Paid" type="paid" />}
-                    <Chip label={b.status || 'booked'} type={b.status || 'booked'} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Right column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
