@@ -460,11 +460,17 @@ export default function DashboardPage() {
                               )
                             })}
                           </div>
-                          {sched && (
-                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,.30)', marginTop: 4 }}>
-                              {String(Math.floor((sched.startMin||600)/60)).padStart(2,'0')}:{String((sched.startMin||600)%60).padStart(2,'0')} — {String(Math.floor((sched.endMin||1200)/60)).padStart(2,'0')}:{String((sched.endMin||1200)%60).padStart(2,'0')}
-                            </div>
-                          )}
+                          {(() => {
+                            const fmt = (m: number) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`
+                            const sm = sched?.startMin ?? 600
+                            const em = sched?.endMin ?? 1200
+                            return (
+                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                <span>{fmt(sm)} — {fmt(em)}</span>
+                              </div>
+                            )
+                          })()}
                         </div>
                       </div>
                     )
