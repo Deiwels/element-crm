@@ -886,9 +886,8 @@ export default function CalendarPage() {
           .cal-topbar-btns{
             flex-wrap:nowrap !important;
             gap:5px !important;
-            justify-content:center !important;
+            justify-content:flex-end !important;
             width:100% !important;
-            padding-left:54px !important;
           }
           /* Hide desktop Date btn, show date pill instead */
           .cal-btn-date{ display:none !important; }

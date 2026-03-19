@@ -435,6 +435,9 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         .burger-btn.open .burger-line:nth-child(1){transform:translateY(6.5px) rotate(45deg);}
         .burger-btn.open .burger-line:nth-child(2){opacity:0;transform:scaleX(0);}
         .burger-btn.open .burger-line:nth-child(3){transform:translateY(-6.5px) rotate(-45deg);}
+        @media(max-width:768px){
+          .burger-btn.open{ opacity:0; pointer-events:none; }
+        }
 
         .sidebar-backdrop{
           display:none;position:fixed;inset:0;
