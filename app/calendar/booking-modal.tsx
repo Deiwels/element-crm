@@ -75,6 +75,7 @@ interface BookingModalProps {
   services: Service[]
   isOwnerOrAdmin: boolean
   myBarberId?: string
+  allEvents?: Array<{ id: string; barberId: string; startMin: number; durMin: number; status: string; paid: boolean; clientName: string }>
   existingEvent?: {
     id: string
     clientName: string
@@ -531,10 +532,12 @@ function PhotoUpload({ value, onChange }: { value: string; onChange: (url: strin
 }
 
 // ─── PaymentPanel ─────────────────────────────────────────────────────────────
-function PaymentPanel({ ev, services, onPayment }: {
+function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
   ev: BookingModalProps['existingEvent']
   services: Service[]
   onPayment: (method: string, tip: number) => void
+  allEvents?: BookingModalProps['allEvents']
+  barberId?: string
 }) {
   const [method, setMethod] = useState('terminal')
   const [tipYes, setTipYes] = useState(false)
@@ -551,6 +554,33 @@ function PaymentPanel({ ev, services, onPayment }: {
   const basePrice = svc?.price ? Number(String(svc.price).replace(/[^\d.]/g, '')) : 0
   const priceCalc = calcTotal(basePrice, shopSettings)
   const price = priceCalc.total  // total with tax + fees
+
+  // Find blocking event — same barber, earlier start, not resolved
+  const RESOLVED = ['paid', 'done', 'cancelled', 'noshow', 'no_show']
+  const blockingEvent = ev && allEvents && barberId
+    ? allEvents.find(e =>
+        e.id !== ev.id &&
+        e.barberId === barberId &&
+        e.startMin < (ev._raw?.start_min ?? 0) &&
+        !e.paid &&
+        !RESOLVED.includes(e.status)
+      )
+    : null
+
+  if (blockingEvent) {
+    return (
+      <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,207,63,.30)', background: 'rgba(255,207,63,.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffcf3f" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#ffcf3f' }}>Cannot charge yet</span>
+        </div>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', lineHeight: 1.5 }}>
+          <strong style={{ color: '#fff' }}>{blockingEvent.clientName || 'Previous client'}</strong> has not been charged, cancelled, or marked as no-show yet.
+          <br />Please resolve them first.
+        </div>
+      </div>
+    )
+  }
 
   if (ev?.paid) {
     return (
@@ -906,7 +936,7 @@ export function BookingModal({
 
             {/* Payment — owner/admin only */}
             {isOwnerOrAdmin && existingEvent && (
-              <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} />
+              <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} allEvents={allEvents} barberId={barberId} />
             )}
 
             {/* Footer */}
