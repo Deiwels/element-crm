@@ -740,7 +740,7 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
 export function BookingModal({
   isOpen, onClose, barberId, barberName, date, startMin,
   barbers, services, isOwnerOrAdmin, myBarberId,
-  existingEvent, onSave, onDelete, onPayment
+  existingEvent, onSave, onDelete, onPayment, allEvents
 }: BookingModalProps) {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientName, setClientName] = useState('')
