@@ -364,7 +364,12 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         .nav-item.active .nav-t{color:#fff;}
 
         /* User bar */
-        .user-bar{padding:12px;border-top:1px solid rgba(255,255,255,.06);}
+        .user-bar{
+          padding:12px;
+          border-top:1px solid rgba(255,255,255,.06);
+          /* Push above Safari toolbar on iPhone */
+          padding-bottom:max(12px, env(safe-area-inset-bottom, 20px));
+        }
         .user-card{
           display:flex;flex-direction:column;gap:8px;
           padding:12px;border-radius:14px;
@@ -414,10 +419,10 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         @media(max-width:768px){
           /* Sidebar */
           .sidebar{
-            position:fixed;inset:0 auto 0 0;
+            position:fixed;
+            /* dvh accounts for Safari toolbar collapsing */
+            top:0;left:0;bottom:0;right:auto;
             transform:translateX(-108%);
-            /* Account for iPhone notch/home bar */
-            padding-bottom:env(safe-area-inset-bottom, 16px);
           }
           .sidebar.open{transform:translateX(0);}
           .burger-btn{display:flex;}
@@ -440,10 +445,10 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
             display:none;
           }
 
-          /* User bar — safe area padding for iPhone home bar */
+          /* User bar — extra safe area for Safari bottom toolbar */
           .user-bar{
             padding:10px 12px;
-            padding-bottom:max(12px, env(safe-area-inset-bottom, 12px));
+            padding-bottom:max(20px, env(safe-area-inset-bottom, 20px));
           }
         }
 

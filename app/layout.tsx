@@ -1,6 +1,14 @@
-export const metadata = {
+import type { Metadata, Viewport } from 'next'
+
+export const metadata: Metadata = {
   title: 'Element CRM',
   description: 'Element Barbershop Staff Portal',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover', // ← allows env(safe-area-inset-*) to work in Safari
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
