@@ -131,9 +131,9 @@ function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: 
             <button onClick={() => toggle(i)} style={{ height: 26, borderRadius: 999, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.16)'}`, background: day.enabled ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.05)', color: day.enabled ? '#d7ecff' : '#fff', cursor: 'pointer', fontSize: 9, textTransform: 'uppercase', fontWeight: 900, fontFamily: 'inherit', width: '100%' }}>{day.enabled ? 'ON' : 'OFF'}</button>
             <div style={{ opacity: day.enabled ? 1 : 0.3, pointerEvents: day.enabled ? 'auto' : 'none' }}>
               <label style={{ fontSize: 8, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 2 }}>From</label>
-              <input type="time" value={minToTimeStr(day.startMin)} onChange={e => setTime(i,'startMin',e.target.value)} style={{ height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 4px', fontSize: 10, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
+              <input type="time" value={minToTimeStr(day.startMin)} onChange={e => setTime(i,'startMin',e.target.value)} style={{ height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 4px', fontSize: 10, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
               <label style={{ fontSize: 8, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', margin: '3px 0 2px' }}>To</label>
-              <input type="time" value={minToTimeStr(day.endMin)} onChange={e => setTime(i,'endMin',e.target.value)} style={{ height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 4px', fontSize: 10, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
+              <input type="time" value={minToTimeStr(day.endMin)} onChange={e => setTime(i,'endMin',e.target.value)} style={{ height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 4px', fontSize: 10, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
             </div>
           </div>
         )
@@ -201,7 +201,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
     setSaving(false)
   }
 
-  const inp: React.CSSProperties = { width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
+  const inp: React.CSSProperties = { width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 4 }
 
   return (
@@ -337,13 +337,13 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
     setSaving(false)
   }
 
-  const inp: React.CSSProperties = { width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
+  const inp: React.CSSProperties = { width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 4 }
   const tabs = ['barbers','services','account'] as const
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.50)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 18, overflowY: 'auto' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ width: 'min(700px,95vw)', maxHeight: 'calc(100vh - 48px)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(20,20,28,.82),rgba(10,10,18,.78))', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto' }}>
+      <div style={{ width: 'min(700px,95vw)', maxHeight: 'calc(100vh - 48px)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(20,20,28,.82),rgba(10,10,18,.78))', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'blur(28px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 14 }}>Settings</div>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit' }}>✕</button>
@@ -723,7 +723,7 @@ export default function CalendarPage() {
               {[{l:'Date',fn:() => setDatePickerOpen(true)},{l:'←',fn:() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()-1); return x })},{l:'Today',fn:() => { const d=new Date(); d.setHours(0,0,0,0); setAnchor(d) }},{l:'→',fn:() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()+1); return x })}].map(b => (
                 <button key={b.l} onClick={b.fn} style={{ height: 40, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>{b.l}</button>
               ))}
-              <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} style={{ height: 40, width: 'min(200px,40vw)', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13 }} />
+              <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} style={{ height: 40, width: 'min(200px,40vw)', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13 }} />
               {isOwnerOrAdmin && <button onClick={() => setSettingsOpen(true)} style={{ height: 40, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Settings</button>}
               <button onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', boxShadow: '0 0 18px rgba(10,132,255,.25)' }}>+ New booking</button>
               <button onClick={reload} style={{ height: 40, width: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16 }}>↻</button>
@@ -847,7 +847,7 @@ export default function CalendarPage() {
 
                       return (
                         <div key={ev.id} className="cal-event"
-                          style={{ position: 'absolute', left: 8, right: 8, top, height: height-2, borderRadius: 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: `linear-gradient(180deg,${barber.color}2e,${barber.color}16)`, padding: '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
+                          style={{ position: 'absolute', left: 8, right: 8, top, height: height-2, borderRadius: 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: `linear-gradient(180deg,${barber.color}26,${barber.color}12)`, padding: '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
                           onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; startDrag(e, ev, bi) }}
                           onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
