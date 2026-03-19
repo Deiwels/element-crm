@@ -495,16 +495,14 @@ export default function CalendarPage() {
   const [workHours, setWorkHours] = useState<Record<string, { startMin: number; endMin: number }>>({})
   const offResize = useRef<{ barberId: string; type: 'top' | 'bottom'; startY: number; origMin: number } | null>(null)
 
-  // Build workHours from loaded barbers — always recalculate from schedule
+  // Build workHours from barber schedule every time barbers or date changes
   useEffect(() => {
     if (!barbers.length) return
-    const dow = new Date(anchor + 'T00:00:00').getDay()
-    // Mon=0..Sun=6 mapping
-    const didx = dow === 0 ? 6 : dow - 1
+    const dow = new Date(anchor + 'T00:00:00').getDay() // 0=Sun
+    const didx = dow === 0 ? 6 : dow - 1               // Mon=0..Sun=6
     const next: Record<string, { startMin: number; endMin: number; dayOff: boolean }> = {}
     barbers.forEach(b => {
       const sched = b.schedule
-      console.log('[WH] barber', b.name, 'sched=', sched, 'didx=', didx, 'day=', sched?.[didx])
       if (sched && sched[didx]) {
         const day = sched[didx]
         if (!day.enabled) {
@@ -512,12 +510,14 @@ export default function CalendarPage() {
         } else {
           next[b.id] = { startMin: day.startMin, endMin: day.endMin, dayOff: false }
         }
+      } else if (sched) {
+        // Has schedule but today is day off
+        next[b.id] = { startMin: 0, endMin: 0, dayOff: true }
       } else {
-        // No schedule data at all — show full day (no gray blocks)
-        next[b.id] = { startMin: 0, endMin: END_HOUR * 60, dayOff: false }
+        // No schedule set — default 10:00–20:00, no gray blocks
+        next[b.id] = { startMin: 10 * 60, endMin: 20 * 60, dayOff: false }
       }
     })
-    console.log('[WH] result:', next)
     setWorkHours(next as any)
   }, [barbers, anchor])
 
@@ -555,18 +555,28 @@ export default function CalendarPage() {
       if (!offResize.current) return
       const { barberId } = offResize.current
       offResize.current = null
-      // Save to API
-      const wh = workHours[barberId]
-      if (!wh) return
+      // Save updated work hours to API
+      const wh = (workHours as any)[barberId]
+      if (!wh || wh.dayOff) return
       try {
+        // Get current barber schedule to update only today's day
+        const barber = barbers.find(b => b.id === barberId)
+        const dow = new Date(anchor + 'T00:00:00').getDay()
+        const didx = dow === 0 ? 6 : dow - 1
+        // Build updated perDay schedule
+        const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
+        const newPerDay = baseSched.map((d, i) => i === didx ? { ...d, startMin: wh.startMin, endMin: wh.endMin } : d)
+        const enabledDays = newPerDay.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
         await apiFetch('/api/barbers/' + encodeURIComponent(barberId), {
           method: 'PATCH',
           body: JSON.stringify({
-            schedule: { startMin: wh.startMin, endMin: wh.endMin, perDay: null },
-            work_schedule: { startMin: wh.startMin, endMin: wh.endMin }
+            schedule: { startMin: wh.startMin, endMin: wh.endMin, days: enabledDays, perDay: newPerDay },
+            work_schedule: { startMin: wh.startMin, endMin: wh.endMin, days: enabledDays, perDay: newPerDay }
           })
         })
-      } catch {}
+        // Reload barbers to reflect changes
+        loadBarbers().then(list => setBarbers(list))
+      } catch (e) { console.warn('Save schedule error:', e) }
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('touchmove', onMove, { passive: false })
