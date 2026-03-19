@@ -789,116 +789,46 @@ export default function CalendarPage() {
                       const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
                       isOwnerOrAdmin ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
                     }}>
-                    {/* Non-working / working hours overlay */}
+                    {/* Off-hours overlay */}
                     {(() => {
-                      const todayDow = new Date(anchor + 'T00:00:00').getDay()
-                      const sched = barber.schedule
-                      if (!sched) return null
-                      const dayIdx = todayDow === 0 ? 6 : todayDow - 1
-                      const day = sched[dayIdx]
+                      const dow = new Date(anchor + 'T00:00:00').getDay()
+                      const didx = dow === 0 ? 6 : dow - 1
+                      const raw = barber.schedule
+                      if (!raw) return null
+                      const day = raw[didx]
                       if (!day) return null
-
-                      // Whole day off
-                      if (!day.enabled) {
-                        return (
-                          <div style={{
-                            position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
-                            background: 'repeating-linear-gradient(45deg, rgba(255,255,255,.015) 0px, rgba(255,255,255,.015) 1px, transparent 1px, transparent 8px)',
-                            backgroundColor: 'rgba(0,0,0,.45)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            <span style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.18)', fontFamily: 'Inter,sans-serif' }}>
-                              Day off
-                            </span>
-                          </div>
-                        )
+                      const totalPx = minToY(END_HOUR * 60)
+                      const gray: React.CSSProperties = {
+                        position: 'absolute', left: 0, right: 0,
+                        background: 'rgba(20,20,28,.75)',
+                        pointerEvents: 'none', zIndex: 100,
                       }
-
-                      const startY = minToY(day.startMin)
-                      const endY   = minToY(day.endMin)
-                      const totalY = minToY(END_HOUR * 60)
-
-                      // Hatched pattern for off-hours, clean for work hours
-                      const hatch = 'repeating-linear-gradient(45deg, rgba(255,255,255,.018) 0px, rgba(255,255,255,.018) 1px, transparent 1px, transparent 8px)'
-
+                      const line: React.CSSProperties = {
+                        position: 'absolute', left: 0, right: 0,
+                        height: 2, background: 'rgba(255,255,255,.30)', zIndex: 101,
+                        pointerEvents: 'none',
+                      }
+                      const label: React.CSSProperties = {
+                        position: 'absolute', left: 0, right: 0,
+                        display: 'flex', justifyContent: 'center',
+                        pointerEvents: 'none',
+                      }
+                      const pill = (t: string) => (
+                        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.04em', padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,.60)', border: '1px solid rgba(255,255,255,.20)', color: 'rgba(255,255,255,.55)', fontFamily: 'Inter,sans-serif' }}>{t}</span>
+                      )
+                      if (!day.enabled) return (
+                        <div style={{ ...gray, top: 0, height: totalPx, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.28)', fontFamily: 'Inter,sans-serif' }}>Day off</span>
+                        </div>
+                      )
+                      const sy = minToY(day.startMin)
+                      const ey = minToY(day.endMin)
                       return (
                         <>
-                          {/* ── Before work hours ── */}
-                          {day.startMin > START_HOUR * 60 && (
-                            <div style={{
-                              position: 'absolute', left: 0, right: 0, top: 0, height: startY,
-                              zIndex: 1, pointerEvents: 'none',
-                              background: hatch, backgroundColor: 'rgba(0,0,0,.42)',
-                            }}>
-                              {/* "Starts at" badge — pinned to bottom of off zone */}
-                              <div style={{
-                                position: 'absolute', bottom: 6, left: 0, right: 0,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                                pointerEvents: 'none',
-                              }}>
-                                <div style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                                  padding: '3px 9px', borderRadius: 999,
-                                  background: 'rgba(255,255,255,.07)',
-                                  border: '1px solid rgba(255,255,255,.10)',
-                                  fontSize: 10, fontWeight: 700, letterSpacing: '.06em',
-                                  color: 'rgba(255,255,255,.40)', fontFamily: 'Inter,sans-serif',
-                                }}>
-                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                                  </svg>
-                                  {minToHHMM(day.startMin)}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* ── Work hours — clean, slightly lighter ── */}
-                          <div style={{
-                            position: 'absolute', left: 0, right: 0, top: startY,
-                            height: endY - startY, zIndex: 1, pointerEvents: 'none',
-                          }}>
-                            {/* Top border line — start of shift */}
-                            <div style={{
-                              position: 'absolute', top: 0, left: 0, right: 0, height: 1,
-                              background: 'rgba(255,255,255,.14)',
-                            }} />
-                            {/* Bottom border line — end of shift */}
-                            <div style={{
-                              position: 'absolute', bottom: 0, left: 0, right: 0, height: 1,
-                              background: 'rgba(255,255,255,.14)',
-                            }} />
-                          </div>
-
-                          {/* ── After work hours ── */}
-                          {day.endMin < END_HOUR * 60 && (
-                            <div style={{
-                              position: 'absolute', left: 0, right: 0, top: endY,
-                              height: totalY - endY, zIndex: 1, pointerEvents: 'none',
-                              background: hatch, backgroundColor: 'rgba(0,0,0,.42)',
-                            }}>
-                              {/* "Ends at" badge — pinned to top of off zone */}
-                              <div style={{
-                                position: 'absolute', top: 6, left: 0, right: 0,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                pointerEvents: 'none',
-                              }}>
-                                <div style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                                  padding: '3px 9px', borderRadius: 999,
-                                  background: 'rgba(255,255,255,.07)',
-                                  border: '1px solid rgba(255,255,255,.10)',
-                                  fontSize: 10, fontWeight: 700, letterSpacing: '.06em',
-                                  color: 'rgba(255,255,255,.40)', fontFamily: 'Inter,sans-serif',
-                                }}>
-                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                                  </svg>
-                                  {minToHHMM(day.endMin)}
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                          {sy > 0 && <div style={{ ...gray, top: 0, height: sy }}>{sy > 28 && <div style={{ ...label, bottom: 8 }}>{pill(minToHHMM(day.startMin))}</div>}</div>}
+                          {sy > 0 && <div style={{ ...line, top: sy }} />}
+                          {ey < totalPx && <div style={{ ...line, top: ey }} />}
+                          {ey < totalPx && <div style={{ ...gray, top: ey, height: totalPx - ey }}>{(totalPx - ey) > 28 && <div style={{ ...label, top: 8 }}>{pill(minToHHMM(day.endMin))}</div>}</div>}
                         </>
                       )
                     })()}
