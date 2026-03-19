@@ -595,6 +595,15 @@ export default function CalendarPage() {
   const loadBarbers = useCallback(async () => {
     const data = await apiFetch('/api/barbers')
     const list = Array.isArray(data) ? data : (data?.barbers || [])
+    // DEBUG — remove after fix
+    if (list.length > 0) {
+      console.log('[BARBERS] raw[0]:', JSON.stringify({
+        id: list[0].id,
+        name: list[0].name,
+        schedule: list[0].schedule,
+        work_schedule: list[0].work_schedule,
+      }, null, 2))
+    }
     return list.map((b: any, i: number) => ({
       id: String(b.id || ''), name: String(b.name || '').trim(),
       level: String(b.level || '').trim(), photo: String(b.photo_url || b.photo || '').trim(),
