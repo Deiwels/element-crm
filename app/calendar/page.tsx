@@ -283,7 +283,9 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
 
   // Service form
   const [sName, setSName] = useState(''); const [sDur, setSDur] = useState('30')
-  const [sPrice, setSPrice] = useState(''); const [sBarber, setSBarber] = useState(barbers[0]?.id || '')
+  const [sPrice, setSPrice] = useState(''); const [sBarber, setSBarber] = useState('')
+  const [editSvcId, setEditSvcId] = useState<string | null>(null)
+  const [sBarbers, setSBarbers] = useState<string[]>([]) // multi-barber selection
 
   async function addBarber() {
     if (!bName.trim()) { setMsg('Name required'); return }
@@ -327,10 +329,9 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
       const price_cents = Math.round(parseFloat(sPrice || '0') * 100)
       const existing = services.find(s => s.name.toLowerCase() === sName.toLowerCase())
       if (existing) {
-        const ids = new Set([...(existing.barberIds || []), sBarber].filter(Boolean))
-        await apiFetch(`/api/services/${encodeURIComponent(existing.id)}`, { method: 'PATCH', body: JSON.stringify({ barber_ids: Array.from(ids), duration_minutes: Number(sDur), price_cents }) })
+        await apiFetch(`/api/services/${encodeURIComponent(existing.id)}`, { method: 'PATCH', body: JSON.stringify({ barber_ids: sBarbers, duration_minutes: Number(sDur), price_cents }) })
       } else {
-        await apiFetch('/api/services', { method: 'POST', body: JSON.stringify({ name: sName.trim(), duration_minutes: Number(sDur), price_cents, version: '1', barber_ids: sBarber ? [sBarber] : [] }) })
+        await apiFetch('/api/services', { method: 'POST', body: JSON.stringify({ name: sName.trim(), duration_minutes: Number(sDur), price_cents, version: '1', barber_ids: sBarbers }) })
       }
       setMsg('Service saved ✓'); setSName(''); setSDur('30'); setSPrice(''); onReload()
     } catch (e: any) { setMsg('Error: ' + e.message) }
@@ -423,31 +424,104 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
           {tab === 'services' && (
             <div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
-                {services.map(s => (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)' }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>{s.durationMin}min{s.price ? ` · $${s.price}` : ''}</div>
+                {services.map(s => {
+                  const assignedBarbers = barbers.filter(b => s.barberIds.includes(b.id))
+                  const isEditing = editSvcId === s.id
+                  return (
+                    <div key={s.id} style={{ borderRadius: 12, border: `1px solid ${isEditing ? 'rgba(255,255,255,.20)' : 'rgba(255,255,255,.07)'}`, background: 'rgba(255,255,255,.03)', overflow: 'hidden' }}>
+                      {/* Service row */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
+                            {s.durationMin}min{s.price ? ` · $${s.price}` : ''}
+                          </div>
+                          {/* Barbers assigned */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
+                            {assignedBarbers.length === 0
+                              ? <span style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', letterSpacing: '.06em' }}>All barbers</span>
+                              : assignedBarbers.map(b => (
+                                <span key={b.id} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 999, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.12)', color: 'rgba(255,255,255,.65)' }}>{b.name}</span>
+                              ))
+                            }
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          <button onClick={() => {
+                            if (isEditing) { setEditSvcId(null); return }
+                            setEditSvcId(s.id)
+                            setSName(s.name)
+                            setSDur(String(s.durationMin))
+                            setSPrice(s.price || '')
+                            setSBarbers(s.barberIds)
+                          }} style={{ height: 32, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,.14)', background: isEditing ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
+                            {isEditing ? 'Cancel' : 'Edit'}
+                          </button>
+                          <button onClick={async () => { if (!confirm(`Delete ${s.name}?`)) return; try { await apiFetch(`/api/services/${encodeURIComponent(s.id)}`, { method: 'DELETE' }); setMsg('Deleted'); onReload() } catch (e: any) { setMsg('Error: ' + e.message) } }} style={{ height: 32, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>✕</button>
+                        </div>
+                      </div>
+                      {/* Edit form inline */}
+                      {isEditing && (
+                        <div style={{ padding: '0 14px 14px', borderTop: '1px solid rgba(255,255,255,.07)' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+                            <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Name</label><input value={sName} onChange={e => setSName(e.target.value)} style={inp} /></div>
+                            <div><label style={lbl}>Duration (min)</label><input type="number" value={sDur} onChange={e => setSDur(e.target.value)} style={inp} /></div>
+                            <div><label style={lbl}>Price ($)</label><input value={sPrice} onChange={e => setSPrice(e.target.value)} style={inp} /></div>
+                          </div>
+                          {/* Barbers checkboxes */}
+                          <div style={{ marginTop: 10 }}>
+                            <label style={lbl}>Assigned barbers</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                              {barbers.map(b => {
+                                const on = sBarbers.includes(b.id)
+                                return (
+                                  <button key={b.id} onClick={() => setSBarbers(prev => on ? prev.filter(x => x !== b.id) : [...prev, b.id])}
+                                    style={{ height: 30, padding: '0 10px', borderRadius: 999, border: `1px solid ${on ? 'rgba(255,255,255,.30)' : 'rgba(255,255,255,.10)'}`, background: on ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.03)', color: on ? '#fff' : 'rgba(255,255,255,.50)', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
+                                    {b.name}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                          <button onClick={async () => {
+                            setSaving(true)
+                            try {
+                              const price_cents = sPrice ? Math.round(parseFloat(sPrice) * 100) : 0
+                              await apiFetch(`/api/services/${encodeURIComponent(s.id)}`, { method: 'PATCH', body: JSON.stringify({ name: sName.trim(), duration_minutes: Number(sDur), price_cents, barber_ids: sBarbers }) })
+                              setMsg('Saved'); setEditSvcId(null); onReload()
+                            } catch (e: any) { setMsg('Error: ' + e.message) }
+                            setSaving(false)
+                          }} disabled={saving} style={{ width: '100%', height: 38, borderRadius: 10, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.08)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', marginTop: 10 }}>
+                            {saving ? 'Saving…' : 'Save changes'}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <button onClick={async () => { if (!confirm(`Delete ${s.name}?`)) return; try { await apiFetch(`/api/services/${encodeURIComponent(s.id)}`, { method: 'DELETE' }); setMsg('Deleted'); onReload() } catch (e: any) { setMsg('Error: ' + e.message) } }} style={{ height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>Remove</button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
               <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 14 }}>
-                <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 10 }}>Add service</div>
+                <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 10 }}>Add new service</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                  <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Service name</label><input value={sName} onChange={e => setSName(e.target.value)} placeholder="Fade" style={inp} /></div>
-                  <div><label style={lbl}>Duration (min)</label><input type="number" value={sDur} onChange={e => setSDur(e.target.value)} placeholder="30" style={inp} /></div>
-                  <div><label style={lbl}>Price ($)</label><input value={sPrice} onChange={e => setSPrice(e.target.value)} placeholder="35" style={inp} /></div>
+                  <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Service name</label><input value={editSvcId ? '' : sName} onChange={e => setSName(e.target.value)} placeholder="Fade" style={inp} /></div>
+                  <div><label style={lbl}>Duration (min)</label><input type="number" value={editSvcId ? '30' : sDur} onChange={e => setSDur(e.target.value)} placeholder="30" style={inp} /></div>
+                  <div><label style={lbl}>Price ($)</label><input value={editSvcId ? '' : sPrice} onChange={e => setSPrice(e.target.value)} placeholder="35" style={inp} /></div>
                   <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={lbl}>Barber</label>
-                    <select value={sBarber} onChange={e => setSBarber(e.target.value)} style={inp}>
-                      <option value="">All barbers</option>
-                      {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </select>
+                    <label style={lbl}>Assign barbers</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                      {barbers.map(b => {
+                        const on = !editSvcId && sBarbers.includes(b.id)
+                        return (
+                          <button key={b.id} onClick={() => { if (editSvcId) return; setSBarbers(prev => on ? prev.filter(x => x !== b.id) : [...prev, b.id]) }}
+                            style={{ height: 30, padding: '0 10px', borderRadius: 999, border: `1px solid ${on ? 'rgba(255,255,255,.30)' : 'rgba(255,255,255,.10)'}`, background: on ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.03)', color: on ? '#fff' : 'rgba(255,255,255,.50)', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
+                            {b.name}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
-                <button onClick={addService} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
+                <button onClick={addService} disabled={saving || !!editSvcId} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: editSvcId ? 0.4 : 1 }}>
                   {saving ? 'Saving…' : '+ Add service'}
                 </button>
               </div>
