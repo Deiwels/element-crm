@@ -855,6 +855,8 @@ export default function CalendarPage() {
         /* Desktop: hide mobile-only elements */
         .cal-search-icon{ display:none !important; }
         .cal-settings-icon{ display:none !important; }
+        .cal-date-mobile{ display:none !important; }
+        .cal-today-desktop{ display:inline-flex !important; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
         /* Mobile: prevent scroll bounce and pinch zoom */
@@ -869,30 +871,19 @@ export default function CalendarPage() {
             gap:0 !important;
             flex-wrap:nowrap !important;
           }
-          /* Title block — indent left so burger (56px) doesn't overlap */
+          /* Hide title+date on mobile — save space */
           .cal-topbar-left{
-            flex:1;
-            min-width:0;
-            display:flex;
-            flex-direction:column;
-            align-items:center;
-            text-align:center;
-            padding-left:56px !important; /* clear burger button */
-          }
-          .cal-topbar-left h2{
-            text-align:center !important;
-            font-size:13px !important;
-            letter-spacing:.22em !important;
-          }
-          .cal-topbar-left p{
-            text-align:center !important;
-            font-size:10px !important;
+            display:none !important;
           }
           /* Buttons row — compact, right side */
           .cal-topbar-btns{
             flex-wrap:nowrap !important;
             gap:5px !important;
           }
+          /* Hide desktop Date btn, show date pill instead */
+          .cal-btn-date{ display:none !important; }
+          .cal-date-mobile{ display:inline-flex !important; }
+          .cal-today-desktop{ display:none !important; }
           /* Hide text labels on mobile — show only icons */
           .cal-btn-text{ display:none !important; }
           .cal-btn-date{ display:none !important; }
@@ -917,9 +908,11 @@ export default function CalendarPage() {
               {/* Date picker — desktop only */}
               <button className="cal-btn-date" onClick={() => setDatePickerOpen(true)} style={{ height: 40, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Date</button>
 
-              {/* Prev / Today / Next */}
+              {/* Prev / Date(mobile) / Next */}
               <button onClick={() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()-1); return x })} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>‹</button>
-              <button onClick={() => { const d=new Date(); d.setHours(0,0,0,0); setAnchor(d) }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', flexShrink: 0 }}>Today</button>
+              <button onClick={() => setDatePickerOpen(true)} style={{ height: 36, padding: '0 10px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 11, fontFamily: 'inherit', flexShrink: 0, letterSpacing: '.04em' }}>
+                {anchor.toLocaleDateString([], { month: 'short', day: 'numeric' })}
+              </button>
               <button onClick={() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()+1); return x })} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>›</button>
 
               {/* Search — full on desktop */}
