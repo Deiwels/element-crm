@@ -488,6 +488,19 @@ export default function CalendarPage() {
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; barberId: string; min: number } | null>(null)
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+
+  // Scroll to current time on mount
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const now = new Date()
+    const currentMin = now.getHours() * 60 + now.getMinutes()
+    const y = ((currentMin - START_HOUR * 60) / 5) * SLOT_H
+    // Scroll so current time is roughly 30% from top of visible area
+    const offset = Math.max(0, y - container.clientHeight * 0.3)
+    container.scrollTop = offset
+  }, [])
 
   const [currentUser] = useState<{ role: string; barber_id?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null }
@@ -732,7 +745,7 @@ export default function CalendarPage() {
         </div>
 
         {/* Calendar grid */}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }} ref={scrollContainerRef}>
           <div style={{ minWidth: 90 + visibleBarbers.length * COL_MIN }}>
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
