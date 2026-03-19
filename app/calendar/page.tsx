@@ -944,9 +944,9 @@ export default function CalendarPage() {
                         <>
                           {/* TOP — before work */}
                           {sy > 0 && (
-                            <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: sy, zIndex: 10, background: BG, backgroundImage: STRIPE, cursor: 'ns-resize' }}
-                              onMouseDown={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.clientY, origMin: startMin } }}
-                              onTouchStart={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.touches[0].clientY, origMin: startMin } }}>
+                            <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: sy, zIndex: 10, background: BG, backgroundImage: STRIPE, cursor: isOwnerOrAdmin ? 'ns-resize' : 'default' }}
+                              onMouseDown={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.clientY, origMin: startMin } }}
+                              onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.touches[0].clientY, origMin: startMin } }}>
                               {/* Border bottom = work start */}
                               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: BORDER_COLOR, pointerEvents: 'none' }} />
                               {/* Label */}
@@ -962,9 +962,9 @@ export default function CalendarPage() {
 
                           {/* BOTTOM — after work */}
                           {ey < totalPx && (
-                            <div style={{ position: 'absolute', left: 0, right: 0, top: ey, height: totalPx - ey, zIndex: 10, background: BG, backgroundImage: STRIPE, cursor: 'ns-resize' }}
-                              onMouseDown={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.clientY, origMin: endMin } }}
-                              onTouchStart={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.touches[0].clientY, origMin: endMin } }}>
+                            <div style={{ position: 'absolute', left: 0, right: 0, top: ey, height: totalPx - ey, zIndex: 10, background: BG, backgroundImage: STRIPE, cursor: isOwnerOrAdmin ? 'ns-resize' : 'default' }}
+                              onMouseDown={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.clientY, origMin: endMin } }}
+                              onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.touches[0].clientY, origMin: endMin } }}>
                               {/* Border top = work end */}
                               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: BORDER_COLOR, pointerEvents: 'none' }} />
                               {/* Drag handle */}
