@@ -490,6 +490,31 @@ export default function CalendarPage() {
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
+  // Work hours per barber: { barberId -> { startMin, endMin } }
+  // Default: 10:00–20:00 if no schedule loaded
+  const [workHours, setWorkHours] = useState<Record<string, { startMin: number; endMin: number }>>({})
+  const offResize = useRef<{ barberId: string; type: 'top' | 'bottom'; startY: number; origMin: number } | null>(null)
+
+  // Build workHours from loaded barbers
+  useEffect(() => {
+    if (!barbers.length) return
+    setWorkHours(prev => {
+      const next = { ...prev }
+      barbers.forEach(b => {
+        if (next[b.id]) return // keep manually edited
+        const dow = new Date(anchor + 'T00:00:00').getDay()
+        const didx = dow === 0 ? 6 : dow - 1
+        const day = b.schedule?.[didx]
+        if (day) {
+          next[b.id] = { startMin: day.startMin, endMin: day.endMin }
+        } else {
+          next[b.id] = { startMin: 10 * 60, endMin: 20 * 60 }
+        }
+      })
+      return next
+    })
+  }, [barbers, anchor])
+
   // Scroll to current time on mount
   useEffect(() => {
     const container = scrollContainerRef.current
@@ -497,10 +522,57 @@ export default function CalendarPage() {
     const now = new Date()
     const currentMin = now.getHours() * 60 + now.getMinutes()
     const y = ((currentMin - START_HOUR * 60) / 5) * SLOT_H
-    // Scroll so current time is roughly 30% from top of visible area
     const offset = Math.max(0, y - container.clientHeight * 0.3)
     container.scrollTop = offset
   }, [])
+
+  // Off-block resize handlers
+  useEffect(() => {
+    function onMove(e: MouseEvent | TouchEvent) {
+      if (!offResize.current) return
+      const { barberId, type, startY, origMin } = offResize.current
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+      const dy = clientY - startY
+      const dMin = Math.round(dy / SLOT_H) * 5
+      setWorkHours(prev => {
+        const cur = prev[barberId] || { startMin: 10*60, endMin: 20*60 }
+        if (type === 'top') {
+          const newStart = Math.max(START_HOUR*60, Math.min(cur.endMin - 30, origMin + dMin))
+          return { ...prev, [barberId]: { ...cur, startMin: newStart } }
+        } else {
+          const newEnd = Math.max(cur.startMin + 30, Math.min(END_HOUR*60, origMin + dMin))
+          return { ...prev, [barberId]: { ...cur, endMin: newEnd } }
+        }
+      })
+    }
+    async function onUp() {
+      if (!offResize.current) return
+      const { barberId } = offResize.current
+      offResize.current = null
+      // Save to API
+      const wh = workHours[barberId]
+      if (!wh) return
+      try {
+        await apiFetch('/api/barbers/' + encodeURIComponent(barberId), {
+          method: 'PATCH',
+          body: JSON.stringify({
+            schedule: { startMin: wh.startMin, endMin: wh.endMin, perDay: null },
+            work_schedule: { startMin: wh.startMin, endMin: wh.endMin }
+          })
+        })
+      } catch {}
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchend', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchend', onUp)
+    }
+  }, [workHours])
 
   const [currentUser] = useState<{ role: string; barber_id?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null }
@@ -789,46 +861,67 @@ export default function CalendarPage() {
                       const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
                       isOwnerOrAdmin ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
                     }}>
-                    {/* Off-hours overlay */}
+                    {/* Off-hours resizable blocks */}
                     {(() => {
-                      const dow = new Date(anchor + 'T00:00:00').getDay()
-                      const didx = dow === 0 ? 6 : dow - 1
-                      const raw = barber.schedule
-                      if (!raw) return null
-                      const day = raw[didx]
-                      if (!day) return null
+                      const wh = workHours[barber.id] || { startMin: 10*60, endMin: 20*60 }
                       const totalPx = minToY(END_HOUR * 60)
-                      const gray: React.CSSProperties = {
-                        position: 'absolute', left: 0, right: 0,
-                        background: 'rgba(20,20,28,.75)',
-                        pointerEvents: 'none', zIndex: 100,
-                      }
-                      const line: React.CSSProperties = {
-                        position: 'absolute', left: 0, right: 0,
-                        height: 2, background: 'rgba(255,255,255,.30)', zIndex: 101,
-                        pointerEvents: 'none',
-                      }
-                      const label: React.CSSProperties = {
-                        position: 'absolute', left: 0, right: 0,
-                        display: 'flex', justifyContent: 'center',
-                        pointerEvents: 'none',
-                      }
-                      const pill = (t: string) => (
-                        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.04em', padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,.60)', border: '1px solid rgba(255,255,255,.20)', color: 'rgba(255,255,255,.55)', fontFamily: 'Inter,sans-serif' }}>{t}</span>
-                      )
-                      if (!day.enabled) return (
-                        <div style={{ ...gray, top: 0, height: totalPx, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.28)', fontFamily: 'Inter,sans-serif' }}>Day off</span>
+                      const sy = minToY(wh.startMin)
+                      const ey = minToY(wh.endMin)
+
+                      const GRAY = 'rgba(18,18,28,.82)'
+                      const HANDLE_COLOR = 'rgba(255,255,255,.22)'
+
+                      const TimeLabel = ({ min }: { min: number }) => (
+                        <div style={{ position: 'absolute', left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.18)', color: 'rgba(255,255,255,.50)', letterSpacing: '.04em', fontFamily: 'Inter,sans-serif' }}>
+                            {minToHHMM(min)}
+                          </span>
                         </div>
                       )
-                      const sy = minToY(day.startMin)
-                      const ey = minToY(day.endMin)
+
                       return (
                         <>
-                          {sy > 0 && <div style={{ ...gray, top: 0, height: sy }}>{sy > 28 && <div style={{ ...label, bottom: 8 }}>{pill(minToHHMM(day.startMin))}</div>}</div>}
-                          {sy > 0 && <div style={{ ...line, top: sy }} />}
-                          {ey < totalPx && <div style={{ ...line, top: ey }} />}
-                          {ey < totalPx && <div style={{ ...gray, top: ey, height: totalPx - ey }}>{(totalPx - ey) > 28 && <div style={{ ...label, top: 8 }}>{pill(minToHHMM(day.endMin))}</div>}</div>}
+                          {/* TOP block — before work starts */}
+                          {sy > 0 && (
+                            <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: sy, background: GRAY, zIndex: 10 }}>
+                              {/* Time label */}
+                              {sy > 28 && <TimeLabel min={wh.startMin} />}
+                              {/* Resize handle — bottom edge */}
+                              <div
+                                style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 8, cursor: 'ns-resize', zIndex: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                onMouseDown={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.clientY, origMin: wh.startMin } }}
+                                onTouchStart={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.touches[0].clientY, origMin: wh.startMin } }}
+                              >
+                                <div style={{ width: 32, height: 3, borderRadius: 2, background: HANDLE_COLOR }} />
+                              </div>
+                              {/* White border line at bottom */}
+                              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: 'rgba(255,255,255,.25)', pointerEvents: 'none' }} />
+                            </div>
+                          )}
+
+                          {/* BOTTOM block — after work ends */}
+                          {ey < totalPx && (
+                            <div style={{ position: 'absolute', left: 0, right: 0, top: ey, height: totalPx - ey, background: GRAY, zIndex: 10 }}>
+                              {/* White border line at top */}
+                              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'rgba(255,255,255,.25)', pointerEvents: 'none' }} />
+                              {/* Resize handle — top edge */}
+                              <div
+                                style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 8, cursor: 'ns-resize', zIndex: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                onMouseDown={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.clientY, origMin: wh.endMin } }}
+                                onTouchStart={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.touches[0].clientY, origMin: wh.endMin } }}
+                              >
+                                <div style={{ width: 32, height: 3, borderRadius: 2, background: HANDLE_COLOR }} />
+                              </div>
+                              {/* Time label */}
+                              {(totalPx - ey) > 28 && (
+                                <div style={{ position: 'absolute', top: 14, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,.55)', border: '1px solid rgba(255,255,255,.18)', color: 'rgba(255,255,255,.50)', letterSpacing: '.04em', fontFamily: 'Inter,sans-serif' }}>
+                                    {minToHHMM(wh.endMin)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </>
                       )
                     })()}
