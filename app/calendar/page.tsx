@@ -494,6 +494,7 @@ export default function CalendarPage() {
   // Default: 10:00–20:00 if no schedule loaded
   const [workHours, setWorkHours] = useState<Record<string, { startMin: number; endMin: number }>>({})
   const offResize = useRef<{ barberId: string; type: 'top' | 'bottom'; startY: number; origMin: number } | null>(null)
+  const [scheduleConfirm, setScheduleConfirm] = useState<{ barberId: string; barberName: string; dow: number; startMin: number; endMin: number } | null>(null)
 
   // Build workHours from barber schedule every time barbers or date changes
   useEffect(() => {
@@ -551,31 +552,17 @@ export default function CalendarPage() {
         }
       })
     }
-    async function onUp() {
+    function onUp() {
       if (!offResize.current) return
       const { barberId } = offResize.current
       offResize.current = null
-      // Save updated work hours to API
       const wh = (workHours as any)[barberId]
       if (!wh || wh.dayOff) return
-      try {
-        // Get current barber schedule to update only today's day
-        const barber = barbers.find(b => b.id === barberId)
-        const dow = anchor.getDay() // anchor is Date object, 0=Sun..6=Sat
-        // Build updated schedule — indexed by JS getDay()
-        const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
-        const newPerDay = baseSched.map((d, i) => i === dow ? { ...d, startMin: wh.startMin, endMin: wh.endMin } : d)
-        const enabledDays = newPerDay.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
-        await apiFetch('/api/barbers/' + encodeURIComponent(barberId), {
-          method: 'PATCH',
-          body: JSON.stringify({
-            schedule: { startMin: wh.startMin, endMin: wh.endMin, days: enabledDays, perDay: newPerDay },
-            work_schedule: { startMin: wh.startMin, endMin: wh.endMin, days: enabledDays, perDay: newPerDay }
-          })
-        })
-        // Reload barbers to reflect changes
-        loadBarbers().then(list => setBarbers(list))
-      } catch (e) { console.warn('Save schedule error:', e) }
+      const barber = barbers.find(b => b.id === barberId)
+      if (!barber) return
+      const dow = anchor.getDay()
+      // Show confirm dialog before saving
+      setScheduleConfirm({ barberId, barberName: barber.name, dow, startMin: wh.startMin, endMin: wh.endMin })
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('touchmove', onMove, { passive: false })
@@ -1070,6 +1057,55 @@ export default function CalendarPage() {
       })()}
 
       {/* Date picker */}
+      {/* Schedule change confirm */}
+      {scheduleConfirm && (() => {
+        const { barberId, barberName, dow, startMin, endMin } = scheduleConfirm
+        const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+        const dayName = dayNames[dow]
+        const pad2 = (n: number) => String(n).padStart(2,'0')
+        const fmt = (m: number) => `${pad2(Math.floor(m/60))}:${pad2(m%60)}`
+        async function confirm() {
+          setScheduleConfirm(null)
+          try {
+            const barber = barbers.find(b => b.id === barberId)
+            const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
+            // Update ALL days with same dow index (every Monday, every Tuesday etc.)
+            const newSched = baseSched.map((d, i) => i === dow ? { ...d, startMin, endMin } : d)
+            const enabledDays = newSched.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
+            await apiFetch('/api/barbers/' + encodeURIComponent(barberId), {
+              method: 'PATCH',
+              body: JSON.stringify({
+                schedule: { startMin, endMin, days: enabledDays },
+                work_schedule: { startMin, endMin, days: enabledDays }
+              })
+            })
+            loadBarbers().then(list => setBarbers(list))
+          } catch(e) { console.warn('Schedule save error:', e) }
+        }
+        function cancel() {
+          // Revert visual change
+          setScheduleConfirm(null)
+          loadBarbers().then(list => setBarbers(list))
+        }
+        return (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(18px)', WebkitBackdropFilter:'blur(18px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
+            <div style={{ width:'min(360px,92vw)', borderRadius:22, border:'1px solid rgba(255,255,255,.10)', background:'rgba(0,0,0,.65)', backdropFilter:'saturate(180%) blur(40px)', WebkitBackdropFilter:'saturate(180%) blur(40px)', boxShadow:'0 32px 80px rgba(0,0,0,.55)', padding:22, color:'#e9e9e9', fontFamily:'Inter,sans-serif' }}>
+              <div style={{ fontFamily:'"Julius Sans One",sans-serif', letterSpacing:'.16em', textTransform:'uppercase', fontSize:13, marginBottom:14 }}>Update schedule</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,.70)', lineHeight:1.6, marginBottom:18 }}>
+                Change <span style={{ color:'#fff', fontWeight:700 }}>{barberName}</span>'s schedule for every <span style={{ color:'#fff', fontWeight:700 }}>{dayName}</span> to:
+                <div style={{ marginTop:10, fontSize:22, fontWeight:800, color:'#fff', letterSpacing:'.04em' }}>
+                  {fmt(startMin)} — {fmt(endMin)}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:10 }}>
+                <button onClick={cancel} style={{ flex:1, height:42, borderRadius:12, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.70)', cursor:'pointer', fontSize:13, fontWeight:700, fontFamily:'inherit' }}>Cancel</button>
+                <button onClick={confirm} style={{ flex:1, height:42, borderRadius:12, border:'1px solid rgba(255,255,255,.22)', background:'rgba(255,255,255,.12)', color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700, fontFamily:'inherit' }}>Save</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {datePickerOpen && <DatePickerModal current={anchor} onSelect={d => { const x=new Date(d); x.setHours(0,0,0,0); setAnchor(x) }} onClose={() => setDatePickerOpen(false)} />}
 
       {/* Settings */}
