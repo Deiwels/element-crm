@@ -304,6 +304,8 @@ export default function ClientsPage() {
         .cl-row:hover td{background:rgba(255,255,255,.025)!important}
         .cl-row.sel td{background:rgba(10,132,255,.07)!important}
         @media(max-width:768px){
+          .page-topbar{padding-left:60px!important;}
+          .page-topbar h2{font-size:13px!important;}
           .cl-grid{grid-template-columns:1fr!important;}
           .cl-profile-panel{display:none!important;}
           .cl-profile-panel.visible{display:block!important;position:fixed;inset:0;z-index:80;background:#000;overflow-y:auto;}

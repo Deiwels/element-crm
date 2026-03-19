@@ -270,6 +270,8 @@ export default function PaymentsPage() {
         .pay-row:hover td{background:rgba(255,255,255,.025)!important}
         .pay-row.sel td{background:rgba(10,132,255,.07)!important}
         @media(max-width:768px){
+          .page-topbar{padding-left:60px!important;}
+          .page-topbar h2{font-size:13px!important;}
           .pay-grid{grid-template-columns:1fr!important;}
           .pay-details{display:none!important;}
           .pay-kpis{grid-template-columns:1fr 1fr!important;}

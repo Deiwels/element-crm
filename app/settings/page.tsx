@@ -297,6 +297,8 @@ export default function SettingsPage() {
         ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
         select option{background:#111}
         @media(max-width:768px){
+          .page-topbar{padding-left:60px!important;}
+          .page-topbar h2{font-size:13px!important;}
           .set-2col{grid-template-columns:1fr!important;}
           .set-tabs{gap:4px!important;}
           .set-tabs button{font-size:10px!important;padding:0 10px!important;height:32px!important;}

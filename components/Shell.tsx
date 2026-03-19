@@ -375,6 +375,12 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         /* Content */
         .content{flex:1;min-width:0;height:100vh;overflow:hidden;background:#000;}
 
+        /* Mobile: compensate for fixed burger button */
+        @media(max-width:768px){
+          /* Add padding-top so content starts below burger area — handled per-page */
+          .content{ position:relative; }
+        }
+
         /* Burger */
         .burger-btn{
           display:none;
@@ -406,13 +412,39 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         .sidebar-backdrop.open{display:block;}
 
         @media(max-width:768px){
+          /* Sidebar */
           .sidebar{
             position:fixed;inset:0 auto 0 0;
             transform:translateX(-108%);
+            /* Account for iPhone notch/home bar */
+            padding-bottom:env(safe-area-inset-bottom, 16px);
           }
           .sidebar.open{transform:translateX(0);}
           .burger-btn{display:flex;}
           .content{width:100vw;}
+
+          /* Brand — centered, shift right to clear burger */
+          .brand{
+            padding:14px 18px 14px;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            padding-left:60px; /* clear burger */
+          }
+          .brand h1{
+            font-size:13px;
+            letter-spacing:.28em;
+          }
+          .brand-sub{
+            display:none;
+          }
+
+          /* User bar — safe area padding for iPhone home bar */
+          .user-bar{
+            padding:10px 12px;
+            padding-bottom:max(12px, env(safe-area-inset-bottom, 12px));
+          }
         }
 
         ::-webkit-scrollbar{width:4px;}
