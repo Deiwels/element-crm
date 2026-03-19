@@ -11,85 +11,64 @@ interface User {
 }
 
 const NAV = [
-  { id: 'dashboard', href: '/dashboard', label: 'Dashboard', sub: 'Today overview' },
-  { id: 'calendar',  href: '/calendar',  label: 'Calendar',  sub: 'Bookings grid' },
-  { id: 'clients',   href: '/clients',   label: 'Clients',   sub: 'Search / notes', ownerAdmin: true },
-  { id: 'payments',  href: '/payments',  label: 'Payments',  sub: 'Square + Terminal', ownerAdmin: true },
-  { id: 'payroll',   href: '/payroll',   label: 'Payroll',   sub: 'Commission + tips', ownerOnly: true },
-  { id: 'settings',  href: '/settings',  label: 'Settings',  sub: 'Config & sync', ownerAdmin: true },
-]
+  { id: 'dashboard', href: '/dashboard', label: 'Dashboard',  sub: 'Today overview' },
+  { id: 'calendar',  href: '/calendar',  label: 'Calendar',   sub: 'Bookings grid' },
+  { id: 'clients',   href: '/clients',   label: 'Clients',    sub: 'Search / notes',      ownerAdmin: true },
+  { id: 'payments',  href: '/payments',  label: 'Payments',   sub: 'Square + Terminal',   ownerAdmin: true },
+  { id: 'payroll',   href: '/payroll',   label: 'Payroll',    sub: 'Commission + tips',   ownerOnly: true },
+  { id: 'settings',  href: '/settings',  label: 'Settings',   sub: 'Config & sync',       ownerAdmin: true },
+] as const
 
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{height:100%;background:#000;color:#e9e9e9;font-family:Inter,system-ui,sans-serif;}
-  a{color:#fff!important;text-decoration:none!important;}
-
-  .shell{display:flex;height:100vh;width:100vw;overflow:hidden;position:relative;}
-
-  /* Sidebar — Apple frosted glass */
-  .sidebar{
-    width:240px;flex:0 0 240px;
-    border-right:1px solid rgba(255,255,255,.08);
-    background:rgba(8,8,18,.72);
-    backdrop-filter:saturate(180%) blur(40px);
-    -webkit-backdrop-filter:saturate(180%) blur(40px);
-    display:flex;flex-direction:column;height:100vh;
-    z-index:50;transition:transform .25s cubic-bezier(.4,0,.2,1);
+// ─── SVG icons ────────────────────────────────────────────────────────────────
+function Icon({ id, color }: { id: string; color: string }) {
+  const s = { stroke: color, strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' }
+  switch (id) {
+    case 'dashboard':
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <rect x="3" y="3" width="7" height="7" rx="1.5" {...s}/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5" {...s}/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5" {...s}/>
+        <rect x="14" y="14" width="7" height="7" rx="1.5" {...s}/>
+      </svg>
+    case 'calendar':
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <rect x="3" y="4" width="18" height="18" rx="2.5" {...s}/>
+        <line x1="16" y1="2" x2="16" y2="6" {...s}/>
+        <line x1="8" y1="2" x2="8" y2="6" {...s}/>
+        <line x1="3" y1="10" x2="21" y2="10" {...s}/>
+        <circle cx="8" cy="15" r="1" fill={color}/>
+        <circle cx="12" cy="15" r="1" fill={color}/>
+        <circle cx="16" cy="15" r="1" fill={color}/>
+      </svg>
+    case 'clients':
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" {...s}/>
+        <circle cx="9" cy="7" r="4" {...s}/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" {...s}/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" {...s}/>
+      </svg>
+    case 'payments':
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <rect x="1" y="4" width="22" height="16" rx="2.5" {...s}/>
+        <line x1="1" y1="10" x2="23" y2="10" {...s}/>
+        <line x1="6" y1="16" x2="9" y2="16" {...s}/>
+      </svg>
+    case 'payroll':
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <line x1="12" y1="1" x2="12" y2="23" {...s}/>
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" {...s}/>
+      </svg>
+    case 'settings':
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <circle cx="12" cy="12" r="3" {...s}/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" {...s}/>
+      </svg>
+    default:
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <circle cx="12" cy="12" r="4" {...s}/>
+      </svg>
   }
-
-  .brand{padding:22px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06);}
-  .brand h1{
-    font-family:"Julius Sans One",sans-serif;
-    letter-spacing:.30em;font-size:15px;text-transform:uppercase;
-    background:linear-gradient(160deg,rgba(255,255,255,.95) 0%,rgba(255,255,255,.50) 100%);
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  }
-  .brand-sub{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.22);margin-top:5px;}
-
-  .nav{display:flex;flex-direction:column;gap:3px;padding:12px 10px;flex:1;overflow-y:auto;}
-  .nav-item{
-    display:flex;align-items:center;gap:10px;padding:9px 12px;
-    border-radius:14px;border:1px solid transparent;
-    transition:all .18s ease;cursor:pointer;
-  }
-  .nav-item:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.08);}
-  .nav-item.active{
-    border-color:rgba(10,132,255,.35);
-    background:rgba(10,132,255,.14);
-    box-shadow:0 0 20px rgba(10,132,255,.15), inset 0 0 0 0.5px rgba(10,132,255,.30);
-  }
-  .nav-t{font-weight:600;font-size:13px;color:rgba(255,255,255,.88);display:block;letter-spacing:.01em;}
-  .nav-s{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.28);display:block;margin-top:1px;}
-
-  .user-bar{padding:10px;border-top:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);}
-
-  .content{flex:1;min-width:0;height:100vh;overflow:hidden;background:#000;}
-
-  /* Burger — mobile only */
-  .burger-btn{
-    display:none;position:fixed;top:12px;left:12px;z-index:100;
-    width:42px;height:42px;border-radius:12px;
-    border:1px solid rgba(255,255,255,.16);
-    background:rgba(8,8,18,.80);
-    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-    color:#fff;cursor:pointer;font-size:18px;
-    align-items:center;justify-content:center;
-  }
-  .sidebar-backdrop{
-    display:none;position:fixed;inset:0;
-    background:rgba(0,0,0,.50);z-index:49;
-    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
-  }
-
-  @media(max-width:768px){
-    .sidebar{position:fixed;inset:0 auto 0 0;transform:translateX(-105%);}
-    .sidebar.open{transform:translateX(0);}
-    .burger-btn{display:flex;}
-    .sidebar-backdrop.open{display:block;}
-    .content{width:100vw;}
-  }
-`
+}
 
 // ─── Profile Modal ────────────────────────────────────────────────────────────
 function ProfileModal({ user, onClose, onUpdated }: {
@@ -104,21 +83,17 @@ function ProfileModal({ user, onClose, onUpdated }: {
   const [err, setErr] = useState('')
   const [tab, setTab] = useState<'profile' | 'password'>('profile')
 
-  // Load barber photo on mount
   useEffect(() => {
-    if (user.barber_id && !user.photo) {
-      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-      fetch(`${API}/api/barbers`, {
-        headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }
+    if (!user.barber_id || user.photo) return
+    const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+    fetch(`${API}/api/barbers`, { headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
+      .then(r => r.json())
+      .then((data: any) => {
+        const list: any[] = Array.isArray(data) ? data : (data?.barbers || [])
+        const me = list.find(b => String(b.id) === String(user.barber_id))
+        if (me?.photo_url) setPhoto(me.photo_url)
       })
-        .then(r => r.json())
-        .then((data: any) => {
-          const list = Array.isArray(data) ? data : (data?.barbers || [])
-          const me = list.find((b: any) => String(b.id) === String(user.barber_id))
-          if (me?.photo_url) setPhoto(me.photo_url)
-        })
-        .catch(() => {})
-    }
+      .catch(() => {})
   }, [user.barber_id, user.photo])
 
   function handlePhoto(file: File | null) {
@@ -127,15 +102,12 @@ function ProfileModal({ user, onClose, onUpdated }: {
     reader.onload = () => {
       const img = new Image()
       img.onload = () => {
-        const MAX = 900
-        const scale = Math.min(1, MAX / img.width, MAX / img.height)
-        const w = Math.round(img.width * scale)
-        const h = Math.round(img.height * scale)
+        const MAX = 900, scale = Math.min(1, MAX / img.width, MAX / img.height)
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale)
         const canvas = document.createElement('canvas')
         canvas.width = w; canvas.height = h
         canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-        let q = 0.82
-        let out = canvas.toDataURL('image/jpeg', q)
+        let q = 0.82, out = canvas.toDataURL('image/jpeg', q)
         while (out.length > 900000 && q > 0.35) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q) }
         setPhoto(out)
       }
@@ -182,119 +154,84 @@ function ProfileModal({ user, onClose, onUpdated }: {
     setSaving(false)
   }
 
+  const glassModal: React.CSSProperties = {
+    position: 'fixed', inset: 0, zIndex: 200,
+    background: 'rgba(0,0,0,.50)',
+    backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+  }
+  const modalBox: React.CSSProperties = {
+    width: 'min(420px,100%)', borderRadius: 24,
+    border: '1px solid rgba(255,255,255,.10)',
+    background: 'rgba(0,0,0,.60)',
+    backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)',
+    color: '#e9e9e9', fontFamily: 'Inter,sans-serif',
+    boxShadow: '0 30px 80px rgba(0,0,0,.55), inset 0 0 0 0.5px rgba(255,255,255,.06)',
+    overflow: 'hidden', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto'
+  }
   const inp: React.CSSProperties = {
     width: '100%', height: 42, borderRadius: 12,
-    border: '1px solid rgba(255,255,255,.12)',
+    border: '1px solid rgba(255,255,255,.10)',
     background: 'rgba(255,255,255,.06)',
     color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit'
   }
   const lbl: React.CSSProperties = {
     fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase',
-    color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5
+    color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 6
   }
-  const tabBtn = (t: 'profile' | 'password') => ({
-    height: 32, padding: '0 14px', borderRadius: 999, cursor: 'pointer',
-    fontWeight: 900 as const, fontSize: 11, textTransform: 'uppercase' as const,
-    letterSpacing: '.08em', fontFamily: 'inherit',
-    border: `1px solid ${tab === t ? 'rgba(10,132,255,.50)' : 'rgba(255,255,255,.10)'}`,
-    background: tab === t ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.04)',
-    color: tab === t ? '#d7ecff' : 'rgba(255,255,255,.55)',
-  })
 
   return (
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 200,
-        background: 'rgba(0,0,0,.50)',
-        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center'
-      }}
-    >
-      <div style={{
-        width: 'min(440px,95vw)', borderRadius: 24,
-        border: '1px solid rgba(255,255,255,.12)',
-        background: 'rgba(14,14,22,.72)',
-        backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)',
-        color: '#e9e9e9', fontFamily: 'Inter,sans-serif',
-        boxShadow: '0 30px 80px rgba(0,0,0,.50), 0 0 0 0.5px rgba(255,255,255,.07)',
-        overflow: 'hidden'
-      }}>
-        {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,.07)',
-          background: 'rgba(255,255,255,.03)'
-        }}>
+    <div style={glassModal} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={modalBox}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13 }}>My Profile</div>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 15, fontFamily: 'inherit' }}>✕</button>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontSize: 15, fontFamily: 'inherit' }}>✕</button>
         </div>
 
-        {/* Tabs */}
         <div style={{ display: 'flex', gap: 6, padding: '12px 18px 0' }}>
-          <button style={tabBtn('profile')} onClick={() => { setTab('profile'); setMsg(''); setErr('') }}>Profile</button>
-          <button style={tabBtn('password')} onClick={() => { setTab('password'); setMsg(''); setErr('') }}>Password</button>
+          {(['profile', 'password'] as const).map(t => (
+            <button key={t} onClick={() => { setTab(t); setMsg(''); setErr('') }}
+              style={{ height: 32, padding: '0 14px', borderRadius: 999, cursor: 'pointer', fontWeight: 900, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit', border: `1px solid ${tab === t ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.08)'}`, background: tab === t ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.03)', color: tab === t ? '#fff' : 'rgba(255,255,255,.45)' }}>
+              {t === 'profile' ? 'Profile' : 'Password'}
+            </button>
+          ))}
         </div>
 
         <div style={{ padding: '16px 18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {tab === 'profile' && (
-            <>
-              {/* Photo */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                {photo
-                  ? <img src={photo} alt={name} style={{ width: 72, height: 72, borderRadius: 18, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} />
-                  : <div style={{ width: 72, height: 72, borderRadius: 18, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 900, flexShrink: 0 }}>
-                      {(user.name || '?')[0].toUpperCase()}
-                    </div>
-                }
-                <div style={{ flex: 1 }}>
-                  <label style={lbl}>Photo</label>
-                  <label style={{ height: 38, padding: '0 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.70)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: 12, fontFamily: 'inherit', gap: 8 }}>
-                    📷 {photo ? 'Change photo' : 'Upload photo'}
-                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handlePhoto(e.target.files?.[0] || null)} />
-                  </label>
-                  {photo && (
-                    <button onClick={() => setPhoto('')} style={{ marginTop: 6, height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>Remove</button>
-                  )}
-                </div>
+          {tab === 'profile' && <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              {photo
+                ? <img src={photo} alt={name} style={{ width: 68, height: 68, borderRadius: 18, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)', flexShrink: 0 }} />
+                : <div style={{ width: 68, height: 68, borderRadius: 18, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 900, flexShrink: 0 }}>{(user.name || '?')[0].toUpperCase()}</div>
+              }
+              <div style={{ flex: 1 }}>
+                <label style={lbl}>Photo</label>
+                <label style={{ height: 36, padding: '0 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.65)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: 12, fontFamily: 'inherit', gap: 6 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  {photo ? 'Change photo' : 'Upload photo'}
+                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handlePhoto(e.target.files?.[0] || null)} />
+                </label>
+                {photo && <button onClick={() => setPhoto('')} style={{ marginTop: 6, height: 26, padding: '0 10px', borderRadius: 7, border: '1px solid rgba(255,107,107,.25)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>Remove</button>}
               </div>
+            </div>
+            <div><label style={lbl}>Display name</label><input value={name} onChange={e => setName(e.target.value)} style={inp} /></div>
+            <div><label style={lbl}>Username</label><input value={user.username || ''} disabled style={{ ...inp, opacity: .35, cursor: 'not-allowed' }} /></div>
+            <div><label style={lbl}>Role</label><input value={user.role || ''} disabled style={{ ...inp, opacity: .35, cursor: 'not-allowed', textTransform: 'capitalize' }} /></div>
+            <button onClick={saveProfile} disabled={saving} style={{ height: 42, borderRadius: 12, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.10)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
+              {saving ? 'Saving…' : 'Save profile'}
+            </button>
+          </>}
 
-              <div>
-                <label style={lbl}>Display name</label>
-                <input value={name} onChange={e => setName(e.target.value)} style={inp} />
-              </div>
-              <div>
-                <label style={lbl}>Username (login)</label>
-                <input value={user.username || ''} disabled style={{ ...inp, opacity: .4, cursor: 'not-allowed' }} />
-              </div>
-              <div>
-                <label style={lbl}>Role</label>
-                <input value={user.role || ''} disabled style={{ ...inp, opacity: .4, cursor: 'not-allowed', textTransform: 'capitalize' }} />
-              </div>
-              <button onClick={saveProfile} disabled={saving} style={{ height: 44, borderRadius: 12, border: '1px solid rgba(10,132,255,.60)', background: 'rgba(10,132,255,.16)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
-                {saving ? 'Saving…' : 'Save profile'}
-              </button>
-            </>
-          )}
+          {tab === 'password' && <>
+            <div><label style={lbl}>Current password</label><input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="••••••••" style={inp} /></div>
+            <div><label style={lbl}>New password</label><input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="min 4 characters" style={inp} /></div>
+            <button onClick={savePassword} disabled={saving} style={{ height: 42, borderRadius: 12, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.10)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
+              {saving ? 'Saving…' : 'Update password'}
+            </button>
+          </>}
 
-          {tab === 'password' && (
-            <>
-              <div>
-                <label style={lbl}>Current password</label>
-                <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="••••••••" style={inp} />
-              </div>
-              <div>
-                <label style={lbl}>New password</label>
-                <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="min 4 characters" style={inp} />
-              </div>
-              <button onClick={savePassword} disabled={saving} style={{ height: 44, borderRadius: 12, border: '1px solid rgba(10,132,255,.60)', background: 'rgba(10,132,255,.16)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
-                {saving ? 'Saving…' : 'Update password'}
-              </button>
-            </>
-          )}
-
-          {msg && <div style={{ fontSize: 12, color: '#c9ffe1', padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(143,240,177,.28)', background: 'rgba(143,240,177,.07)' }}>{msg}</div>}
-          {err && <div style={{ fontSize: 12, color: '#ffd0d0', padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(255,107,107,.28)', background: 'rgba(255,107,107,.07)' }}>{err}</div>}
+          {msg && <div style={{ fontSize: 12, color: '#c9ffe1', padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(143,240,177,.22)', background: 'rgba(143,240,177,.06)' }}>{msg}</div>}
+          {err && <div style={{ fontSize: 12, color: '#ffd0d0', padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(255,107,107,.22)', background: 'rgba(255,107,107,.06)' }}>{err}</div>}
         </div>
       </div>
     </div>
@@ -319,21 +256,20 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
     fetch(`${API}/api/auth/me`, { headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
       .then(r => r.json())
       .then(async (d: any) => {
-        if (d.user) {
-          let userData = { ...d.user }
-          if (d.user.barber_id) {
-            try {
-              const br = await fetch(`${API}/api/barbers`, {
-                headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }
-              }).then(r => r.json())
-              const list = Array.isArray(br) ? br : (br?.barbers || [])
-              const myBarber = list.find((b: any) => String(b.id) === String(d.user.barber_id))
-              if (myBarber?.photo_url) userData = { ...userData, photo: myBarber.photo_url, name: myBarber.name || userData.name }
-            } catch {}
-          }
-          setUser(userData)
-          localStorage.setItem('ELEMENT_USER', JSON.stringify(userData))
+        if (!d.user) return
+        let userData = { ...d.user }
+        if (d.user.barber_id) {
+          try {
+            const br = await fetch(`${API}/api/barbers`, {
+              headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }
+            }).then(r => r.json())
+            const list: any[] = Array.isArray(br) ? br : (br?.barbers || [])
+            const me = list.find(b => String(b.id) === String(d.user.barber_id))
+            if (me?.photo_url) userData = { ...userData, photo: me.photo_url, name: me.name || userData.name }
+          } catch {}
         }
+        setUser(userData)
+        localStorage.setItem('ELEMENT_USER', JSON.stringify(userData))
       })
       .catch(() => {})
   }, [])
@@ -346,26 +282,163 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
   const role = user?.role || 'barber'
   const isBarber = role === 'barber'
-
   const visibleNav = NAV.filter(item => {
     if ((item as any).ownerOnly && role !== 'owner') return false
     if ((item as any).ownerAdmin && isBarber) return false
     return true
   })
-
-  const initials = (name: string) => {
-    const p = (name || '').split(' ')
-    return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase()
-  }
+  const initials = (n: string) => { const p = (n || '').split(' '); return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() }
 
   return (
     <>
-      <style>{CSS}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;}
+        html,body{height:100%;background:#000;color:#e9e9e9;font-family:Inter,system-ui,sans-serif;}
+        a{color:#fff!important;text-decoration:none!important;}
+
+        .shell{display:flex;height:100vh;width:100vw;overflow:hidden;position:relative;}
+
+        /* ── Sidebar — Apple glass ── */
+        .sidebar{
+          width:240px;flex:0 0 240px;
+          height:100vh;display:flex;flex-direction:column;
+          border-right:1px solid rgba(255,255,255,.07);
+          background:rgba(0,0,0,.55);
+          backdrop-filter:saturate(180%) blur(40px);
+          -webkit-backdrop-filter:saturate(180%) blur(40px);
+          z-index:50;
+          transition:transform .28s cubic-bezier(.4,0,.2,1);
+        }
+
+        /* Brand */
+        .brand{
+          padding:28px 18px 18px;
+          border-bottom:1px solid rgba(255,255,255,.06);
+        }
+        .brand h1{
+          font-family:"Julius Sans One",sans-serif;
+          letter-spacing:.32em;font-size:14px;text-transform:uppercase;
+          background:linear-gradient(150deg,rgba(255,255,255,.92),rgba(255,255,255,.45));
+          -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+        }
+        .brand-sub{
+          font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+          color:rgba(255,255,255,.20);margin-top:6px;
+        }
+
+        /* Nav — centered vertically */
+        .nav{
+          display:flex;flex-direction:column;justify-content:center;
+          gap:3px;padding:16px 12px;flex:1;overflow-y:auto;
+        }
+
+        .nav-item{
+          display:flex;align-items:center;gap:11px;
+          padding:10px 12px;border-radius:13px;
+          border:1px solid transparent;
+          transition:background .16s ease, border-color .16s ease;
+          cursor:pointer;
+        }
+        .nav-item:hover{
+          background:rgba(255,255,255,.06);
+          border-color:rgba(255,255,255,.07);
+        }
+        .nav-item.active{
+          background:rgba(255,255,255,.09);
+          border-color:rgba(255,255,255,.12);
+        }
+        .nav-ico{
+          width:33px;height:33px;border-radius:9px;
+          display:flex;align-items:center;justify-content:center;
+          flex-shrink:0;transition:background .16s;
+          background:rgba(255,255,255,.05);
+          border:1px solid rgba(255,255,255,.06);
+        }
+        .nav-item.active .nav-ico{
+          background:rgba(255,255,255,.12);
+          border-color:rgba(255,255,255,.14);
+        }
+        .nav-t{font-weight:600;font-size:13px;color:rgba(255,255,255,.85);display:block;letter-spacing:.01em;}
+        .nav-s{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.28);display:block;margin-top:1px;}
+        .nav-item.active .nav-t{color:#fff;}
+
+        /* User bar */
+        .user-bar{padding:12px;border-top:1px solid rgba(255,255,255,.06);}
+        .user-card{
+          display:flex;flex-direction:column;gap:8px;
+          padding:12px;border-radius:14px;
+          background:rgba(255,255,255,.04);
+          border:1px solid rgba(255,255,255,.07);
+        }
+
+        /* Content */
+        .content{flex:1;min-width:0;height:100vh;overflow:hidden;background:#000;}
+
+        /* Burger */
+        .burger-btn{
+          display:none;
+          position:fixed;top:14px;left:14px;z-index:200;
+          width:40px;height:40px;border-radius:11px;
+          border:1px solid rgba(255,255,255,.14);
+          background:rgba(0,0,0,.65);
+          backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+          color:#fff;cursor:pointer;
+          align-items:center;justify-content:center;
+          flex-direction:column;gap:5px;padding:0;
+          transition:background .18s;
+        }
+        .burger-btn:hover{background:rgba(255,255,255,.10);}
+        .burger-line{
+          display:block;width:16px;height:1.5px;
+          border-radius:2px;background:#fff;
+          transition:transform .22s ease, opacity .22s ease;
+        }
+        .burger-btn.open .burger-line:nth-child(1){transform:translateY(6.5px) rotate(45deg);}
+        .burger-btn.open .burger-line:nth-child(2){opacity:0;transform:scaleX(0);}
+        .burger-btn.open .burger-line:nth-child(3){transform:translateY(-6.5px) rotate(-45deg);}
+
+        .sidebar-backdrop{
+          display:none;position:fixed;inset:0;
+          background:rgba(0,0,0,.45);z-index:49;
+          backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+        }
+        .sidebar-backdrop.open{display:block;}
+
+        @media(max-width:768px){
+          .sidebar{
+            position:fixed;inset:0 auto 0 0;
+            transform:translateX(-108%);
+          }
+          .sidebar.open{transform:translateX(0);}
+          .burger-btn{display:flex;}
+          .content{width:100vw;}
+        }
+
+        ::-webkit-scrollbar{width:4px;}
+        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px;}
+        select option{background:#111;}
+      `}</style>
 
       <div className="shell">
-        <button className="burger-btn" onClick={() => setSidebarOpen(true)}>☰</button>
-        <div className={`sidebar-backdrop${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(false)} />
+        {/* Burger */}
+        <button
+          className={`burger-btn${sidebarOpen ? ' open' : ''}`}
+          onClick={() => setSidebarOpen(v => !v)}
+          aria-label="Menu"
+        >
+          <span className="burger-line" />
+          <span className="burger-line" />
+          <span className="burger-line" />
+        </button>
 
+        {/* Backdrop */}
+        <div
+          className={`sidebar-backdrop${sidebarOpen ? ' open' : ''}`}
+          onClick={() => setSidebarOpen(false)}
+        />
+
+        {/* Sidebar */}
         <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
           <div className="brand">
             <h1>ELEMENT</h1>
@@ -373,48 +446,58 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
           </div>
 
           <nav className="nav">
-            {visibleNav.map(item => (
-              <Link
-                key={item.id}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={`nav-item${pathname === item.href ? ' active' : ''}`}
-              >
-                <div style={{ width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 15, background: pathname === item.href ? 'rgba(10,132,255,.20)' : 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.07)' }}>
-                  {({'dashboard':'⬛','calendar':'📅','clients':'👤','payments':'💳','payroll':'💰','settings':'⚙️'} as Record<string,string>)[item.id] || '•'}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <span className="nav-t">{item.label}</span>
-                  <span className="nav-s">{item.sub}</span>
-                </div>
-              </Link>
-            ))}
+            {visibleNav.map(item => {
+              const active = pathname === item.href
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`nav-item${active ? ' active' : ''}`}
+                >
+                  <div className="nav-ico">
+                    <Icon id={item.id} color={active ? 'rgba(255,255,255,.90)' : 'rgba(255,255,255,.45)'} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <span className="nav-t">{item.label}</span>
+                    <span className="nav-s">{item.sub}</span>
+                  </div>
+                </Link>
+              )
+            })}
           </nav>
 
           <div className="user-bar">
-            <div style={{ padding: '10px 12px', borderRadius: 14, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)' }}>
+            <div className="user-card">
               <button
                 onClick={() => setShowProfile(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 10, textAlign: 'left' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}
               >
                 {(user as any)?.photo
-                  ? <img src={(user as any).photo} alt={user?.name || ''} style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
-                  : <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: '#d7ecff', flexShrink: 0 }}>
+                  ? <img
+                      src={(user as any).photo}
+                      alt={user?.name || ''}
+                      style={{ width: 34, height: 34, borderRadius: 9, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)', flexShrink: 0 }}
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                    />
+                  : <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,.10)', border: '1px solid rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: '#fff', flexShrink: 0 }}>
                       {initials(user?.name || user?.username || '?')}
                     </div>
                 }
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: '#e9e9e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name || user?.username || '—'}</div>
-                  <div style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,.32)', marginTop: 2 }}>{user?.role || '—'}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: '#e9e9e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name || user?.username || '—'}</div>
+                  <div style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,.30)', marginTop: 2 }}>{user?.role || '—'}</div>
                 </div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.28)', flexShrink: 0 }}>✎</div>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
               </button>
 
               <button
                 onClick={() => { localStorage.removeItem('ELEMENT_TOKEN'); localStorage.removeItem('ELEMENT_USER'); window.location.href = '/signin' }}
-                style={{ height: 30, width: '100%', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, border: '1px solid rgba(255,107,107,.28)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', fontFamily: 'inherit' }}
+                style={{ height: 30, width: '100%', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 600, border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.55)', fontFamily: 'inherit', letterSpacing: '.04em' }}
               >
-                Log out
+                Sign out
               </button>
             </div>
           </div>
