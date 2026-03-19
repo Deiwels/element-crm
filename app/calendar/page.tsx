@@ -919,11 +919,20 @@ export default function CalendarPage() {
               {/* Date picker — desktop only */}
               <button className="cal-btn-date" onClick={() => setDatePickerOpen(true)} style={{ height: 40, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Date</button>
 
-              {/* Prev / Date(mobile) / Next */}
+              {/* Prev */}
               <button onClick={() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()-1); return x })} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>‹</button>
-              <button onClick={() => setDatePickerOpen(true)} style={{ height: 36, padding: '0 10px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 11, fontFamily: 'inherit', flexShrink: 0, letterSpacing: '.04em' }}>
-                {anchor.toLocaleDateString([], { month: 'short', day: 'numeric' })}
-              </button>
+
+              {/* Today — desktop only */}
+              {!isMobile && <button onClick={() => { const d=new Date(); d.setHours(0,0,0,0); setAnchor(d) }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', flexShrink: 0 }}>Today</button>}
+
+              {/* Date pill — mobile only, shows current date, opens picker */}
+              {isMobile && (
+                <button onClick={() => setDatePickerOpen(true)} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.07)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', flexShrink: 0, letterSpacing: '.02em' }}>
+                  {anchor.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+                </button>
+              )}
+
+              {/* Next */}
               <button onClick={() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()+1); return x })} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>›</button>
 
               {/* Search — full on desktop */}
@@ -950,8 +959,8 @@ export default function CalendarPage() {
               {/* New booking */}
               <button onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(10,132,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ New</button>
 
-              {/* Reload */}
-              <button onClick={reload} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>↻</button>
+              {/* Reload — desktop only */}
+              {!isMobile && <button onClick={reload} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>↻</button>}
             </div>
           </div>
         </div>
