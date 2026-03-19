@@ -970,34 +970,44 @@ export default function CalendarPage() {
                         <>
                           {/* TOP — before work */}
                           {sy > 0 && (
-                            <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: sy, zIndex: 10, background: BG, backgroundImage: STRIPE, cursor: isOwnerOrAdmin ? 'ns-resize' : 'default' }}
-                              onMouseDown={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.clientY, origMin: startMin } }}
-                              onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.touches[0].clientY, origMin: startMin } }}>
+                            <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: sy, zIndex: 10, background: BG, backgroundImage: STRIPE, cursor: 'default', pointerEvents: 'none' }}>
                               {/* Border bottom = work start */}
                               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: BORDER_COLOR, pointerEvents: 'none' }} />
                               {/* Label */}
                               {sy > 32 && (
-                                <div style={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+                                <div style={{ position: 'absolute', bottom: 18, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
                                   <span style={TIME_PILL}>{minToHHMM(startMin)}</span>
                                 </div>
                               )}
-                              {/* Drag handle */}
-                              <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', width: 28, height: 3, borderRadius: 2, background: 'rgba(255,255,255,.25)', pointerEvents: 'none' }} />
+                              {/* Handle zone — only bottom 28px is draggable */}
+                              {isOwnerOrAdmin && (
+                                <div
+                                  style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 28, cursor: 'ns-resize', pointerEvents: 'all', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11 }}
+                                  onMouseDown={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.clientY, origMin: startMin } }}
+                                  onTouchStart={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.touches[0].clientY, origMin: startMin } }}>
+                                  <div style={{ width: 32, height: 4, borderRadius: 2, background: 'rgba(255,255,255,.35)' }} />
+                                </div>
+                              )}
                             </div>
                           )}
 
                           {/* BOTTOM — after work */}
                           {ey < totalPx && (
-                            <div style={{ position: 'absolute', left: 0, right: 0, top: ey, height: totalPx - ey, zIndex: 10, background: BG, backgroundImage: STRIPE, cursor: isOwnerOrAdmin ? 'ns-resize' : 'default' }}
-                              onMouseDown={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.clientY, origMin: endMin } }}
-                              onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.touches[0].clientY, origMin: endMin } }}>
+                            <div style={{ position: 'absolute', left: 0, right: 0, top: ey, height: totalPx - ey, zIndex: 10, background: BG, backgroundImage: STRIPE, cursor: 'default', pointerEvents: 'none' }}>
                               {/* Border top = work end */}
                               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: BORDER_COLOR, pointerEvents: 'none' }} />
-                              {/* Drag handle */}
-                              <div style={{ position: 'absolute', top: 4, left: '50%', transform: 'translateX(-50%)', width: 28, height: 3, borderRadius: 2, background: 'rgba(255,255,255,.25)', pointerEvents: 'none' }} />
+                              {/* Handle zone — only top 28px is draggable */}
+                              {isOwnerOrAdmin && (
+                                <div
+                                  style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 28, cursor: 'ns-resize', pointerEvents: 'all', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11 }}
+                                  onMouseDown={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.clientY, origMin: endMin } }}
+                                  onTouchStart={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.touches[0].clientY, origMin: endMin } }}>
+                                  <div style={{ width: 32, height: 4, borderRadius: 2, background: 'rgba(255,255,255,.35)' }} />
+                                </div>
+                              )}
                               {/* Label */}
                               {(totalPx - ey) > 32 && (
-                                <div style={{ position: 'absolute', top: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+                                <div style={{ position: 'absolute', top: 16, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
                                   <span style={TIME_PILL}>{minToHHMM(endMin)}</span>
                                 </div>
                               )}
