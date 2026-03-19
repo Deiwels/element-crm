@@ -498,24 +498,24 @@ export default function CalendarPage() {
   // Build workHours from barber schedule every time barbers or date changes
   useEffect(() => {
     if (!barbers.length) return
-    const dow = new Date(anchor + 'T00:00:00').getDay() // 0=Sun
-    const didx = dow === 0 ? 6 : dow - 1               // Mon=0..Sun=6
+    // dow = 0=Sun,1=Mon..6=Sat — matches how schedule.days[] is stored on server
+    const dow = new Date(anchor + 'T00:00:00').getDay()
     const next: Record<string, { startMin: number; endMin: number; dayOff: boolean }> = {}
     barbers.forEach(b => {
       const sched = b.schedule
-      if (sched && sched[didx]) {
-        const day = sched[didx]
-        if (!day.enabled) {
-          next[b.id] = { startMin: 0, endMin: 0, dayOff: true }
-        } else {
-          next[b.id] = { startMin: day.startMin, endMin: day.endMin, dayOff: false }
-        }
-      } else if (sched) {
-        // Has schedule but today is day off
+      if (!sched) {
+        // No schedule — no gray blocks, show full day
+        next[b.id] = { startMin: 0, endMin: END_HOUR * 60, dayOff: false }
+        return
+      }
+      // sched is 7-element array indexed by JS getDay() 0=Sun..6=Sat
+      const day = sched[dow]
+      if (!day) {
+        next[b.id] = { startMin: 0, endMin: END_HOUR * 60, dayOff: false }
+      } else if (!day.enabled) {
         next[b.id] = { startMin: 0, endMin: 0, dayOff: true }
       } else {
-        // No schedule set — default 10:00–20:00, no gray blocks
-        next[b.id] = { startMin: 10 * 60, endMin: 20 * 60, dayOff: false }
+        next[b.id] = { startMin: day.startMin, endMin: day.endMin, dayOff: false }
       }
     })
     setWorkHours(next as any)
@@ -561,11 +561,10 @@ export default function CalendarPage() {
       try {
         // Get current barber schedule to update only today's day
         const barber = barbers.find(b => b.id === barberId)
-        const dow = new Date(anchor + 'T00:00:00').getDay()
-        const didx = dow === 0 ? 6 : dow - 1
-        // Build updated perDay schedule
+        const dow = new Date(anchor + 'T00:00:00').getDay() // 0=Sun..6=Sat
+        // Build updated schedule — indexed by JS getDay()
         const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
-        const newPerDay = baseSched.map((d, i) => i === didx ? { ...d, startMin: wh.startMin, endMin: wh.endMin } : d)
+        const newPerDay = baseSched.map((d, i) => i === dow ? { ...d, startMin: wh.startMin, endMin: wh.endMin } : d)
         const enabledDays = newPerDay.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
         await apiFetch('/api/barbers/' + encodeURIComponent(barberId), {
           method: 'PATCH',
