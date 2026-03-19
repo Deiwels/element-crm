@@ -373,7 +373,12 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {(['auto','open','closed'] as const).map(mode => {
-                    const labels = { auto: '🔄 Auto', open: '✅ Force Open', closed: '❌ Force Closed' }
+                    const icons = {
+                      auto:   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.08-7.5"/></svg>,
+                      open:   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+                      closed: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+                    }
+                    const labels = { auto: 'Auto', open: 'Force Open', closed: 'Force Closed' }
                     const colors = {
                       auto:   shopStatus==='auto'   ? 'rgba(255,255,255,.20)' : 'rgba(255,255,255,.08)',
                       open:   shopStatus==='open'   ? 'rgba(143,240,177,.35)' : 'rgba(255,255,255,.08)',
@@ -382,7 +387,7 @@ export default function DashboardPage() {
                     return (
                       <button key={mode} onClick={() => saveShopStatus(mode)} disabled={statusSaving}
                         style={{ height: 38, padding: '0 14px', borderRadius: 999, border: `1px solid ${colors[mode]}`, background: shopStatus===mode ? colors[mode] : 'rgba(255,255,255,.03)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: shopStatus===mode ? 900 : 400, fontFamily: 'inherit', transition: 'all .18s' }}>
-                        {labels[mode]}
+                        <span style={{ display:'flex', alignItems:'center', gap:5 }}>{icons[mode]}{labels[mode]}</span>
                       </button>
                     )
                   })}
@@ -410,34 +415,44 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              {/* Barbers schedule overview */}
+              {/* Barbers — days + ratings */}
               <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 16 }}>
-                <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Barbers weekly schedule</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Barbers</span>
+                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,.25)', textTransform: 'none', letterSpacing: 0 }}>Tap days: green — works, red — day off</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
                   {barbers.map((b: any) => {
                     const sched = b.schedule
                     const workDays: number[] = Array.isArray(sched?.days) ? sched.days : [1,2,3,4,5,6]
                     return (
                       <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(0,0,0,.12)' }}>
-                        {b.photo_url ? <img src={b.photo_url} alt={b.name} style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} /> : <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, flexShrink: 0 }}>{(b.name||'?')[0]}</div>}
+                        {b.photo_url
+                          ? <img src={b.photo_url} alt={b.name} style={{ width: 38, height: 38, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} />
+                          : <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(255,255,255,.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, flexShrink: 0 }}>{(b.name||'?')[0]}</div>
+                        }
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>{b.name}</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{b.name}</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                             {DAY_NAMES_SHORT.map((day, i) => {
                               const works = workDays.includes(i)
                               return (
-                                <span key={day} style={{ fontSize: 9, padding: '2px 6px', borderRadius: 999, border: `1px solid ${works ? 'rgba(143,240,177,.35)' : 'rgba(255,107,107,.25)'}`, background: works ? 'rgba(143,240,177,.08)' : 'rgba(255,107,107,.06)', color: works ? '#8ff0b1' : '#ffd0d0', letterSpacing: '.06em', textTransform: 'uppercase' }}>
+                                <span key={day} style={{ fontSize: 9, padding: '2px 7px', borderRadius: 999, border: `1px solid ${works ? 'rgba(143,240,177,.40)' : 'rgba(255,107,107,.28)'}`, background: works ? 'rgba(143,240,177,.10)' : 'rgba(255,107,107,.07)', color: works ? '#8ff0b1' : '#ffd0d0', letterSpacing: '.06em', textTransform: 'uppercase', fontWeight: 700 }}>
                                   {day}
                                 </span>
                               )
                             })}
                           </div>
-                          {sched && <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 3 }}>{Math.floor((sched.startMin||600)/60).toString().padStart(2,'0')}:{String((sched.startMin||600)%60).padStart(2,'0')} — {Math.floor((sched.endMin||1200)/60).toString().padStart(2,'0')}:{String((sched.endMin||1200)%60).padStart(2,'0')}</div>}
+                          {sched && (
+                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,.30)', marginTop: 4 }}>
+                              {String(Math.floor((sched.startMin||600)/60)).padStart(2,'0')}:{String((sched.startMin||600)%60).padStart(2,'0')} — {String(Math.floor((sched.endMin||1200)/60)).padStart(2,'0')}:{String((sched.endMin||1200)%60).padStart(2,'0')}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )
                   })}
-                  {barbers.length === 0 && <div style={{ color: 'rgba(255,255,255,.30)', fontSize: 12 }}>Loading barbers…</div>}
+                  {barbers.length === 0 && <div style={{ color: 'rgba(255,255,255,.30)', fontSize: 12 }}>Loading…</div>}
                 </div>
               </div>
 
