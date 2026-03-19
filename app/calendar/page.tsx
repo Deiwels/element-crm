@@ -85,10 +85,10 @@ function DatePickerModal({ current, onSelect, onClose }: {
   const start = new Date(month); start.setDate(1 - offset)
   const days: Date[] = []
   for (let i = 0; i < 42; i++) { const d = new Date(start); d.setDate(start.getDate() + i); days.push(d) }
-  const btn: React.CSSProperties = { height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.18)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 14, fontFamily: 'inherit' }
+  const btn: React.CSSProperties = { height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 18 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ width: 'min(480px,95vw)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(28,28,28,.98),rgba(16,16,16,.98))', backdropFilter: 'blur(18px)', padding: 16, color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ width: 'min(460px,100%)', borderRadius: 22, border: `1px solid ${GLASS_BORDER}`, background: GLASS, backdropFilter: GLASS_BD, WebkitBackdropFilter: GLASS_BD, padding: 18, color: '#e9e9e9', fontFamily: 'Inter,sans-serif', boxShadow: GLASS_SHADOW }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,.10)' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 13 }}>Choose date</div>
           <button onClick={onClose} style={{ height: 32, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: 12 }}>Close</button>
@@ -109,7 +109,7 @@ function DatePickerModal({ current, onSelect, onClose }: {
             const inMonth = d.getMonth() === month.getMonth()
             const isToday = +d === +today
             const isSel = d.toDateString() === current.toDateString()
-            return <button key={i} onClick={() => { onSelect(d); onClose() }} style={{ ...btn, opacity: inMonth ? 1 : 0.3, borderColor: isSel ? 'rgba(10,132,255,.75)' : isToday ? 'rgba(255,207,63,.55)' : 'rgba(255,255,255,.10)', background: isSel ? 'rgba(10,132,255,.12)' : 'rgba(0,0,0,.18)' }}>{d.getDate()}</button>
+            return <button key={i} onClick={() => { onSelect(d); onClose() }} style={{ ...btn, opacity: inMonth ? 1 : 0.3, borderColor: isSel ? 'rgba(255,255,255,.40)' : isToday ? 'rgba(255,207,63,.55)' : 'rgba(255,255,255,.09)', background: isSel ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.04)' }}>{d.getDate()}</button>
           })}
         </div>
       </div>
@@ -342,8 +342,8 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
   const tabs = ['barbers','services','account'] as const
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.50)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 18, overflowY: 'auto' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ width: 'min(700px,95vw)', maxHeight: 'calc(100vh - 48px)', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(20,20,28,.82),rgba(10,10,18,.78))', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'blur(28px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ width: 'min(680px,100%)', height: 'min(800px,calc(100vh - 32px))', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto', boxShadow: '0 32px 80px rgba(0,0,0,.55), inset 0 0 0 0.5px rgba(255,255,255,.06)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 14 }}>Settings</div>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit' }}>✕</button>
@@ -351,12 +351,12 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
 
         <div style={{ display: 'flex', gap: 6, padding: '14px 18px 0' }}>
           {tabs.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ height: 36, padding: '0 16px', borderRadius: 999, border: `1px solid ${tab === t ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.12)'}`, background: tab === t ? 'rgba(10,132,255,.10)' : 'rgba(255,255,255,.04)', color: tab === t ? '#d7ecff' : '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit' }}>{t}</button>
+            <button key={t} onClick={() => setTab(t)} style={{ height: 36, padding: '0 16px', borderRadius: 999, border: `1px solid ${tab === t ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.09)'}`, background: tab === t ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.03)', color: tab === t ? '#fff' : 'rgba(255,255,255,.55)', cursor: 'pointer', fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit' }}>{t}</button>
           ))}
         </div>
 
-        <div style={{ padding: '16px 18px 20px' }}>
-          {msg && <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(10,132,255,.35)', background: 'rgba(10,132,255,.08)', fontSize: 12, color: '#d7ecff', marginBottom: 14 }}>{msg}</div>}
+        <div style={{ padding: '16px 18px 20px', flex: 1, overflowY: 'auto' }}>
+          {msg && <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', fontSize: 12, color: '#e9e9e9', marginBottom: 14 }}>{msg}</div>}
 
           {/* Barbers tab */}
           {tab === 'barbers' && (
@@ -424,7 +424,7 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
             <div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
                 {services.map(s => (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.16)' }}>
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)' }}>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
                       <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>{s.durationMin}min{s.price ? ` · $${s.price}` : ''}</div>
@@ -457,7 +457,7 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
           {/* Account tab */}
           {tab === 'account' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ padding: '14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.18)' }}>
+              <div style={{ padding: '14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)' }}>
                 <div style={{ fontWeight: 900, marginBottom: 4 }}>Current session</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)' }}>
                   {(() => { try { const u = JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null'); return u ? `${u.role} · ${u.name || u.username}` : 'Guest' } catch { return 'Guest' } })()}
@@ -872,7 +872,7 @@ export default function CalendarPage() {
       {/* Context menu */}
       {contextMenu && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setContextMenu(null)}>
-          <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: 'linear-gradient(180deg,rgba(30,30,30,.98),rgba(18,18,18,.98))', backdropFilter: 'blur(18px)', boxShadow: '0 12px 40px rgba(0,0,0,.6)', padding: 6, minWidth: 190, fontFamily: 'Inter,sans-serif' }} onClick={e => e.stopPropagation()}>
+          <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 16px 40px rgba(0,0,0,.50), inset 0 0 0 0.5px rgba(255,255,255,.07)', padding: 6, minWidth: 190, fontFamily: 'Inter,sans-serif' }} onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', padding: '6px 10px 4px' }}>{minToHHMM(contextMenu.min)} · {barbers.find(b=>b.id===contextMenu.barberId)?.name}</div>
             {[
               { label: 'New booking', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, bg: 'rgba(10,132,255,.18)', brd: 'rgba(10,132,255,.35)', col: '#e9e9e9', fn: () => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) } },
@@ -892,12 +892,12 @@ export default function CalendarPage() {
       {dragConfirm && (() => {
         const ev = events.find(e => e.id === dragConfirm.eventId); if (!ev) return null
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(12px)' }}>
-            <div style={{ width: 'min(380px,92vw)', borderRadius: 22, border: '1px solid rgba(255,255,255,.12)', background: 'linear-gradient(180deg,rgba(28,28,28,.98),rgba(16,16,16,.98))', boxShadow: '0 24px 80px rgba(0,0,0,.55)', padding: 20, color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
+            <div style={{ width: 'min(380px,92vw)', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.55), inset 0 0 0 0.5px rgba(255,255,255,.06)', padding: 20, color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
               <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: 'rgba(255,255,255,.70)', marginBottom: 14 }}>Move booking</div>
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.08em' }}>{dragConfirm.newBarberName}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#0a84ff', marginBottom: 4 }}>{minToHHMM(dragConfirm.newMin)}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{minToHHMM(dragConfirm.newMin)}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)' }}>{ev.clientName} · {ev.serviceName}</div>
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
