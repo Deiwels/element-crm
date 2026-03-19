@@ -327,7 +327,6 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
           color:rgba(255,255,255,.20);margin-top:6px;
         }
 
-        /* Nav — centered vertically */
         .nav{
           display:flex;flex-direction:column;justify-content:center;
           gap:3px;padding:16px 12px;flex:1;overflow-y:auto;
@@ -366,9 +365,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         /* User bar */
         .user-bar{
           padding:12px;
-          border-top:1px solid rgba(255,255,255,.06);
-          /* Push above Safari toolbar on iPhone */
-          padding-bottom:max(12px, env(safe-area-inset-bottom, 20px));
+          border-bottom:1px solid rgba(255,255,255,.06);
         }
         .user-card{
           display:flex;flex-direction:column;gap:8px;
@@ -428,14 +425,13 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
           .burger-btn{display:flex;}
           .content{width:100vw;}
 
-          /* Brand — centered, shift right to clear burger */
+          /* Brand — centered text, clear burger with padding */
           .brand{
-            padding:14px 18px 14px;
+            padding:16px 18px;
             display:flex;
             flex-direction:column;
             align-items:center;
-            justify-content:center;
-            padding-left:60px; /* clear burger */
+            text-align:center;
           }
           .brand h1{
             font-size:13px;
@@ -444,11 +440,11 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
           .brand-sub{
             display:none;
           }
-
-          /* User bar — extra safe area for Safari bottom toolbar */
+          /* User bar — on top, add top padding for status bar + burger */
           .user-bar{
-            padding:10px 12px;
-            padding-bottom:max(20px, env(safe-area-inset-bottom, 20px));
+            padding:max(16px, env(safe-area-inset-top, 16px)) 12px 12px;
+            border-bottom:1px solid rgba(255,255,255,.06);
+            border-top:none;
           }
         }
 
@@ -482,28 +478,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
             <div className="brand-sub">{page}</div>
           </div>
 
-          <nav className="nav">
-            {visibleNav.map(item => {
-              const active = pathname === item.href
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`nav-item${active ? ' active' : ''}`}
-                >
-                  <div className="nav-ico">
-                    <Icon id={item.id} color={active ? 'rgba(255,255,255,.90)' : 'rgba(255,255,255,.45)'} />
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <span className="nav-t">{item.label}</span>
-                    <span className="nav-s">{item.sub}</span>
-                  </div>
-                </Link>
-              )
-            })}
-          </nav>
-
+          {/* Profile — top on mobile */}
           <div className="user-bar">
             <div className="user-card">
               <button
@@ -529,7 +504,6 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
               </button>
-
               <button
                 onClick={() => { localStorage.removeItem('ELEMENT_TOKEN'); localStorage.removeItem('ELEMENT_USER'); window.location.href = '/signin' }}
                 style={{ height: 30, width: '100%', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 600, border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.55)', fontFamily: 'inherit', letterSpacing: '.04em' }}
@@ -538,6 +512,30 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
               </button>
             </div>
           </div>
+
+          <nav className="nav">
+            {visibleNav.map(item => {
+              const active = pathname === item.href
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`nav-item${active ? ' active' : ''}`}
+                >
+                  <div className="nav-ico">
+                    <Icon id={item.id} color={active ? 'rgba(255,255,255,.90)' : 'rgba(255,255,255,.45)'} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <span className="nav-t">{item.label}</span>
+                    <span className="nav-s">{item.sub}</span>
+                  </div>
+                </Link>
+              )
+            })}
+          </nav>
+
+
         </aside>
 
         <div className="content">{children}</div>
