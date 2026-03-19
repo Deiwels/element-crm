@@ -318,14 +318,14 @@ export default function ClientsPage() {
 
         {/* Topbar */}
         <div style={{ padding:'12px 18px', background:'rgba(0,0,0,.80)', backdropFilter:'blur(14px)', borderBottom:'1px solid rgba(255,255,255,.08)', position:'sticky', top:0, zIndex:20 }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap', marginBottom:10 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap' as const, marginBottom:10 }}>
             <div>
               <h2 style={{ margin:0, fontFamily:'"Julius Sans One",sans-serif', letterSpacing:'.18em', textTransform:'uppercase', fontSize:15 }}>Clients</h2>
               <p style={{ margin:'3px 0 0', color:'rgba(255,255,255,.40)', fontSize:11, letterSpacing:'.08em' }}>
                 {visible.length} of {clients.length} clients
               </p>
             </div>
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' as const, alignItems:'center' }}>
               <button onClick={load} style={{ height:40, width:40, borderRadius:999, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.05)', color:'#fff', cursor:'pointer', fontSize:16 }}>↻</button>
               <button onClick={() => setShowAdd(true)}
                 style={{ height:40, padding:'0 16px', borderRadius:999, border:'1px solid rgba(10,132,255,.75)', background:'rgba(0,0,0,.75)', color:'#d7ecff', cursor:'pointer', fontWeight:900, fontSize:13, fontFamily:'inherit', boxShadow:'0 0 18px rgba(10,132,255,.25)' }}>
@@ -333,7 +333,7 @@ export default function ClientsPage() {
               </button>
             </div>
           </div>
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' as const, alignItems:'center' }} className="cl-filters">
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name / phone / notes / tags…"
               style={{ ...inp, width:'min(280px,55vw)' }} />
             <select value={filterBarber} onChange={e=>setFilterBarber(e.target.value)} style={inp}>
@@ -348,7 +348,7 @@ export default function ClientsPage() {
         </div>
 
         {/* Main grid */}
-        <div style={{ flex:1, overflow:'hidden', display:'grid', gridTemplateColumns:'1.6fr .9fr' }}>
+        <div style={{ flex:1, overflow:'hidden', display:'grid', gridTemplateColumns:'1.6fr .9fr' }} className="cl-grid">
 
           {/* Table */}
           <div style={{ overflowY:'auto', borderRight:'1px solid rgba(255,255,255,.08)' }}>
@@ -369,7 +369,7 @@ export default function ClientsPage() {
                   {visible.map(c => {
                     const isSel = c.id === selectedId
                     return (
-                      <tr key={c.id} className={`cl-row${isSel?' sel':''}`} onClick={() => setSelectedId(c.id)} style={{ cursor:'pointer' }}>
+                      <tr key={c.id} className={`cl-row${isSel?' sel':''}`} onClick={() => { setSelectedId(c.id); setMobileProfile(true) }} style={{ cursor:'pointer' }}>
                         <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)', overflow:'hidden' }}>
                           <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
                             <div style={{ width:34, height:34, borderRadius:12, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.05)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900, fontSize:11, flexShrink:0 }}>
@@ -399,7 +399,8 @@ export default function ClientsPage() {
           </div>
 
           {/* Profile panel */}
-          <div style={{ overflowY:'auto', background:'rgba(0,0,0,.08)' }} className={`cl-profile-panel${mobileProfile && selectedId ? ' visible' : ''}`}>
+          <div className={`cl-profile-panel${mobileProfile && selectedId ? ' visible' : ''}`}
+            style={{ overflowY:'auto', background:'rgba(0,0,0,.08)' }}>
             {mobileProfile && selectedId && (
               <div style={{ position:'sticky', top:0, zIndex:10, padding:'10px 14px', background:'rgba(0,0,0,.80)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(255,255,255,.08)', display:'flex', alignItems:'center', gap:10 }}>
                 <button onClick={() => setMobileProfile(false)} style={{ height:34, padding:'0 14px', borderRadius:999, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.06)', color:'#fff', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit' }}>← Back</button>
