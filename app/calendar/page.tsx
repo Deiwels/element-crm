@@ -889,6 +889,8 @@ export default function CalendarPage() {
                     {/* Off-hours resizable blocks */}
                     {(() => {
                       const wh = workHours[barber.id] || { startMin: 10*60, endMin: 20*60 }
+                      // VISIBLE DEBUG — remove later
+                      console.log('[CALENDAR] barber', barber.name, 'wh=', wh, 'schedule=', barber.schedule)
                       const totalPx = minToY(END_HOUR * 60)
                       const sy = minToY(wh.startMin)
                       const ey = minToY(wh.endMin)
