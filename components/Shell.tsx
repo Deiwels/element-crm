@@ -380,11 +380,32 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         /* Mobile: compensate for fixed burger button */
         @media(max-width:768px){
           .content{ position:relative; }
-          /* Center page title h2 on mobile — burger is on left so title must be centered */
+
+          /* Center page title h2 on mobile */
           .page-title{
             text-align:center!important;
             width:100%;
             display:block!important;
+          }
+
+          /* Center ALL topbar rows: title + subtitle + buttons */
+          .cal-topbar-row,
+          .content > div > div:first-child > div > div:first-child,
+          [class*="topbar"]{
+            justify-content:center!important;
+            text-align:center!important;
+          }
+
+          /* Date/subtitle lines under h2 */
+          .content h2 + p,
+          .content .page-title + p{
+            text-align:center!important;
+            width:100%;
+          }
+
+          /* Topbar padding-left reset — burger is fixed, not in flow */
+          .content > div > div:first-child{
+            padding-left:18px!important;
           }
         }
 
