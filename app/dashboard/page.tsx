@@ -56,6 +56,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterBarber, setFilterBarber] = useState('')
+  const [barbers, setBarbers] = useState<any[]>([])
+
+  // Shop status & banner — owner/admin only
+  const [shopStatus, setShopStatus] = useState<'auto'|'open'|'closed'>('auto')
+  const [bannerEnabled, setBannerEnabled] = useState(false)
+  const [bannerText, setBannerText] = useState('')
+  const [statusSaving, setStatusSaving] = useState(false)
+  const [statusMsg, setStatusMsg] = useState('')
 
   // Get current user from localStorage
   const [user] = useState(() => {
@@ -100,6 +108,22 @@ export default function DashboardPage() {
         bks = bks.filter(b => String(b.barber_id || '') === myBarberId)
       }
       setBookings(bks)
+
+      // Load barbers list
+      setBarbers(barberList)
+
+      // Load shop settings for owner/admin
+      if (!isBarber) {
+        try {
+          const settRes = await fetch(`${API}/api/settings`, { headers })
+          const settData = await settRes.json()
+          if (settData.shopStatusMode) setShopStatus(settData.shopStatusMode)
+          if (settData.banner) {
+            setBannerEnabled(!!settData.banner.enabled)
+            setBannerText(settData.banner.text || '')
+          }
+        } catch {}
+      }
 
       // Payroll for barber — load their personal stats from payroll API
       if (isBarber && myBarberId) {
@@ -152,6 +176,39 @@ export default function DashboardPage() {
       { label: 'Settings', desc: 'Tax, fees, barbers', href: '/settings' },
     ] : []),
   ]
+
+  async function saveShopStatus(mode: 'auto'|'open'|'closed') {
+    setShopStatus(mode)
+    setStatusSaving(true)
+    try {
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      await fetch(`${API}/api/settings`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopStatusMode: mode })
+      })
+      setStatusMsg('Saved ✓')
+      setTimeout(() => setStatusMsg(''), 2000)
+    } catch { setStatusMsg('Error') }
+    setStatusSaving(false)
+  }
+
+  async function saveBanner() {
+    setStatusSaving(true)
+    try {
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      await fetch(`${API}/api/settings`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ banner: { enabled: bannerEnabled, text: bannerText } })
+      })
+      setStatusMsg('Banner saved ✓')
+      setTimeout(() => setStatusMsg(''), 2000)
+    } catch { setStatusMsg('Error') }
+    setStatusSaving(false)
+  }
+
+  const DAY_NAMES_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
   return (
     <Shell page="dashboard">
@@ -304,6 +361,89 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+          {/* ── OWNER/ADMIN ONLY: Shop Status + Banner + Barbers ── */}
+          {isOwnerOrAdmin && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+
+              {/* Shop Status */}
+              <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 16 }}>
+                <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Shop status</span>
+                  {statusMsg && <span style={{ fontSize: 11, color: '#8ff0b1' }}>{statusMsg}</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {(['auto','open','closed'] as const).map(mode => {
+                    const labels = { auto: '🔄 Auto', open: '✅ Force Open', closed: '❌ Force Closed' }
+                    const colors = {
+                      auto:   shopStatus==='auto'   ? 'rgba(255,255,255,.20)' : 'rgba(255,255,255,.08)',
+                      open:   shopStatus==='open'   ? 'rgba(143,240,177,.35)' : 'rgba(255,255,255,.08)',
+                      closed: shopStatus==='closed' ? 'rgba(255,107,107,.35)' : 'rgba(255,255,255,.08)',
+                    }
+                    return (
+                      <button key={mode} onClick={() => saveShopStatus(mode)} disabled={statusSaving}
+                        style={{ height: 38, padding: '0 14px', borderRadius: 999, border: `1px solid ${colors[mode]}`, background: shopStatus===mode ? colors[mode] : 'rgba(255,255,255,.03)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: shopStatus===mode ? 900 : 400, fontFamily: 'inherit', transition: 'all .18s' }}>
+                        {labels[mode]}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Banner */}
+              <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 16 }}>
+                <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Top banner</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <button onClick={() => { setBannerEnabled(v => !v); }} style={{ height: 28, padding: '0 12px', borderRadius: 999, border: `1px solid ${bannerEnabled ? 'rgba(143,240,177,.40)' : 'rgba(255,255,255,.12)'}`, background: bannerEnabled ? 'rgba(143,240,177,.12)' : 'rgba(255,255,255,.04)', color: bannerEnabled ? '#8ff0b1' : 'rgba(255,255,255,.55)', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
+                    {bannerEnabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,.35)' }}>Shown on main website</span>
+                </div>
+                <textarea value={bannerText} onChange={e => setBannerText(e.target.value)} placeholder="THANKSGIVING · TODAY WE WORK UNTIL 2:00 PM" rows={2}
+                  style={{ width: '100%', borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: '#fff', padding: '8px 12px', fontSize: 12, outline: 'none', fontFamily: 'inherit', resize: 'vertical' as const }} />
+                {bannerEnabled && bannerText && (
+                  <div style={{ marginTop: 8, padding: '8px 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.08)', fontSize: 10, letterSpacing: '.16em', textTransform: 'uppercase', textAlign: 'center', color: '#fff' }}>
+                    {bannerText}
+                  </div>
+                )}
+                <button onClick={saveBanner} disabled={statusSaving} style={{ marginTop: 10, height: 36, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.18)', background: 'rgba(255,255,255,.07)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}>
+                  Save banner
+                </button>
+              </div>
+
+              {/* Barbers schedule overview */}
+              <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 16 }}>
+                <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Barbers weekly schedule</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {barbers.map((b: any) => {
+                    const sched = b.schedule
+                    const workDays: number[] = Array.isArray(sched?.days) ? sched.days : [1,2,3,4,5,6]
+                    return (
+                      <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, border: '1px solid rgba(255,255,255,.07)', background: 'rgba(0,0,0,.12)' }}>
+                        {b.photo_url ? <img src={b.photo_url} alt={b.name} style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} /> : <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, flexShrink: 0 }}>{(b.name||'?')[0]}</div>}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{b.name}</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+                            {DAY_NAMES_SHORT.map((day, i) => {
+                              const works = workDays.includes(i)
+                              return (
+                                <span key={day} style={{ fontSize: 9, padding: '2px 6px', borderRadius: 999, border: `1px solid ${works ? 'rgba(143,240,177,.35)' : 'rgba(255,107,107,.25)'}`, background: works ? 'rgba(143,240,177,.08)' : 'rgba(255,107,107,.06)', color: works ? '#8ff0b1' : '#ffd0d0', letterSpacing: '.06em', textTransform: 'uppercase' }}>
+                                  {day}
+                                </span>
+                              )
+                            })}
+                          </div>
+                          {sched && <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 3 }}>{Math.floor((sched.startMin||600)/60).toString().padStart(2,'0')}:{String((sched.startMin||600)%60).padStart(2,'0')} — {Math.floor((sched.endMin||1200)/60).toString().padStart(2,'0')}:{String((sched.endMin||1200)%60).padStart(2,'0')}</div>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {barbers.length === 0 && <div style={{ color: 'rgba(255,255,255,.30)', fontSize: 12 }}>Loading barbers…</div>}
+                </div>
+              </div>
+
+            </div>
+          )}
+
       </div>
     </Shell>
   )
