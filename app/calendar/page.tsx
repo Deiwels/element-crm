@@ -327,13 +327,9 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
     setSaving(true); setMsg('')
     try {
       const price_cents = Math.round(parseFloat(sPrice || '0') * 100)
-      const existing = services.find(s => s.name.toLowerCase() === sName.toLowerCase())
-      if (existing) {
-        await apiFetch(`/api/services/${encodeURIComponent(existing.id)}`, { method: 'PATCH', body: JSON.stringify({ barber_ids: sBarbers, duration_minutes: Number(sDur), price_cents }) })
-      } else {
-        await apiFetch('/api/services', { method: 'POST', body: JSON.stringify({ name: sName.trim(), duration_minutes: Number(sDur), price_cents, version: '1', barber_ids: sBarbers }) })
-      }
-      setMsg('Service saved ✓'); setSName(''); setSDur('30'); setSPrice(''); onReload()
+      // Always create new service — same name can exist for different barbers/prices
+      await apiFetch('/api/services', { method: 'POST', body: JSON.stringify({ name: sName.trim(), duration_minutes: Number(sDur), price_cents, version: '1', barber_ids: sBarbers }) })
+      setMsg('Service added ✓'); setSName(''); setSDur('30'); setSPrice(''); setSBarbers([]); onReload()
     } catch (e: any) { setMsg('Error: ' + e.message) }
     setSaving(false)
   }
