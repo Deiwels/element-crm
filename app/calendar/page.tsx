@@ -499,7 +499,7 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!barbers.length) return
     // dow = 0=Sun,1=Mon..6=Sat — matches how schedule.days[] is stored on server
-    const dow = new Date(anchor + 'T00:00:00').getDay()
+    const dow = anchor.getDay() // anchor is Date object, 0=Sun..6=Sat
     const next: Record<string, { startMin: number; endMin: number; dayOff: boolean }> = {}
     barbers.forEach(b => {
       const sched = b.schedule
@@ -561,7 +561,7 @@ export default function CalendarPage() {
       try {
         // Get current barber schedule to update only today's day
         const barber = barbers.find(b => b.id === barberId)
-        const dow = new Date(anchor + 'T00:00:00').getDay() // 0=Sun..6=Sat
+        const dow = anchor.getDay() // anchor is Date object, 0=Sun..6=Sat
         // Build updated schedule — indexed by JS getDay()
         const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
         const newPerDay = baseSched.map((d, i) => i === dow ? { ...d, startMin: wh.startMin, endMin: wh.endMin } : d)
