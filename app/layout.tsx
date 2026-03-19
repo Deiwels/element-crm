@@ -8,6 +8,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,      // ← disable pinch zoom on mobile
+  userScalable: false,  // ← disable pinch zoom on mobile
   viewportFit: 'cover', // ← allows env(safe-area-inset-*) to work in Safari
 }
 

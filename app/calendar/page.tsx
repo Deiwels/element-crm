@@ -537,6 +537,8 @@ export default function CalendarPage() {
   useEffect(() => {
     function onMove(e: MouseEvent | TouchEvent) {
       if (!offResize.current) return
+      // Prevent page scroll while resizing on touch devices
+      if ('touches' in e) e.preventDefault()
       const { barberId, type, startY, origMin } = offResize.current
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
       const dy = clientY - startY
@@ -746,6 +748,8 @@ export default function CalendarPage() {
 
   function onDragMove(e: MouseEvent | TouchEvent) {
     if (!drag) return
+    // Prevent page scroll while dragging on touch devices
+    if ('touches' in e) e.preventDefault()
     const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX
     const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY
     let newBI = drag.ghostBarberIdx
@@ -846,6 +850,11 @@ export default function CalendarPage() {
         .cal-event:hover { filter: brightness(1.12); }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
+        /* Mobile: prevent scroll bounce and pinch zoom */
+        @media(max-width:768px){
+          body { overscroll-behavior: none; touch-action: pan-x pan-y; }
+          .cal-scroll-lock { touch-action: none !important; overflow: hidden !important; }
+        }
         select option { background: #111; }
         input[type=date],input[type=time] { color-scheme: dark; }
       `}</style>
@@ -871,7 +880,7 @@ export default function CalendarPage() {
         </div>
 
         {/* Calendar grid */}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }} ref={scrollContainerRef}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', touchAction: drag ? 'none' : 'pan-x pan-y' }} ref={scrollContainerRef}>
           <div style={{ minWidth: 90 + visibleBarbers.length * COL_MIN }}>
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: `90px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
@@ -903,7 +912,7 @@ export default function CalendarPage() {
                 const colEvents = filtered.filter(e => e.barberId === barber.id)
                 return (
                   <div key={barber.id} ref={el => { colRefs.current[bi] = el }}
-                    style={{ position: 'relative', borderRight: bi < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'transparent', transition: 'background .15s' }}
+                    style={{ position: 'relative', borderRight: bi < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'transparent', transition: 'background .15s', touchAction: drag ? 'none' : 'pan-y' }}
                     onClick={e => {
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       if (isBarber && barber.id !== myBarberId) return
