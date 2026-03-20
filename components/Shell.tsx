@@ -538,7 +538,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
                 </svg>
               </button>
               <button
-                onClick={() => { localStorage.removeItem('ELEMENT_TOKEN'); localStorage.removeItem('ELEMENT_USER'); window.location.href = '/signin' }}
+                onClick={() => { localStorage.removeItem('ELEMENT_TOKEN'); localStorage.removeItem('ELEMENT_USER'); clearAuthCookie(); window.location.href = '/signin' }}
                 style={{ height: 30, width: '100%', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 600, border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.55)', fontFamily: 'inherit', letterSpacing: '.04em' }}
               >
                 Sign out

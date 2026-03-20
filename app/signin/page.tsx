@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { setAuthCookie } from '@/lib/auth-cookie'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 
@@ -37,9 +38,10 @@ export default function SignInPage() {
         } catch {}
       }
 
-      // Save to localStorage
+      // Save to localStorage + cookie (cookie is read by middleware.ts for route protection)
       localStorage.setItem('ELEMENT_TOKEN', data.token)
       localStorage.setItem('ELEMENT_USER', JSON.stringify(userData))
+      setAuthCookie(data.token)
 
       // Verify it saved
       const saved = localStorage.getItem('ELEMENT_TOKEN')
