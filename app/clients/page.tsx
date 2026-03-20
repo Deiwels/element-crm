@@ -29,6 +29,18 @@ const STATUS_STYLE: Record<string, React.CSSProperties> = {
 }
 const STATUS_LABELS: Record<string,string> = { vip:'VIP', active:'Active', new:'New', risk:'At risk' }
 
+// Phone masking — shows +1 ***-***-1234, full number on click for owner/admin
+function maskPhone(phone: string): string {
+  if (!phone) return '—'
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length >= 10) {
+    const last4 = digits.slice(-4)
+    const country = digits.length === 11 ? `+${digits[0]} ` : ''
+    return `${country}***-***-${last4}`
+  }
+  return phone.slice(0, 2) + '***' + phone.slice(-2)
+}
+
 function Chip({ status }: { status: string }) {
   const s = STATUS_STYLE[status] || {}
   return <span style={{ fontSize:9, letterSpacing:'.08em', textTransform:'uppercase', padding:'4px 8px', borderRadius:999, border:'1px solid rgba(255,255,255,.12)', background:'rgba(0,0,0,.12)', color:'rgba(255,255,255,.70)', display:'inline-flex', alignItems:'center', gap:4, whiteSpace:'nowrap', ...s }}>
@@ -52,6 +64,7 @@ async function apiFetch(path: string, opts?: RequestInit) {
 function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: Client) => void }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [revealedPhones, setRevealedPhones] = useState<Set<string>>(new Set())
   const [email, setEmail] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -177,7 +190,13 @@ function ClientProfile({ clientId, clients, onUpdate }: { clientId: string; clie
 
       {/* Info */}
       <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-        {c.phone && row('Phone', <a href={`tel:${c.phone}`} style={{ color:'#d7ecff', textDecoration:'none' }}>{c.phone}</a>)}
+        {c.phone && row('Phone',
+          isOwnerOrAdmin
+            ? (revealedPhones.has(c.id)
+              ? <a href={`tel:${c.phone}`} style={{ color:'#d7ecff', textDecoration:'none' }}>{c.phone}</a>
+              : <span onClick={() => setRevealedPhones(p => new Set([...p, c.id]))} style={{ color:'rgba(10,132,255,.8)', cursor:'pointer', fontSize:12 }}>{maskPhone(c.phone)} · tap to reveal</span>)
+            : <span style={{ color:'rgba(255,255,255,.55)' }}>{maskPhone(c.phone)}</span>
+        )}
         {c.email && row('Email', <a href={`mailto:${c.email}`} style={{ color:'#d7ecff', textDecoration:'none', overflow:'hidden', textOverflow:'ellipsis', maxWidth:160, display:'block' }}>{c.email}</a>)}
         {lastVisit && row('Last visit', fmtDate(lastVisit))}
       </div>
@@ -379,7 +398,13 @@ export default function ClientsPage() {
                             </div>
                             <div style={{ minWidth:0 }}>
                               <div style={{ fontWeight:900, fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.name}</div>
-                              <div style={{ fontSize:11, color:'rgba(255,255,255,.45)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:1 }}>{c.phone||'—'}</div>
+                              <div style={{ fontSize:11, color:'rgba(255,255,255,.45)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:1 }}>
+                                {isOwnerOrAdmin
+                                  ? (revealedPhones.has(c.id)
+                                    ? <span onClick={() => setRevealedPhones(p => { const n=new Set(p); n.delete(c.id); return n })} style={{ cursor:'pointer' }}>{c.phone||'—'}</span>
+                                    : <span onClick={() => setRevealedPhones(p => new Set([...p, c.id]))} style={{ cursor:'pointer', color:'rgba(10,132,255,.8)' }}>{maskPhone(c.phone||'')}</span>)
+                                  : maskPhone(c.phone||'')}
+                              </div>
                             </div>
                           </div>
                         </td>

@@ -275,6 +275,49 @@ export default function PayrollPage() {
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)' }
   const card: React.CSSProperties = { borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', backdropFilter: 'blur(14px)', overflow: 'hidden' }
 
+  function exportPDF() {
+    const doc: string[] = []
+    doc.push(`<html><head><meta charset="utf-8">`)
+    doc.push(`<title>Payroll Report ${dateFrom} – ${dateTo}</title>`)
+    doc.push(`<style>
+      body{font-family:Inter,Arial,sans-serif;background:#fff;color:#111;padding:32px;max-width:900px;margin:0 auto}
+      h1{font-size:22px;letter-spacing:.1em;text-transform:uppercase;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:4px}
+      .meta{font-size:12px;color:#666;margin-bottom:24px}
+      .barber{margin-bottom:28px;border:1px solid #ddd;border-radius:8px;overflow:hidden}
+      .barber-head{background:#f5f5f5;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+      .barber-name{font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+      .barber-total{font-size:18px;font-weight:900}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th{background:#f9f9f9;padding:8px 12px;text-align:left;border-bottom:1px solid #eee;text-transform:uppercase;font-size:10px;letter-spacing:.08em;color:#666}
+      td{padding:7px 12px;border-bottom:1px solid #f0f0f0}
+      .totals{padding:12px 16px;background:#fafafa;display:flex;gap:24px;font-size:13px}
+      .totals span{color:#666}
+      .totals b{color:#111}
+      @media print{body{padding:16px}.barber{break-inside:avoid}}
+    </style></head><body>`)
+    doc.push(`<h1>Element Barbershop — Payroll Report</h1>`)
+    doc.push(`<div class="meta">Period: ${dateFrom} — ${dateTo} &nbsp;·&nbsp; Generated: ${new Date().toLocaleString()}</div>`)
+
+    payroll.forEach(b => {
+      doc.push(`<div class="barber">`)
+      doc.push(`<div class="barber-head"><span class="barber-name">${b.barber_name}</span><span class="barber-total">${fmtMoney(b.barber_total)}</span></div>`)
+      doc.push(`<table><thead><tr><th>Date</th><th>Client</th><th>Service</th><th>Amount</th><th>Tip</th></tr></thead><tbody>`)
+      ;(b.bookings||[]).forEach((bk: any) => {
+        doc.push(`<tr><td>${bk.date||''}</td><td>${bk.client||''}</td><td>${bk.service||''}</td><td>${fmtMoney(bk.service_amount||0)}</td><td>${fmtMoney(bk.tip||0)}</td></tr>`)
+      })
+      doc.push(`</tbody></table>`)
+      doc.push(`<div class="totals"><span>Services: <b>${fmtMoney(b.service_total)}</b></span><span>Tips: <b>${fmtMoney(b.tips_total)}</b></span><span>Commission: <b>${b.effective_pct}%</b></span><span>Payout: <b>${fmtMoney(b.barber_total)}</b></span></div>`)
+      doc.push(`</div>`)
+    })
+    doc.push(`</body></html>`)
+
+    const blob = new Blob([doc.join('\n')], { type: 'text/html;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, '_blank')
+    if (win) { win.onload = () => { win.print(); URL.revokeObjectURL(url) } }
+    else { const a = document.createElement('a'); a.href = url; a.download = `payroll-${dateFrom}-${dateTo}.html`; a.click(); URL.revokeObjectURL(url) }
+  }
+
   return (
     <Shell page="payroll">
       <style>{`

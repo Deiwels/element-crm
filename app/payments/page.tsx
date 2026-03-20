@@ -261,6 +261,29 @@ export default function PaymentsPage() {
   const card: React.CSSProperties = { borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', backdropFilter: 'blur(14px)', overflow: 'hidden' }
   const inp: React.CSSProperties = { height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
 
+  function exportCSV() {
+    const headers = ['Date','Client','Barber','Method','Amount','Tip','Fee','Net','Status']
+    const rows = payments.map(p => [
+      p.date || p.created_at?.slice(0,10) || '',
+      p.client_name || '',
+      p.barber_name || '',
+      methodLabel(p.method),
+      fmtMoney(p.amount),
+      fmtMoney(p.tip || 0),
+      fmtMoney(p.fee || 0),
+      fmtMoney(p.net || p.amount - (p.fee||0)),
+      p.status || '',
+    ])
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `payments-${dateFrom}-to-${dateTo}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <Shell page="payments">
       <style>{`
