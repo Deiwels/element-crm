@@ -278,7 +278,7 @@ export default function PayrollPage() {
   function exportPDF() {
     const doc: string[] = []
     doc.push(`<html><head><meta charset="utf-8">`)
-    doc.push(`<title>Payroll Report ${dateFrom} – ${dateTo}</title>`)
+    doc.push(`<title>Payroll Report ${from} – ${to}</title>`)
     doc.push(`<style>
       body{font-family:Inter,Arial,sans-serif;background:#fff;color:#111;padding:32px;max-width:900px;margin:0 auto}
       h1{font-size:22px;letter-spacing:.1em;text-transform:uppercase;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:4px}
@@ -296,7 +296,7 @@ export default function PayrollPage() {
       @media print{body{padding:16px}.barber{break-inside:avoid}}
     </style></head><body>`)
     doc.push(`<h1>Element Barbershop — Payroll Report</h1>`)
-    doc.push(`<div class="meta">Period: ${dateFrom} — ${dateTo} &nbsp;·&nbsp; Generated: ${new Date().toLocaleString()}</div>`)
+    doc.push(`<div class="meta">Period: ${from} — ${to} &nbsp;·&nbsp; Generated: ${new Date().toLocaleString()}</div>`)
 
     payroll.forEach(b => {
       doc.push(`<div class="barber">`)
@@ -315,7 +315,7 @@ export default function PayrollPage() {
     const url = URL.createObjectURL(blob)
     const win = window.open(url, '_blank')
     if (win) { win.onload = () => { win.print(); URL.revokeObjectURL(url) } }
-    else { const a = document.createElement('a'); a.href = url; a.download = `payroll-${dateFrom}-${dateTo}.html`; a.click(); URL.revokeObjectURL(url) }
+    else { const a = document.createElement('a'); a.href = url; a.download = `payroll-${from}-${to}.html`; a.click(); URL.revokeObjectURL(url) }
   }
 
   return (
@@ -525,3 +525,4 @@ export default function PayrollPage() {
     </Shell>
   )
 }
+// fixed
