@@ -16,20 +16,26 @@ export default function SignInPage() {
     setError('')
     setLoading(true)
     try {
+      // Backend sets HttpOnly cookie automatically — we just need credentials:'include'
       const res = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': 'R1403ss81fxrx*rx1403' },
+        credentials: 'include', // ← send/receive cookies cross-origin
         body: JSON.stringify({ username: username.trim(), password }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Login failed')
 
-      // Load barber photo if barber role
+      // Backend returns { ok: true, user: { uid, username, role, name, barber_id } }
+      // Token is in HttpOnly cookie — NOT in data.token anymore
       let userData = { ...data.user }
+
+      // Load barber photo if barber role
       if (data.user?.barber_id) {
         try {
-          const br = await fetch('https://element-crm-api-431945333485.us-central1.run.app/api/barbers', {
-            headers: { Authorization: `Bearer ${data.token}`, 'X-API-KEY': 'R1403ss81fxrx*rx1403' }
+          const br = await fetch(`${API}/api/barbers`, {
+            headers: { 'X-API-KEY': 'R1403ss81fxrx*rx1403' },
+            credentials: 'include',
           }).then(r => r.json())
           const list = Array.isArray(br) ? br : (br?.barbers || [])
           const me = list.find((b: any) => String(b.id) === String(data.user.barber_id))
@@ -38,22 +44,17 @@ export default function SignInPage() {
         } catch {}
       }
 
-      // Save to localStorage + cookie (cookie is read by middleware.ts for route protection)
-      localStorage.setItem('ELEMENT_TOKEN', data.token)
+      // Save user info to localStorage (token stays in HttpOnly cookie)
       localStorage.setItem('ELEMENT_USER', JSON.stringify(userData))
-      setAuthCookie(data.token)
 
-      // Verify it saved
-      const saved = localStorage.getItem('ELEMENT_TOKEN')
-      if (!saved) throw new Error('Failed to save session')
+      // Also set a non-httpOnly cookie so middleware.ts can read it for redirects
+      // We use a simple flag cookie (no sensitive data)
+      setAuthCookie(userData.role + ':' + (userData.uid || ''))
 
       const role = userData.role || 'barber'
       const dest = role === 'barber' ? '/calendar' : '/dashboard'
 
-      // Hard redirect after short delay to ensure localStorage is persisted
-      setTimeout(() => {
-        window.location.href = dest
-      }, 100)
+      window.location.href = dest
 
     } catch (err: any) {
       setError(err.message || 'Login failed')

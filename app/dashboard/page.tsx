@@ -132,7 +132,7 @@ export default function DashboardPage() {
       // Load shop settings for owner/admin
       if (!isBarber) {
         try {
-          const settRes = await fetch(`${API}/api/settings`, { headers })
+          const settRes = await fetch(`${API}/api/settings`, { credentials: 'include', headers })
           const settData = await settRes.json()
           if (settData.shopStatusMode) setShopStatus(settData.shopStatusMode)
           if (settData.banner) {
@@ -145,7 +145,7 @@ export default function DashboardPage() {
       // Payroll for barber — load their personal stats from payroll API
       if (isBarber && myBarberId) {
         try {
-          const pr = await fetch(`${API}/api/payroll?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`, { headers })
+          const pr = await fetch(`${API}/api/payroll?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`, { credentials: 'include', headers })
           const prData = await pr.json()
           const mine = (prData?.barbers || []).find((b: BarberPayroll) => b.barber_id === myBarberId)
           setMyPayroll(mine || null)
@@ -199,7 +199,7 @@ export default function DashboardPage() {
     setStatusSaving(true)
     try {
       const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-      await fetch(`${API}/api/settings`, {
+      await fetch(`${API}/api/settings`, { credentials: 'include',
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({ shopStatusMode: mode })
@@ -214,7 +214,7 @@ export default function DashboardPage() {
     setStatusSaving(true)
     try {
       const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-      await fetch(`${API}/api/settings`, {
+      await fetch(`${API}/api/settings`, { credentials: 'include',
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({ banner: { enabled: bannerEnabled, text: bannerText } })

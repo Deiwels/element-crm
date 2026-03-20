@@ -8,33 +8,22 @@ import { NextRequest, NextResponse } from 'next/server'
 const COOKIE_NAME = 'ELEMENT_TOKEN'
 
 // Routes that don't need auth
-const PUBLIC_PATHS = ['/signin', '/login']
+const PUBLIC_PATHS = ['/signin']
 
 // Routes restricted by role
 const OWNER_ADMIN_ONLY = ['/settings', '/payroll', '/payments']
 const BARBER_REDIRECT  = '/calendar'
 
-interface JWTPayload {
-  exp?: number
-  role?: string
-  [key: string]: unknown
-}
-
-function parseJWTPayload(token: string): JWTPayload | null {
-  try {
-    const base64 = token.split('.')[1]
-    if (!base64) return null
-    // Edge Runtime supports atob
-    const json = atob(base64.replace(/-/g, '+').replace(/_/g, '/'))
-    return JSON.parse(json) as JWTPayload
-  } catch {
-    return null
-  }
-}
-
-function isExpired(payload: JWTPayload): boolean {
-  if (!payload.exp) return false // no exp = treat as valid
-  return Date.now() / 1000 > payload.exp
+// Cookie format: "role:uid" — set from JS after login
+// Not a JWT — just a role flag for redirect logic
+// Real auth happens on every API call via HttpOnly cookie verified by backend
+function parseRoleCookie(value: string): { role: string; uid: string } | null {
+  if (!value) return null
+  const parts = value.split(':')
+  if (parts.length < 1) return null
+  const role = parts[0]
+  if (!['owner', 'admin', 'barber'].includes(role)) return null
+  return { role, uid: parts[1] || '' }
 }
 
 export function middleware(req: NextRequest) {
@@ -50,22 +39,22 @@ export function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const token = req.cookies.get(COOKIE_NAME)?.value
+  const cookieValue = req.cookies.get(COOKIE_NAME)?.value
     ? decodeURIComponent(req.cookies.get(COOKIE_NAME)!.value)
     : null
 
-  // No token → redirect to signin
-  if (!token) {
+  // No cookie → redirect to signin
+  if (!cookieValue) {
     const url = req.nextUrl.clone()
     url.pathname = '/signin'
     url.searchParams.set('redirect', pathname)
     return NextResponse.redirect(url)
   }
 
-  const payload = parseJWTPayload(token)
+  const parsed = parseRoleCookie(cookieValue)
 
-  // Invalid or expired token → redirect to signin + clear cookie
-  if (!payload || isExpired(payload)) {
+  // Invalid cookie → redirect to signin + clear cookie
+  if (!parsed) {
     const url = req.nextUrl.clone()
     url.pathname = '/signin'
     const res = NextResponse.redirect(url)
@@ -73,7 +62,7 @@ export function middleware(req: NextRequest) {
     return res
   }
 
-  const role = payload.role as string | undefined
+  const role = parsed.role
 
   // Barber trying to access owner/admin routes → redirect to calendar
   if (role === 'barber' && OWNER_ADMIN_ONLY.some(p => pathname.startsWith(p))) {

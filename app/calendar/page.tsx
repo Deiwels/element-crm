@@ -52,7 +52,7 @@ const minToTimeStr = (min: number) => `${pad2(Math.floor(min/60))}:${pad2(min%60
 
 async function apiFetch(path: string, opts?: RequestInit) {
   const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch(API + path, {
+  const res = await fetch(API + path, { credentials: 'include',
     ...opts,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts?.headers || {}) },
   })
