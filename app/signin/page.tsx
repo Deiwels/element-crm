@@ -16,44 +16,46 @@ export default function SignInPage() {
     setError('')
     setLoading(true)
     try {
-      // Backend sets HttpOnly cookie automatically — we just need credentials:'include'
       const res = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-KEY': 'R1403ss81fxrx*rx1403' },
-        credentials: 'include', // ← send/receive cookies cross-origin
+        credentials: 'include',
         body: JSON.stringify({ username: username.trim(), password }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Login failed')
 
-      // Backend returns { ok: true, user: { uid, username, role, name, barber_id } }
-      // Token is in HttpOnly cookie — NOT in data.token anymore
-      let userData = { ...data.user }
+      // Backend returns { ok: true, user: {...}, token?: string }
+      // token may or may not be present depending on backend version
+      let userData = { ...(data.user || {}) }
+      const token = data.token || data.access_token || ''
 
       // Load barber photo if barber role
-      if (data.user?.barber_id) {
+      if (userData.barber_id) {
         try {
           const br = await fetch(`${API}/api/barbers`, {
-            headers: { 'X-API-KEY': 'R1403ss81fxrx*rx1403' },
+            headers: {
+              'X-API-KEY': 'R1403ss81fxrx*rx1403',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
             credentials: 'include',
           }).then(r => r.json())
           const list = Array.isArray(br) ? br : (br?.barbers || [])
-          const me = list.find((b: any) => String(b.id) === String(data.user.barber_id))
+          const me = list.find((b: any) => String(b.id) === String(userData.barber_id))
           if (me?.photo_url) userData = { ...userData, photo: me.photo_url }
           if (me?.name) userData = { ...userData, name: me.name }
         } catch {}
       }
 
-      // Save user info to localStorage (token stays in HttpOnly cookie)
+      // Save to localStorage — works on all devices including mobile Safari
+      if (token) localStorage.setItem('ELEMENT_TOKEN', token)
       localStorage.setItem('ELEMENT_USER', JSON.stringify(userData))
 
-      // Also set a non-httpOnly cookie so middleware.ts can read it for redirects
-      // We use a simple flag cookie (no sensitive data)
+      // Set role cookie for middleware redirects
       setAuthCookie(userData.role + ':' + (userData.uid || ''))
 
       const role = userData.role || 'barber'
       const dest = role === 'barber' ? '/calendar' : '/dashboard'
-
       window.location.href = dest
 
     } catch (err: any) {
