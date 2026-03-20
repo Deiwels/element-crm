@@ -298,7 +298,7 @@ export default function PayrollPage() {
     doc.push(`<h1>Element Barbershop — Payroll Report</h1>`)
     doc.push(`<div class="meta">Period: ${from} — ${to} &nbsp;·&nbsp; Generated: ${new Date().toLocaleString()}</div>`)
 
-    payroll.forEach(b => {
+    barbers.forEach(b => {
       doc.push(`<div class="barber">`)
       doc.push(`<div class="barber-head"><span class="barber-name">${b.barber_name}</span><span class="barber-total">${fmtMoney(b.barber_total)}</span></div>`)
       doc.push(`<table><thead><tr><th>Date</th><th>Client</th><th>Service</th><th>Amount</th><th>Tip</th></tr></thead><tbody>`)
