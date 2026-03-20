@@ -334,7 +334,7 @@ export default function ClientsPage() {
           .page-topbar h2{font-size:13px!important;}
           .cl-grid{grid-template-columns:1fr!important;}
           .cl-profile-panel{display:none!important;}
-          .cl-profile-panel.visible{display:block!important;position:fixed;inset:0;z-index:80;background:#000;overflow-y:auto;}
+          .cl-profile-panel.visible{display:block!important;position:fixed;inset:0;z-index:250;background:#000;overflow-y:auto;}
           th:nth-child(3),td:nth-child(3){display:none;}
           th:nth-child(4),td:nth-child(4){display:none;}
           th:nth-child(5),td:nth-child(5){display:none;}
