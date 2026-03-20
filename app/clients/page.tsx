@@ -110,6 +110,10 @@ function ClientProfile({ clientId, clients, onUpdate }: { clientId: string; clie
   const [tagInput, setTagInput] = useState('')
   const [notesSaving, setNotesSaving] = useState(false)
   const [notes, setNotes] = useState('')
+  const [revealedPhones, setRevealedPhones] = useState<Set<string>>(new Set())
+  const [isOwnerOrAdmin] = useState(() => {
+    try { const u = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); return u.role === 'owner' || u.role === 'admin' } catch { return false }
+  })
 
   useEffect(() => {
     const cached = clients.find(c => c.id === clientId)
