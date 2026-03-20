@@ -64,7 +64,6 @@ async function apiFetch(path: string, opts?: RequestInit) {
 function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: Client) => void }) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [revealedPhones, setRevealedPhones] = useState<Set<string>>(new Set())
   const [email, setEmail] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -280,6 +279,10 @@ export default function ClientsPage() {
   const [q, setQ] = useState('')
   const [filterBarber, setFilterBarber] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [revealedPhones, setRevealedPhones] = useState<Set<string>>(new Set())
+  const [isOwnerOrAdmin] = useState(() => {
+    try { const u = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); return u.role === 'owner' || u.role === 'admin' } catch { return false }
+  })
 
   const load = useCallback(async () => {
     setLoading(true)

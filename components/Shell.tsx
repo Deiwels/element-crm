@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { clearAuthCookie } from '@/lib/auth-cookie'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 
