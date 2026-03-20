@@ -334,7 +334,6 @@ export default function ClientsPage() {
           .page-topbar h2{font-size:13px!important;}
           .cl-grid{grid-template-columns:1fr!important;}
           .cl-profile-panel{display:none!important;}
-          .cl-profile-panel.visible{display:block!important;position:fixed;inset:0;z-index:250;background:#000;overflow-y:auto;}
           th:nth-child(3),td:nth-child(3){display:none;}
           th:nth-child(4),td:nth-child(4){display:none;}
           th:nth-child(5),td:nth-child(5){display:none;}
@@ -432,15 +431,9 @@ export default function ClientsPage() {
             )}
           </div>
 
-          {/* Profile panel */}
-          <div className={`cl-profile-panel${mobileProfile && selectedId ? ' visible' : ''}`}
+          {/* Profile panel — desktop sidebar */}
+          <div className="cl-profile-panel"
             style={{ overflowY:'auto', background:'rgba(0,0,0,.08)' }}>
-            {mobileProfile && selectedId && (
-              <div style={{ position:'sticky', top:0, zIndex:10, padding:'10px 14px', background:'rgba(0,0,0,.80)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(255,255,255,.08)', display:'flex', alignItems:'center', gap:10 }}>
-                <button onClick={() => setMobileProfile(false)} style={{ height:34, padding:'0 14px', borderRadius:999, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.06)', color:'#fff', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit' }}>← Back</button>
-                <span style={{ fontSize:12, color:'rgba(255,255,255,.45)' }}>Client profile</span>
-              </div>
-            )}
             {!selectedId ? (
               <div style={{ padding:32, textAlign:'center', color:'rgba(255,255,255,.30)', fontSize:13 }}>Click any client to view profile</div>
             ) : (
@@ -452,6 +445,26 @@ export default function ClientsPage() {
               />
             )}
           </div>
+
+          {/* Mobile profile modal */}
+          {mobileProfile && selectedId && (
+            <div style={{ position:'fixed', inset:0, zIndex:300, background:'#000', overflow:'hidden', display:'flex', flexDirection:'column' }}>
+              {/* Header */}
+              <div style={{ padding:'10px 14px', background:'rgba(0,0,0,.95)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(255,255,255,.08)', display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+                <button onClick={() => setMobileProfile(false)} style={{ height:36, padding:'0 14px', borderRadius:999, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.06)', color:'#fff', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit' }}>← Back</button>
+                <span style={{ fontSize:12, color:'rgba(255,255,255,.55)', letterSpacing:'.06em' }}>Client profile</span>
+              </div>
+              {/* Content */}
+              <div style={{ flex:1, overflowY:'auto', background:'#000' }}>
+                <ClientProfile
+                  key={selectedId + '_mobile'}
+                  clientId={selectedId}
+                  clients={clients}
+                  onUpdate={updateClient}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
