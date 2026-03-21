@@ -789,11 +789,20 @@ export default function CalendarPage() {
   }, [])
 
   const loadBookings = useCallback(async (barbersArg: Barber[], servicesArg: Service[]) => {
-    const data = await apiFetch(`/api/bookings?from=${todayStr}T00:00:00.000Z&to=${todayStr}T23:59:59.999Z`)
+    // Build UTC range that covers the full local day (Chicago UTC-6 / UTC-5)
+    // Expand by ±1 day to catch bookings near midnight boundaries
+    const anchorDate = new Date(todayStr + 'T00:00:00')
+    const dayBefore = new Date(anchorDate); dayBefore.setDate(dayBefore.getDate() - 1)
+    const dayAfter  = new Date(anchorDate); dayAfter.setDate(dayAfter.getDate() + 2)
+    const fromIso = dayBefore.toISOString()
+    const toIso   = dayAfter.toISOString()
+    const data = await apiFetch(`/api/bookings?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`)
     const list = Array.isArray(data?.bookings) ? data.bookings : Array.isArray(data) ? data : []
     return list.map((b: any) => {
       const startAt = b.start_at ? new Date(b.start_at) : null
+      // Use LOCAL time for startMin and date — not UTC slice
       const startMin = startAt ? startAt.getHours() * 60 + startAt.getMinutes() : 10*60
+      const localDate = startAt ? isoDate(startAt) : todayStr
       const isBlock = b.status === 'block' || b.type === 'block'
       const svc = servicesArg.find(s => s.id === String(b.service_id || ''))
       const barber = barbersArg.find(br => br.id === String(b.barber_id || ''))
@@ -803,7 +812,7 @@ export default function CalendarPage() {
         barberId: String(b.barber_id || ''), barberName: barber?.name || String(b.barber_name || ''),
         clientName: String(b.client_name || 'Client'), clientPhone: String(b.client_phone || ''),
         serviceId: String(b.service_id || ''), serviceName: svc?.name || String(b.service_name || ''),
-        date: b.start_at ? b.start_at.slice(0,10) : todayStr,
+        date: localDate,
         startMin: clamp(startMin), durMin: Math.max(5, durMin),
         status: String(b.status || 'booked'), paid: !!(b.paid || b.is_paid),
         paymentMethod: String(b.payment_method || ''), notes: String(b.notes || ''),
