@@ -189,9 +189,8 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
           for (const c of list) {
             const id = String(c.id || c.uid || '')
             if (!id || seenIds.has(id)) continue
-            // Verify phone matches (digits comparison)
-            const clientDigits = digits(String(c.phone || c.phone_number || '')).replace(/^1/, '')
-            if (clientDigits && clientDigits !== tenDigits) continue
+            // Backend already filtered by phone_norm — trust the result
+            // Don't re-filter by phone digits (barbers see masked phones like ***-1234)
             seenIds.add(id)
             allClients.push(c)
           }
