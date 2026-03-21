@@ -30,8 +30,8 @@ export default function SignInPage() {
       let userData = { ...(data.user || {}) }
       const token = data.token || data.access_token || ''
 
-      // Load barber photo if barber role
-      if (userData.barber_id) {
+      // Load barber info — also auto-link barber_id if missing
+      if (userData.role === 'barber') {
         try {
           const br = await fetch(`${API}/api/barbers`, {
             headers: {
@@ -41,9 +41,20 @@ export default function SignInPage() {
             credentials: 'include',
           }).then(r => r.json())
           const list = Array.isArray(br) ? br : (br?.barbers || [])
-          const me = list.find((b: any) => String(b.id) === String(userData.barber_id))
-          if (me?.photo_url) userData = { ...userData, photo: me.photo_url }
-          if (me?.name) userData = { ...userData, name: me.name }
+          // Find by barber_id first, then fallback to username match
+          let me = list.find((b: any) => String(b.id) === String(userData.barber_id))
+          if (!me && userData.username) {
+            me = list.find((b: any) =>
+              String(b.username || '').toLowerCase() === String(userData.username || '').toLowerCase() ||
+              String(b.name || '').toLowerCase() === String(userData.name || '').toLowerCase()
+            )
+          }
+          if (me) {
+            if (me.photo_url) userData = { ...userData, photo: me.photo_url }
+            if (me.name) userData = { ...userData, name: me.name }
+            // Auto-fix missing barber_id
+            if (!userData.barber_id && me.id) userData = { ...userData, barber_id: me.id }
+          }
         } catch {}
       }
 
