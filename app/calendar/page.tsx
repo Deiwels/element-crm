@@ -676,9 +676,21 @@ export default function CalendarPage() {
     }
   }, [workHours])
 
-  const [currentUser] = useState<{ role: string; barber_id?: string } | null>(() => {
+  const [currentUser, setCurrentUser] = useState<{ role: string; barber_id?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null }
   })
+  // Re-read user from localStorage when Shell updates it (barber_id might arrive late)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      try {
+        const fresh = JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null')
+        if (fresh?.barber_id && fresh.barber_id !== currentUser?.barber_id) {
+          setCurrentUser(fresh)
+        }
+      } catch {}
+    }, 1500)
+    return () => clearInterval(interval)
+  }, [currentUser?.barber_id])
   const isBarber = currentUser?.role === 'barber'
   const isOwnerOrAdmin = currentUser?.role === 'owner' || currentUser?.role === 'admin'
   const myBarberId = currentUser?.barber_id || ''
@@ -848,7 +860,7 @@ export default function CalendarPage() {
 
   const todayEvents = events.filter(e => {
     if (e.date !== todayStr) return false
-    if (isBarber && e.type !== 'block' && e.barberId !== myBarberId) return false
+    if (isBarber && myBarberId && e.type !== 'block' && e.barberId !== myBarberId) return false
     return true
   })
   const filtered = search ? todayEvents.filter(e => [e.clientName, e.barberName, e.serviceName].join(' ').toLowerCase().includes(search.toLowerCase())) : todayEvents

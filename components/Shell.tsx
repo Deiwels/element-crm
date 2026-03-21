@@ -254,18 +254,24 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
     if (stored) { try { setUser(JSON.parse(stored)); setStatus('ok') } catch { setStatus('ok') } }
     else setStatus('ok')
 
-    fetch(`${API}/api/auth/me`, { headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
+    fetch(`${API}/api/auth/me`, { credentials: 'include', headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
       .then(r => r.json())
       .then(async (d: any) => {
         if (!d.user) return
-        let userData = { ...d.user }
-        if (d.user.barber_id) {
+        // Preserve barber_id from localStorage if backend returns empty
+        const prevStored = localStorage.getItem('ELEMENT_USER')
+        let prev: any = {}
+        try { prev = JSON.parse(prevStored || '{}') } catch {}
+        const barberId = d.user.barber_id || prev.barber_id || ''
+        let userData = { ...d.user, barber_id: barberId }
+        if (barberId) {
           try {
             const br = await fetch(`${API}/api/barbers`, {
+              credentials: 'include',
               headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }
             }).then(r => r.json())
             const list: any[] = Array.isArray(br) ? br : (br?.barbers || [])
-            const me = list.find(b => String(b.id) === String(d.user.barber_id))
+            const me = list.find(b => String(b.id) === String(barberId))
             if (me?.photo_url) userData = { ...userData, photo: me.photo_url, name: me.name || userData.name }
           } catch {}
         }
