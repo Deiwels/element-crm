@@ -543,8 +543,13 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
   const [tipYes, setTipYes] = useState(false)
   const [tipAmt, setTipAmt] = useState(0)
   const [hint, setHint] = useState('')
+  const [hintType, setHintType] = useState<'info'|'success'|'error'|'warning'>('info')
   const [polling, setPolling] = useState(false)
+  const [activeCheckoutId, setActiveCheckoutId] = useState<string|null>(null)
   const [shopSettings, setShopSettings] = useState<any>(null)
+  const [isOwnerOrAdmin] = useState(() => {
+    try { const u = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); return u.role === 'owner' || u.role === 'admin' } catch { return false }
+  })
   const pollRef = useRef<any>(null)
 
   useEffect(() => { getShopSettings().then(setShopSettings) }, [])
@@ -584,9 +589,23 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
 
   if (ev?.paid) {
     return (
-      <div style={{ padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(143,240,177,.30)', background: 'rgba(143,240,177,.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8ff0b1" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-        <span style={{ fontSize: 13, color: '#c9ffe1', fontWeight: 700 }}>Paid via {ev.paymentMethod || '—'}</span>
+      <div>
+        <div style={{ padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(143,240,177,.30)', background: 'rgba(143,240,177,.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8ff0b1" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span style={{ fontSize: 13, color: '#c9ffe1', fontWeight: 700 }}>Paid via {ev.paymentMethod || '—'}</span>
+        </div>
+        {isOwnerOrAdmin && ev._raw?.id && (
+          <button onClick={handleRefund} style={{ width: '100%', height: 36, borderRadius: 10, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', marginTop: 8 }}>
+            Issue Refund
+          </button>
+        )}
+        {hint && (
+          <div style={{ fontSize: 12, marginTop: 8, padding: '8px 12px', borderRadius: 10,
+            color: hintType==='success' ? '#c9ffe1' : hintType==='error' ? '#ffd0d0' : 'rgba(255,255,255,.60)',
+            background: hintType==='success' ? 'rgba(143,240,177,.08)' : hintType==='error' ? 'rgba(255,107,107,.08)' : 'rgba(255,255,255,.04)',
+            border: `1px solid ${hintType==='success' ? 'rgba(143,240,177,.20)' : hintType==='error' ? 'rgba(255,107,107,.20)' : 'rgba(255,255,255,.08)'}`,
+          }}>{hint}</div>
+        )}
       </div>
     )
   }
@@ -649,24 +668,55 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
         })
       })
       const checkoutId = res?.checkout_id
-      if (!checkoutId) { setHint('No checkout ID. Check Terminal manually.'); setPolling(false); return }
+      if (!checkoutId) { setHint('No checkout ID. Check Terminal manually.'); setHintType('warning'); setPolling(false); return }
+      setActiveCheckoutId(checkoutId)
       const tipOptStr = (shopSettings?.payroll?.tip_options || [15,20,25]).join('% / ') + '%'
-      setHint(`Waiting for payment… Tip options: ${tipOptStr} / No tip`)
+      setHint(`Waiting for payment… Tip options: ${tipOptStr} / No tip`); setHintType('info')
       let count = 0
       pollRef.current = setInterval(async () => {
         count++
-        if (count > 45) { clearInterval(pollRef.current); setHint('Timed out'); setPolling(false); return }
+        if (count > 45) { clearInterval(pollRef.current); setHint('Timed out — check Terminal'); setHintType('warning'); setPolling(false); setActiveCheckoutId(null); return }
         try {
           const s = await apiFetch(`/api/payments/terminal/status/${encodeURIComponent(checkoutId)}`)
-          if (String(s?.status).toUpperCase() === 'COMPLETED') {
-            clearInterval(pollRef.current); setPolling(false)
-            setHint('Payment completed ✓'); onPayment('terminal', 0)
-          } else if (String(s?.status).toUpperCase().includes('CANCEL')) {
-            clearInterval(pollRef.current); setPolling(false); setHint('Cancelled on Terminal')
+          const st = String(s?.status || '').toUpperCase()
+          if (st === 'COMPLETED') {
+            clearInterval(pollRef.current); setPolling(false); setActiveCheckoutId(null)
+            const tip = Number(s?.raw?.tip_money?.amount || 0) / 100
+            setHint('Payment completed ✓'); setHintType('success'); onPayment('terminal', tip)
+          } else if (st === 'CANCELED' || st.includes('CANCEL')) {
+            clearInterval(pollRef.current); setPolling(false); setActiveCheckoutId(null)
+            setHint('Payment was cancelled on Terminal'); setHintType('error')
+          } else if (st === 'IN_PROGRESS') {
+            setHint('Customer is completing payment on Terminal…'); setHintType('info')
           }
         } catch {}
-      }, 4000)
-    } catch (e: any) { setHint('Error: ' + e.message); setPolling(false) }
+      }, 3000)
+    } catch (e: any) { setHint('Error: ' + e.message); setHintType('error'); setPolling(false) }
+  }
+
+  async function handleCancelTerminal() {
+    if (!activeCheckoutId) return
+    try {
+      setHint('Cancelling…'); setHintType('info')
+      await apiFetch(`/api/payments/terminal/cancel/${encodeURIComponent(activeCheckoutId)}`, { method: 'POST', body: '{}' })
+      if (pollRef.current) clearInterval(pollRef.current)
+      setPolling(false); setActiveCheckoutId(null)
+      setHint('Payment cancelled'); setHintType('warning')
+    } catch (e: any) { setHint('Cancel failed: ' + e.message); setHintType('error') }
+  }
+
+  async function handleRefund() {
+    const backendId = ev?._raw?.id
+    if (!backendId) return
+    if (!window.confirm('Issue a full refund for this payment?')) return
+    try {
+      setHint('Processing refund…'); setHintType('info')
+      await apiFetch(`/api/payments/refund-by-booking/${encodeURIComponent(String(backendId))}`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Requested by staff' })
+      })
+      setHint('Refund issued ✓'); setHintType('success')
+    } catch (e: any) { setHint('Refund failed: ' + e.message); setHintType('error') }
   }
 
   async function handleManual() {
@@ -731,7 +781,27 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
           Confirm {method} payment
         </button>
       )}
-      {hint && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginTop: 8 }}>{hint}</div>}
+      {/* Cancel terminal button while polling */}
+      {polling && activeCheckoutId && (
+        <button onClick={handleCancelTerminal} style={{ width: '100%', height: 36, borderRadius: 10, border: '1px solid rgba(255,107,107,.40)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', marginTop: 8 }}>
+          Cancel payment on Terminal
+        </button>
+      )}
+
+      {/* Refund button for owner/admin on paid bookings */}
+      {ev?.paid && isOwnerOrAdmin && ev._raw?.id && (
+        <button onClick={handleRefund} style={{ width: '100%', height: 36, borderRadius: 10, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', marginTop: 8 }}>
+          Issue Refund
+        </button>
+      )}
+
+      {hint && (
+        <div style={{ fontSize: 12, marginTop: 8, padding: '8px 12px', borderRadius: 10, 
+          color: hintType==='success' ? '#c9ffe1' : hintType==='error' ? '#ffd0d0' : hintType==='warning' ? '#ffe9a3' : 'rgba(255,255,255,.60)',
+          background: hintType==='success' ? 'rgba(143,240,177,.08)' : hintType==='error' ? 'rgba(255,107,107,.08)' : hintType==='warning' ? 'rgba(255,207,63,.08)' : 'rgba(255,255,255,.04)',
+          border: `1px solid ${hintType==='success' ? 'rgba(143,240,177,.20)' : hintType==='error' ? 'rgba(255,107,107,.20)' : hintType==='warning' ? 'rgba(255,207,63,.20)' : 'rgba(255,255,255,.08)'}`,
+        }}>{hint}</div>
+      )}
     </div>
   )
 }
