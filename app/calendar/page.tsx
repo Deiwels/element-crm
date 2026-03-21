@@ -69,6 +69,7 @@ const STATUS_COLORS: Record<string, { border: string; bg: string; color: string 
   done:      { border: 'rgba(255,207,63,.40)',  bg: 'rgba(255,207,63,.08)',  color: '#ffe9a3' },
   noshow:    { border: 'rgba(255,107,107,.40)', bg: 'rgba(255,107,107,.10)', color: '#ffd0d0' },
   cancelled: { border: 'rgba(255,107,107,.30)', bg: 'rgba(255,107,107,.07)', color: '#ffd0d0' },
+  model:     { border: 'rgba(168,107,255,.40)', bg: 'rgba(168,107,255,.10)', color: '#d4b8ff' },
 }
 function Chip({ label, type }: { label: string; type: string }) {
   const s = STATUS_COLORS[type] || STATUS_COLORS.booked
@@ -676,7 +677,7 @@ export default function CalendarPage() {
     }
   }, [workHours])
 
-  const [currentUser, setCurrentUser] = useState<{ role: string; barber_id?: string } | null>(() => {
+  const [currentUser, setCurrentUser] = useState<{ role: string; barber_id?: string; mentor_barber_ids?: string[]; uid?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null }
   })
   // Re-read user from localStorage when Shell updates it (barber_id might arrive late)
@@ -692,16 +693,19 @@ export default function CalendarPage() {
     return () => clearInterval(interval)
   }, [currentUser?.barber_id])
   const isBarber = currentUser?.role === 'barber'
+  const isStudent = currentUser?.role === 'student'
   const isOwnerOrAdmin = currentUser?.role === 'owner' || currentUser?.role === 'admin'
   const myBarberId = currentUser?.barber_id || ''
+  const mentorBarberIds: string[] = currentUser?.mentor_barber_ids || []
 
   // Barber sees only their own column
-  // For barber: show only their column. If barber_id doesn't match any barber,
-  // fall back to showing all barbers but filtering events by barberId
+  // Student sees only mentor barber columns
   const myBarberObj = isBarber ? barbers.find(b => b.id === myBarberId) : null
-  const visibleBarbers = isBarber
-    ? (myBarberObj ? [myBarberObj] : barbers) // fallback: show all if no match
-    : barbers
+  const visibleBarbers = isStudent
+    ? barbers.filter(b => mentorBarberIds.includes(b.id))
+    : isBarber
+      ? (myBarberObj ? [myBarberObj] : barbers)
+      : barbers
 
   const todayStr = isoDate(anchor)
   const selectedEvent = events.find(e => e.id === modal.eventId) || null
@@ -861,6 +865,8 @@ export default function CalendarPage() {
   const todayEvents = events.filter(e => {
     if (e.date !== todayStr) return false
     if (isBarber && myBarberId && e.type !== 'block' && e.barberId !== myBarberId) return false
+    // Student sees all events for mentor barbers (to see which slots are taken)
+    if (isStudent && mentorBarberIds.length && !mentorBarberIds.includes(e.barberId)) return false
     return true
   })
   const filtered = search ? todayEvents.filter(e => [e.clientName, e.barberName, e.serviceName].join(' ').toLowerCase().includes(search.toLowerCase())) : todayEvents
@@ -949,7 +955,7 @@ export default function CalendarPage() {
     try {
       if (!ev._raw?.id) {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
-        const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), notes: updated.notes || '', status: 'booked', reference_photo_url: updated.photoUrl || '' }) })
+        const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), notes: updated.notes || '', status: 'booked', reference_photo_url: updated.photoUrl || '', ...(isStudent ? { booking_type: 'model', student_id: currentUser?.uid || '' } : {}) }) })
         const savedId = res?.booking?.id || res?.id
         if (savedId) setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, _raw: { id: savedId }, id: String(savedId) } : e))
       } else {
@@ -1121,7 +1127,10 @@ export default function CalendarPage() {
                     onClick={e => {
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       if (isBarber && barber.id !== myBarberId) return
+                      if (isStudent && !mentorBarberIds.includes(barber.id)) return
                       const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
+                      // Student: directly open create (no context menu, no blocks)
+                      if (isStudent) { openCreate(barber.id, clamp(min)); return }
                       isOwnerOrAdmin ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
                     }}>
                     {/* Off-hours blocks — gray, like red block but for non-working time */}
@@ -1215,7 +1224,7 @@ export default function CalendarPage() {
                       const top = minToY(ev.startMin)
                       const height = Math.max(SLOT_H*6, (ev.durMin/5)*SLOT_H)
                       const isBlock = ev.type === 'block' || ev.status === 'block'
-                      const canDrag = isBlock ? isOwnerOrAdmin : (!isBarber || ev.barberId === myBarberId)
+                      const canDrag = isStudent ? false : (isBlock ? isOwnerOrAdmin : (!isBarber || ev.barberId === myBarberId))
 
                       if (isBlock) return (
                         <div key={ev.id}
@@ -1241,13 +1250,16 @@ export default function CalendarPage() {
 
                       return (
                         <div key={ev.id} className="cal-event"
-                          style={{ position: 'absolute', left: 8, right: 8, top, height: height-2, borderRadius: 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: `linear-gradient(180deg,${barber.color}26,${barber.color}12)`, padding: '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
+                          style={{ position: 'absolute', left: 8, right: 8, top, height: height-2, borderRadius: 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: ev._raw?.booking_type === 'model' ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}26,${barber.color}12)`, padding: '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
                           onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; startDrag(e, ev, bi) }}
                           onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
                             <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{ev.clientName}</div>
-                            {ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />}
+                            <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                              {ev._raw?.booking_type === 'model' && <Chip label="Model" type="model" />}
+                              {ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />}
+                            </div>
                           </div>
                           {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToHHMM(ev.startMin)} · {ev.serviceName}</div>}
                         </div>
@@ -1382,6 +1394,7 @@ export default function CalendarPage() {
           startMin={selectedEvent?.startMin || 9*60}
           barbers={barbers} services={services}
           isOwnerOrAdmin={isOwnerOrAdmin} myBarberId={myBarberId}
+          isStudent={isStudent} mentorBarberIds={mentorBarberIds}
           existingEvent={selectedEvent ? { id: selectedEvent.id, clientName: selectedEvent.clientName, clientPhone: selectedEvent.clientPhone, serviceId: selectedEvent.serviceId, status: selectedEvent.status, notes: selectedEvent.notes, paid: selectedEvent.paid, paymentMethod: selectedEvent.paymentMethod, photoUrl: (() => {
               const r = selectedEvent._raw
               return r?.reference_photo_url || r?.photo_url || r?.client_photo || r?.client_photo_url || r?.attachment_url || r?.image_url || r?.photo || r?.haircut_photo || r?.style_photo || ''

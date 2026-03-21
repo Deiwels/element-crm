@@ -8,7 +8,7 @@ const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 const API_KEY = 'R1403ss81fxrx*rx1403'
 
 interface User {
-  uid: string; name: string; username: string; role: string; barber_id?: string; photo?: string
+  uid: string; name: string; username: string; role: string; barber_id?: string; photo?: string; mentor_barber_ids?: string[]
 }
 
 const NAV = [
@@ -289,9 +289,12 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
   const role = user?.role || 'barber'
   const isBarber = role === 'barber'
+  const isStudent = role === 'student'
   const visibleNav = NAV.filter(item => {
     if ((item as any).ownerOnly && role !== 'owner') return false
-    if ((item as any).ownerAdmin && isBarber) return false
+    if ((item as any).ownerAdmin && (isBarber || isStudent)) return false
+    // Student sees ONLY calendar
+    if (isStudent && item.id !== 'calendar') return false
     return true
   })
   const initials = (n: string) => { const p = (n || '').split(' '); return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() }

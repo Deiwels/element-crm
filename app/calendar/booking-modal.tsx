@@ -75,6 +75,8 @@ interface BookingModalProps {
   services: Service[]
   isOwnerOrAdmin: boolean
   myBarberId?: string
+  isStudent?: boolean
+  mentorBarberIds?: string[]
   allEvents?: Array<{ id: string; barberId: string; startMin: number; durMin: number; status: string; paid: boolean; clientName: string; paymentStatus?: string }>
   existingEvent?: {
     id: string
@@ -810,6 +812,7 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
 export function BookingModal({
   isOpen, onClose, barberId, barberName, date, startMin,
   barbers, services, isOwnerOrAdmin, myBarberId,
+  isStudent, mentorBarberIds,
   existingEvent, onSave, onDelete, onPayment, allEvents
 }: BookingModalProps) {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -902,7 +905,7 @@ export function BookingModal({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 14px', borderBottom: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)' }}>
             <div>
               <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: '#e9e9e9' }}>
-                {isNew ? 'New appointment' : `Edit — ${existingEvent?.clientName}`}
+                {isNew ? (isStudent ? 'New model appointment' : 'New appointment') : `Edit — ${existingEvent?.clientName}`}
               </div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 3, letterSpacing: '.08em' }}>
                 {date} · {barberName} · {minToHHMM(selStartMin)}
@@ -933,9 +936,9 @@ export function BookingModal({
               <div>
                 <label style={lbl}>Barber</label>
                 <select value={selBarberId} onChange={e => setSelBarberId(e.target.value)}
-                  disabled={!isOwnerOrAdmin}
-                  style={{ ...inp, opacity: isOwnerOrAdmin ? 1 : 0.6, cursor: isOwnerOrAdmin ? 'auto' : 'not-allowed' }}>
-                  {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  disabled={!isOwnerOrAdmin && !isStudent}
+                  style={{ ...inp, opacity: (isOwnerOrAdmin || isStudent) ? 1 : 0.6, cursor: (isOwnerOrAdmin || isStudent) ? 'auto' : 'not-allowed' }}>
+                  {(isStudent ? barbers.filter(b => mentorBarberIds?.includes(b.id)) : barbers).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
               <div>
@@ -945,7 +948,8 @@ export function BookingModal({
                   {barberServices.map(s => {
                     const bp = s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0
                     const calc = calcTotal(bp, shopSettings)
-                    const label = bp > 0 ? (calc.total !== bp ? ` — $${calc.total.toFixed(2)} (base $${bp.toFixed(2)})` : ` — $${bp.toFixed(2)}`) : ''
+                    // Student: no prices shown
+                    const label = isStudent ? '' : (bp > 0 ? (calc.total !== bp ? ` — $${calc.total.toFixed(2)} (base $${bp.toFixed(2)})` : ` — $${bp.toFixed(2)}`) : '')
                     return <option key={s.id} value={s.id}>{s.name}{label}</option>
                   })}
                 </select>

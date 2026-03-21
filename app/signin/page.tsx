@@ -66,7 +66,7 @@ export default function SignInPage() {
       setAuthCookie(userData.role + ':' + (userData.uid || ''))
 
       const role = userData.role || 'barber'
-      const dest = role === 'barber' ? '/calendar' : '/dashboard'
+      const dest = (role === 'barber' || role === 'student') ? '/calendar' : '/dashboard'
       window.location.href = dest
 
     } catch (err: any) {

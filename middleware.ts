@@ -12,6 +12,7 @@ const PUBLIC_PATHS = ['/signin']
 
 // Routes restricted by role
 const OWNER_ADMIN_ONLY = ['/settings', '/payroll', '/payments']
+const STUDENT_BLOCKED  = ['/settings', '/payroll', '/payments', '/clients', '/dashboard']
 const BARBER_REDIRECT  = '/calendar'
 
 // Cookie format: "role:uid" — set from JS after login
@@ -22,7 +23,7 @@ function parseRoleCookie(value: string): { role: string; uid: string } | null {
   const parts = value.split(':')
   if (parts.length < 1) return null
   const role = parts[0]
-  if (!['owner', 'admin', 'barber'].includes(role)) return null
+  if (!['owner', 'admin', 'barber', 'student'].includes(role)) return null
   return { role, uid: parts[1] || '' }
 }
 
@@ -71,10 +72,17 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Student can only access calendar — block everything else
+  if (role === 'student' && STUDENT_BLOCKED.some(p => pathname.startsWith(p))) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/calendar'
+    return NextResponse.redirect(url)
+  }
+
   // Authenticated user going to /signin → redirect to their home
   if (pathname.startsWith('/signin')) {
     const url = req.nextUrl.clone()
-    url.pathname = role === 'barber' ? '/calendar' : '/dashboard'
+    url.pathname = (role === 'barber' || role === 'student') ? '/calendar' : '/dashboard'
     return NextResponse.redirect(url)
   }
 

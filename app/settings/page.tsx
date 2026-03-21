@@ -75,8 +75,9 @@ function UsersTab() {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'owner'|'admin'|'barber'>('barber')
+  const [role, setRole] = useState<'owner'|'admin'|'barber'|'student'>('barber')
   const [barberId, setBarberId] = useState('')
+  const [mentorBarberIds, setMentorBarberIds] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
 
   const load = useCallback(async () => {
@@ -96,8 +97,8 @@ function UsersTab() {
     if (password.length < 4) { setMsg('Password min 4 characters'); return }
     setCreating(true); setMsg('')
     try {
-      await apiFetch('/api/users', { method: 'POST', body: JSON.stringify({ name: name.trim(), username: username.trim().toLowerCase(), password, role, barber_id: barberId }) })
-      setName(''); setUsername(''); setPassword(''); setBarberId('')
+      await apiFetch('/api/users', { method: 'POST', body: JSON.stringify({ name: name.trim(), username: username.trim().toLowerCase(), password, role, barber_id: barberId, ...(role === 'student' ? { mentor_barber_ids: mentorBarberIds } : {}) }) })
+      setName(''); setUsername(''); setPassword(''); setBarberId(''); setMentorBarberIds([])
       setMsg('Account created ✓'); load()
     } catch (e: any) { setMsg('Error: ' + e.message) }
     setCreating(false)
@@ -119,6 +120,7 @@ function UsersTab() {
     owner: { border: 'rgba(255,207,63,.35)', color: '#ffe9a3' },
     admin: { border: 'rgba(143,240,177,.35)', color: '#c9ffe1' },
     barber: { border: 'rgba(10,132,255,.35)', color: '#d7ecff' },
+    student: { border: 'rgba(168,107,255,.35)', color: '#d4b8ff' },
   }
 
   return (
@@ -135,6 +137,7 @@ function UsersTab() {
               <option value="owner">Owner — full access</option>
               <option value="admin">Admin — all except payroll/settings</option>
               <option value="barber">Barber — own bookings only</option>
+              <option value="student">Student — calendar only, no payments</option>
             </select>
           </Field>
           {role === 'barber' && (
@@ -144,6 +147,31 @@ function UsersTab() {
                   <option value="">— Not linked —</option>
                   {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
+              </Field>
+            </div>
+          )}
+          {role === 'student' && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Field label="Mentor barbers (select one or more)">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.14)' }}>
+                  {barbers.length === 0 && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.30)' }}>No barbers found</div>}
+                  {barbers.map(b => (
+                    <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13, color: '#e9e9e9' }}>
+                      <input type="checkbox"
+                        checked={mentorBarberIds.includes(b.id)}
+                        onChange={e => {
+                          if (e.target.checked) setMentorBarberIds(prev => [...prev, b.id])
+                          else setMentorBarberIds(prev => prev.filter(id => id !== b.id))
+                        }}
+                        style={{ accentColor: '#a86bff', width: 16, height: 16 }}
+                      />
+                      {b.name}
+                    </label>
+                  ))}
+                  {mentorBarberIds.length === 0 && barbers.length > 0 && (
+                    <div style={{ fontSize: 11, color: 'rgba(255,207,63,.70)', marginTop: 4 }}>⚠ Select at least one mentor barber</div>
+                  )}
+                </div>
               </Field>
             </div>
           )}
@@ -167,7 +195,7 @@ function UsersTab() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 900, fontSize: 14 }}>{u.name || u.username}</div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
-                    @{u.username}{linked ? ` · 💈 ${linked.name}` : ''}{u.last_login ? ` · last login ${u.last_login.slice(0,10)}` : ''}
+                    @{u.username}{linked ? ` · 💈 ${linked.name}` : ''}{u.role === 'student' && (u as any).mentor_barber_ids?.length ? ` · 🎓 ${(u as any).mentor_barber_ids.map((id: string) => barbers.find(b => b.id === id)?.name || id).join(', ')}` : ''}{u.last_login ? ` · last login ${u.last_login.slice(0,10)}` : ''}
                     {!u.active && <span style={{ color: '#ff6b6b', marginLeft: 8 }}>disabled</span>}
                   </div>
                 </div>
@@ -189,25 +217,27 @@ function UsersTab() {
             <thead>
               <tr>
                 <th style={{ padding: '8px 12px', textAlign: 'left', ...lbl }}>Feature</th>
-                {['Owner', 'Admin', 'Barber'].map(r => <th key={r} style={{ padding: '8px 12px', textAlign: 'center', ...lbl, color: roleColors[r.toLowerCase()]?.color }}>{r}</th>)}
+                {['Owner', 'Admin', 'Barber', 'Student'].map(r => <th key={r} style={{ padding: '8px 12px', textAlign: 'center', ...lbl, color: roleColors[r.toLowerCase()]?.color }}>{r}</th>)}
               </tr>
             </thead>
             <tbody>
               {[
-                ['Dashboard', true, true, true],
-                ['Calendar — all barbers', true, true, false],
-                ['Calendar — own column only', true, true, true],
-                ['Clients', true, true, false],
-                ['Payments', true, true, false],
-                ['Payroll', true, false, false],
-                ['Settings', true, false, false],
-                ['Own profile / password', true, true, true],
-                ['Add/block time slots', true, true, false],
-                ['View client phones', true, true, false],
-              ].map(([feat, owner, admin, barber]) => (
+                ['Dashboard', true, true, true, false],
+                ['Calendar — all barbers', true, true, false, false],
+                ['Calendar — mentor columns', true, true, true, true],
+                ['Book models (practice)', false, false, false, true],
+                ['Clients', true, true, false, false],
+                ['Payments', true, true, false, false],
+                ['Payroll', true, false, false, false],
+                ['Settings', true, false, false, false],
+                ['Own profile / password', true, true, true, true],
+                ['Add/block time slots', true, true, false, false],
+                ['View client phones', true, true, false, false],
+                ['View prices', true, true, true, false],
+              ].map(([feat, owner, admin, barber, student]) => (
                 <tr key={String(feat)}>
                   <td style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,.05)', color: 'rgba(255,255,255,.70)' }}>{feat as string}</td>
-                  {[owner, admin, barber].map((v, i) => (
+                  {[owner, admin, barber, student].map((v, i) => (
                     <td key={i} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,.05)', textAlign: 'center' }}>
                       {v ? <span style={{ color: '#8ff0b1', fontSize: 16 }}>✓</span> : <span style={{ color: 'rgba(255,255,255,.20)', fontSize: 14 }}>—</span>}
                     </td>
