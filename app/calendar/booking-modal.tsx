@@ -75,7 +75,7 @@ interface BookingModalProps {
   services: Service[]
   isOwnerOrAdmin: boolean
   myBarberId?: string
-  allEvents?: Array<{ id: string; barberId: string; startMin: number; durMin: number; status: string; paid: boolean; clientName: string }>
+  allEvents?: Array<{ id: string; barberId: string; startMin: number; durMin: number; status: string; paid: boolean; clientName: string; paymentStatus?: string }>
   existingEvent?: {
     id: string
     clientName: string
@@ -561,13 +561,14 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
   const price = priceCalc.total  // total with tax + fees
 
   // Find blocking event — same barber, earlier start, not resolved
-  const RESOLVED = ['paid', 'done', 'cancelled', 'noshow', 'no_show']
+  const RESOLVED = ['paid', 'done', 'cancelled', 'noshow', 'no_show', 'refunded', 'partially_refunded']
   const blockingEvent = ev && allEvents && barberId
     ? allEvents.find(e =>
         e.id !== ev.id &&
         e.barberId === barberId &&
         e.startMin < (ev._raw?.start_min ?? 0) &&
         !e.paid &&
+        e.paymentStatus !== 'refunded' && // refunded = resolved even if paid=false
         !RESOLVED.includes(e.status)
       )
     : null

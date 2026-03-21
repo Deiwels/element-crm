@@ -1360,7 +1360,7 @@ export default function CalendarPage() {
               const r = selectedEvent._raw
               return r?.reference_photo_url || r?.photo_url || r?.client_photo || r?.client_photo_url || r?.attachment_url || r?.image_url || r?.photo || r?.haircut_photo || r?.style_photo || ''
             })(), _raw: { ...selectedEvent._raw, start_min: selectedEvent.startMin } } : null}
-          allEvents={events.map(e => ({ id: e.id, barberId: e.barberId, startMin: e.startMin, durMin: e.durMin, status: e.status, paid: e.paid, clientName: e.clientName }))}
+          allEvents={events.map(e => ({ id: e.id, barberId: e.barberId, startMin: e.startMin, durMin: e.durMin, status: e.status, paid: e.paid, clientName: e.clientName, paymentStatus: (e._raw as any)?.payment_status || '' }))}
           onClose={() => { if (modal.isNew) setEvents(prev => prev.filter(e => e.id !== modal.eventId)); setModal({ open: false, eventId: null, isNew: false }) }}
           onSave={handleSave} onDelete={handleDelete} onPayment={handlePayment}
         />
