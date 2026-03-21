@@ -684,7 +684,12 @@ export default function CalendarPage() {
   const myBarberId = currentUser?.barber_id || ''
 
   // Barber sees only their own column
-  const visibleBarbers = isBarber ? barbers.filter(b => b.id === myBarberId) : barbers
+  // For barber: show only their column. If barber_id doesn't match any barber,
+  // fall back to showing all barbers but filtering events by barberId
+  const myBarberObj = isBarber ? barbers.find(b => b.id === myBarberId) : null
+  const visibleBarbers = isBarber
+    ? (myBarberObj ? [myBarberObj] : barbers) // fallback: show all if no match
+    : barbers
 
   const todayStr = isoDate(anchor)
   const selectedEvent = events.find(e => e.id === modal.eventId) || null
