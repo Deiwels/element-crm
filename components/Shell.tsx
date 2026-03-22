@@ -447,20 +447,19 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         /* Burger */
         .burger-btn{
           display:none;
-          position:fixed;top:10px;left:14px;z-index:80;
-          width:40px;height:40px;border-radius:11px;
-          border:1px solid rgba(255,255,255,.14);
-          background:rgba(0,0,0,.65);
-          backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+          position:fixed;top:12px;left:10px;z-index:80;
+          width:36px;height:36px;border-radius:999px;
+          border:1px solid rgba(255,255,255,.12);
+          background:rgba(255,255,255,.05);
           color:#fff;cursor:pointer;
           align-items:center;justify-content:center;
-          flex-direction:column;gap:4px;padding:0;
-          transition:background .18s;
+          flex-direction:column;gap:3px;padding:0;
+          transition:background .15s;
         }
         .burger-btn:hover{background:rgba(255,255,255,.10);}
         .burger-dot{
-          display:block;width:5px;height:5px;
-          border-radius:999px;background:#fff;
+          display:block;width:3.5px;height:3.5px;
+          border-radius:999px;background:rgba(255,255,255,.70);
         }
         @media(max-width:768px){
           .burger-btn.open{ opacity:0; pointer-events:none; }
