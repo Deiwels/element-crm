@@ -123,7 +123,7 @@ function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: 
   function toggle(i: number) { const n = [...schedule]; n[i] = { ...n[i], enabled: !n[i].enabled }; onChange(n) }
   function setTime(i: number, field: 'startMin'|'endMin', val: string) { const n = [...schedule]; n[i] = { ...n[i], [field]: timeStrToMin(val) }; onChange(n) }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 5, margin: '8px 0' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 5, margin: '8px 0' }}>
       {DAY_NAMES.map((name, i) => {
         const day = schedule[i]
         return (
@@ -212,10 +212,12 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
       const changes = { level, base_price: price, public_role: publicRole || level, about, description: about, bio: about, radar_labels: rLabels, radar_values: rValues, photo_url: photoPreview || b.photo || '', schedule: schedPayload, work_schedule: schedPayload, public_off_days: DAY_NAMES.filter((_,i) => !sched[i].enabled), public_enabled: true }
 
       if (isBarberSelf) {
+        // Build readable schedule summary
+        const schedSummary = sched.map((d, i) => d.enabled ? `${DAY_NAMES[i]} ${minToTimeStr(d.startMin)}–${minToTimeStr(d.endMin)}` : null).filter(Boolean)
         // Barber sends profile changes as request for approval
         await apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
           type: 'profile_change',
-          data: { barberId: b.id, barberName: b.name, changes }
+          data: { barberId: b.id, barberName: b.name, changes, scheduleSummary: schedSummary, workDays: DAY_NAMES.filter((_, i) => sched[i].enabled) }
         })})
       } else {
         // Owner/admin saves directly

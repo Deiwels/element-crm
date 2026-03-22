@@ -177,7 +177,10 @@ function RequestCard({ req, isOwnerOrAdmin, onReview }: { req: Request; isOwnerO
           {req.data.changes.level && <div>Level: <strong style={{ color: '#e9e9e9' }}>{req.data.changes.level}</strong></div>}
           {req.data.changes.base_price && <div>Price: <strong style={{ color: '#e9e9e9' }}>${req.data.changes.base_price}</strong></div>}
           {req.data.changes.public_role && <div>Role: <strong style={{ color: '#e9e9e9' }}>{req.data.changes.public_role}</strong></div>}
-          {req.data.changes.schedule && <div>Schedule: <strong style={{ color: '#e9e9e9' }}>Updated</strong></div>}
+          {req.data.scheduleSummary && Array.isArray(req.data.scheduleSummary) && (
+            <div>Schedule: <strong style={{ color: '#e9e9e9' }}>{req.data.scheduleSummary.join(', ')}</strong></div>
+          )}
+          {!req.data.scheduleSummary && req.data.changes.schedule && <div>Schedule: <strong style={{ color: '#e9e9e9' }}>Updated</strong></div>}
           {req.data.changes.photo_url && (
             <div style={{ marginTop: 6 }}>
               <div style={{ marginBottom: 4 }}>New photo:</div>

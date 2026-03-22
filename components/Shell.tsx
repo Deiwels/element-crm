@@ -440,14 +440,14 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
           /* Topbar padding-left reset — burger is fixed, not in flow */
           .content > div > div:first-child{
-            padding-left:18px!important;
+            padding-left:60px!important;
           }
         }
 
         /* Burger */
         .burger-btn{
           display:none;
-          position:fixed;top:10px;left:14px;z-index:200;
+          position:fixed;top:10px;left:14px;z-index:80;
           width:40px;height:40px;border-radius:11px;
           border:1px solid rgba(255,255,255,.14);
           background:rgba(0,0,0,.65);
