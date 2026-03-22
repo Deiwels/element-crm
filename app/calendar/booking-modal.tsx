@@ -87,6 +87,7 @@ interface BookingModalProps {
     notes?: string
     paid: boolean
     paymentMethod?: string
+    isModelEvent?: boolean
     photoUrl?: string
     _raw: any
   } | null
@@ -829,6 +830,7 @@ export function BookingModal({
   useEffect(() => { getShopSettings().then(setShopSettings) }, [])
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const isModelEvent = isStudent || !!existingEvent?.isModelEvent
 
   const isNew = !existingEvent?._raw?.id
 
@@ -864,7 +866,7 @@ export function BookingModal({
   }, [isOpen, existingEvent?.id, barberId, startMin])
 
   const svc = services.find(s => s.id === serviceId)
-  const durMin = isStudent ? 90 : (svc?.durationMin || 30)
+  const durMin = isModelEvent ? 90 : (svc?.durationMin || 30)
   const barberServices = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId))
 
   // Time slots 5min
@@ -873,8 +875,8 @@ export function BookingModal({
 
   async function handleSave() {
     setFormError('')
-    if (!isStudent && !clientName.trim()) { setFormError('Enter client name'); return }
-    if (!isStudent && !serviceId) { setFormError('Choose service'); return }
+    if (!isModelEvent && !clientName.trim()) { setFormError('Enter client name'); return }
+    if (!isModelEvent && !serviceId) { setFormError('Choose service'); return }
     setSaving(true)
     // Student: format name as "Training · StudentName · ModelName"
     let finalClientName = clientName.trim()
@@ -922,7 +924,7 @@ export function BookingModal({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 14px', borderBottom: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)' }}>
             <div>
               <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: '#e9e9e9' }}>
-                {isNew ? (isStudent ? 'New model appointment' : 'New appointment') : `Edit — ${existingEvent?.clientName}`}
+                {isNew ? (isModelEvent ? 'New model appointment' : 'New appointment') : (isModelEvent ? `Model — ${existingEvent?.clientName}` : `Edit — ${existingEvent?.clientName}`)}
               </div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 3, letterSpacing: '.08em' }}>
                 {date} · {barberName} · {minToHHMM(selStartMin)}
@@ -934,7 +936,7 @@ export function BookingModal({
           <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
             {/* Client search — hidden for student (model appointment = student is the client) */}
-            {isStudent ? (
+            {isModelEvent ? (
               <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(168,107,255,.30)', background: 'rgba(168,107,255,.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(168,107,255,.20)', border: '1px solid rgba(168,107,255,.30)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -963,7 +965,7 @@ export function BookingModal({
             )}
 
             {/* Booking fields — simplified for student */}
-            {isStudent ? (
+            {isModelEvent ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {/* Time + duration info */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -1061,10 +1063,10 @@ export function BookingModal({
             )}
 
             {/* Upload reference photo — not for students */}
-            {!isStudent && <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />}
+            {!isModelEvent && <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />}
 
             {/* Payment — owner/admin only, NOT for model/training */}
-            {isOwnerOrAdmin && existingEvent && existingEvent._raw?.booking_type !== 'model' && existingEvent._raw?.booking_type !== 'training' && (
+            {isOwnerOrAdmin && existingEvent && !isModelEvent && (
               <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} allEvents={allEvents} barberId={barberId} />
             )}
 
@@ -1079,8 +1081,8 @@ export function BookingModal({
                 <button onClick={onDelete} style={{ height: 42, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>Delete</button>
               )}
               <button onClick={onClose} style={{ height: 42, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Close</button>
-              <button onClick={handleSave} disabled={saving} style={{ height: 42, padding: '0 20px', borderRadius: 999, border: isStudent ? '1px solid rgba(168,107,255,.55)' : '1px solid rgba(255,255,255,.25)', background: isStudent ? 'rgba(168,107,255,.18)' : 'rgba(255,255,255,.12)', color: isStudent ? '#d4b8ff' : '#fff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: saving ? .5 : 1 }}>
-                {saving ? 'Saving…' : isStudent ? 'Book model' : 'Save'}
+              <button onClick={handleSave} disabled={saving} style={{ height: 42, padding: '0 20px', borderRadius: 999, border: isModelEvent ? '1px solid rgba(168,107,255,.55)' : '1px solid rgba(255,255,255,.25)', background: isModelEvent ? 'rgba(168,107,255,.18)' : 'rgba(255,255,255,.12)', color: isModelEvent ? '#d4b8ff' : '#fff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: saving ? .5 : 1 }}>
+                {saving ? 'Saving…' : isModelEvent ? (isNew ? 'Book model' : 'Save') : 'Save'}
               </button>
             </div>
           </div>

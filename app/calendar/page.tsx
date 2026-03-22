@@ -585,6 +585,7 @@ export default function CalendarPage() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; barberId: string; min: number } | null>(null)
   const [trainingModal, setTrainingModal] = useState<{ barberId: string; barberName: string; min: number } | null>(null)
   const [toast, setToast] = useState('')
+  const [slotPicker, setSlotPicker] = useState<{ min: number; mentorId: string; mentorName: string }[] | null>(null)
   const toastTimer = useRef<any>(null)
   const showToast = useCallback((msg: string) => { setToast(msg); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 3500) }, [])
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -980,7 +981,7 @@ export default function CalendarPage() {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         await apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), {
           method: 'PATCH',
-          body: JSON.stringify({ barber_id: updated.barberId, start_at: startAt.toISOString(), ...(updated.type === 'block' ? { end_at: new Date(startAt.getTime() + updated.durMin*60000).toISOString() } : {}) })
+          body: JSON.stringify({ barber_id: updated.barberId, start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + updated.durMin*60000).toISOString() })
         })
       } catch(e: any) { console.warn(e.message) }
     }
@@ -1152,17 +1153,23 @@ export default function CalendarPage() {
               {/* New booking */}
               {isStudent ? (
                 <button onClick={() => {
-                  // Find first free 90min slot — search all day
-                  let foundSlot = -1, foundMentor = ''
+                  // Collect ALL free 90min slots
+                  const freeSlots: { min: number; mentorId: string; mentorName: string }[] = []
                   for (let m = START_HOUR * 60; m <= END_HOUR * 60 - 90; m += 5) {
                     const mid = studentSlotMentorMap.get(m)
                     if (!mid) continue
                     let ok = true
                     for (let c = m; c < m + 90; c += 5) { if (!studentSlotMentorMap.has(c)) { ok = false; break } }
-                    if (ok) { foundSlot = m; foundMentor = mid; break }
+                    if (ok) {
+                      const mentor = barbers.find(b => b.id === mid)
+                      // Only add if previous slot wasn't same time (skip 5-min overlaps)
+                      if (!freeSlots.length || freeSlots[freeSlots.length-1].min + 5 < m || freeSlots[freeSlots.length-1].mentorId !== mid) {
+                        freeSlots.push({ min: m, mentorId: mid, mentorName: mentor?.name || '' })
+                      }
+                    }
                   }
-                  if (foundMentor && foundSlot >= 0) openCreate(foundMentor, foundSlot)
-                  else showToast('No free 90min slot available today')
+                  if (!freeSlots.length) { showToast('No free 90min slot available today'); return }
+                  setSlotPicker(freeSlots)
                 }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(168,107,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d4b8ff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(168,107,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ Model</button>
               ) : (
                 <button onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(10,132,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ New</button>
@@ -1629,7 +1636,7 @@ export default function CalendarPage() {
           barbers={barbers} services={services}
           isOwnerOrAdmin={isOwnerOrAdmin} myBarberId={myBarberId}
           isStudent={isStudent} mentorBarberIds={mentorBarberIds}
-          existingEvent={selectedEvent ? { id: selectedEvent.id, clientName: selectedEvent.clientName, clientPhone: selectedEvent.clientPhone, serviceId: selectedEvent.serviceId, status: selectedEvent.status, notes: selectedEvent.notes, paid: selectedEvent.paid, paymentMethod: selectedEvent.paymentMethod, photoUrl: (() => {
+          existingEvent={selectedEvent ? { id: selectedEvent.id, clientName: selectedEvent.clientName, clientPhone: selectedEvent.clientPhone, serviceId: selectedEvent.serviceId, status: selectedEvent.status, notes: selectedEvent.notes, paid: selectedEvent.paid, paymentMethod: selectedEvent.paymentMethod, isModelEvent: selectedEvent._raw?.booking_type === 'model' || selectedEvent._raw?.booking_type === 'training', photoUrl: (() => {
               const r = selectedEvent._raw
               return r?.reference_photo_url || r?.photo_url || r?.client_photo || r?.client_photo_url || r?.attachment_url || r?.image_url || r?.photo || r?.haircut_photo || r?.style_photo || ''
             })(), _raw: { ...selectedEvent._raw, start_min: selectedEvent.startMin } } : null}
@@ -1637,6 +1644,35 @@ export default function CalendarPage() {
           onClose={() => { if (modal.isNew) setEvents(prev => prev.filter(e => e.id !== modal.eventId)); setModal({ open: false, eventId: null, isNew: false }) }}
           onSave={handleSave} onDelete={handleDelete} onPayment={handlePayment}
         />
+      )}
+
+      {/* Slot picker for student */}
+      {slotPicker && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 16 }}
+          onClick={e => { if (e.target === e.currentTarget) setSlotPicker(null) }}>
+          <div style={{ width: 'min(400px,100%)', maxHeight: 'min(600px,80vh)', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60), inset 0 0 0 0.5px rgba(255,255,255,.07)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13 }}>Available slots</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 3 }}>{slotPicker.length} free 90min slots today</div>
+              </div>
+              <button onClick={() => setSlotPicker(null)} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16 }}>✕</button>
+            </div>
+            <div style={{ overflowY: 'auto', padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {slotPicker.map((slot, i) => (
+                <button key={i} onClick={() => { setSlotPicker(null); openCreate(slot.mentorId, slot.min) }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', cursor: 'pointer', color: '#e9e9e9', fontFamily: 'inherit', textAlign: 'left', width: '100%' }}
+                  onMouseEnter={e => (e.currentTarget.style.background='rgba(168,107,255,.12)')} onMouseLeave={e => (e.currentTarget.style.background='rgba(255,255,255,.04)')}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800 }}>{minToHHMM(slot.min)} — {minToHHMM(slot.min + 90)}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 2 }}>with {slot.mentorName}</div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(168,107,255,.80)', fontWeight: 700 }}>90 min</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast notification */}
