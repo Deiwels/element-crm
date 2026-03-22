@@ -305,6 +305,21 @@ export default function MessagesPage() {
     return () => clearInterval(interval)
   }, [activeTab, loadMessages, loadRequests])
 
+  // Fix mobile keyboard pushing content up
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    function onResize() {
+      const container = document.querySelector('.msg-container') as HTMLElement
+      if (container) {
+        container.style.height = `${vv!.height}px`
+      }
+    }
+    vv.addEventListener('resize', onResize)
+    vv.addEventListener('scroll', onResize)
+    return () => { vv.removeEventListener('resize', onResize); vv.removeEventListener('scroll', onResize) }
+  }, [])
+
   // Auto-scroll to bottom
   useEffect(() => {
     const el = listRef.current
@@ -346,7 +361,7 @@ export default function MessagesPage() {
         .msg-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 2px; }
       `}</style>
 
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Inter,sans-serif', color: '#e9e9e9' }}>
+      <div className="msg-container" style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Inter,sans-serif', color: '#e9e9e9' }}>
         {/* Header */}
         <div style={{ padding: '18px 20px 0', flexShrink: 0 }}>
           <h2 style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 'clamp(16px,3vw,20px)', margin: 0, fontWeight: 400, textAlign: 'center' }}>Messages</h2>
