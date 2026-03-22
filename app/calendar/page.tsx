@@ -282,10 +282,11 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
 }
 
 // ─── SettingsModal ────────────────────────────────────────────────────────────
-function SettingsModal({ barbers, services, onClose, onReload }: {
+function SettingsModal({ barbers, services, onClose, onReload, isStudent, studentSchedule, onStudentScheduleChange }: {
   barbers: Barber[]; services: any[]; onClose: () => void; onReload: () => void
+  isStudent?: boolean; studentSchedule?: DaySchedule[]; onStudentScheduleChange?: (s: DaySchedule[]) => void
 }) {
-  const [tab, setTab] = useState<'barbers'|'services'|'account'>('barbers')
+  const [tab, setTab] = useState<'barbers'|'services'|'account'>(isStudent ? 'account' : 'barbers')
   const [msg, setMsg] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -551,6 +552,16 @@ function SettingsModal({ barbers, services, onClose, onReload }: {
                   {(() => { try { const u = JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null'); return u ? `${u.role} · ${u.name || u.username}` : 'Guest' } catch { return 'Guest' } })()}
                 </div>
               </div>
+
+              {/* Student schedule editor */}
+              {isStudent && studentSchedule && onStudentScheduleChange && (
+                <div style={{ padding: '14px', borderRadius: 14, border: '1px solid rgba(168,107,255,.20)', background: 'rgba(168,107,255,.04)' }}>
+                  <div style={{ fontWeight: 900, marginBottom: 8, color: '#d4b8ff' }}>My schedule</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginBottom: 12 }}>Set your working hours — off-hours will be grayed out on your calendar</div>
+                  <SchedGrid schedule={studentSchedule} onChange={onStudentScheduleChange} />
+                </div>
+              )}
+
               <button onClick={() => { localStorage.removeItem('ELEMENT_TOKEN'); localStorage.removeItem('ELEMENT_USER'); window.location.href = '/signin' }} style={{ height: 42, borderRadius: 12, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Log out</button>
             </div>
           )}
@@ -597,9 +608,32 @@ export default function CalendarPage() {
   const offResize = useRef<{ barberId: string; type: 'top' | 'bottom'; startY: number; origMin: number } | null>(null)
   const [scheduleConfirm, setScheduleConfirm] = useState<{ barberId: string; barberName: string; dow: number; startMin: number; endMin: number } | null>(null)
 
+  // Student schedule — stored in user profile
+  const [studentSchedule, setStudentSchedule] = useState<DaySchedule[]>(() => {
+    try { const s = localStorage.getItem('ELEMENT_STUDENT_SCHEDULE'); if (s) return JSON.parse(s) } catch {}
+    return DAY_DEFAULTS.map(d => ({...d}))
+  })
+  // Load student schedule from API on mount
+  useEffect(() => {
+    if (!isStudent) return
+    ;(async () => {
+      try {
+        const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+        const res = await fetch(API + '/api/auth/me', { headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }, credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json()
+        const sched = data?.user?.schedule
+        if (Array.isArray(sched) && sched.length === 7) {
+          setStudentSchedule(sched)
+          localStorage.setItem('ELEMENT_STUDENT_SCHEDULE', JSON.stringify(sched))
+        }
+      } catch {}
+    })()
+  }, [isStudent])
+
   // Build workHours from barber schedule every time barbers or date changes
   useEffect(() => {
-    if (!barbers.length) return
+    if (!barbers.length && !isStudent) return
     // dow = 0=Sun,1=Mon..6=Sat — matches how schedule.days[] is stored on server
     const dow = anchor.getDay() // anchor is Date object, 0=Sun..6=Sat
     const next: Record<string, { startMin: number; endMin: number; dayOff: boolean }> = {}
@@ -620,8 +654,17 @@ export default function CalendarPage() {
         next[b.id] = { startMin: day.startMin, endMin: day.endMin, dayOff: false }
       }
     })
+    // Student column work hours
+    if (isStudent && studentSchedule.length === 7) {
+      const day = studentSchedule[dow]
+      if (!day || !day.enabled) {
+        next['__student__'] = { startMin: 0, endMin: 0, dayOff: true }
+      } else {
+        next['__student__'] = { startMin: day.startMin, endMin: day.endMin, dayOff: false }
+      }
+    }
     setWorkHours(next as any)
-  }, [barbers, anchor])
+  }, [barbers, anchor, isStudent, studentSchedule])
 
   // Scroll to current time — runs after barbers load so DOM is ready
   useEffect(() => {
@@ -1146,7 +1189,7 @@ export default function CalendarPage() {
               {isOwnerOrAdmin && <button className="cal-settings-btn" onClick={() => setSettingsOpen(true)} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>Settings</button>}
 
               {/* Settings icon — mobile */}
-              {isOwnerOrAdmin && <button onClick={() => setSettingsOpen(true)} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} className="cal-settings-icon">
+              {(isOwnerOrAdmin || isStudent) && <button onClick={() => setSettingsOpen(true)} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} className="cal-settings-icon">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </button>}
 
@@ -1623,7 +1666,12 @@ export default function CalendarPage() {
       {datePickerOpen && <DatePickerModal current={anchor} onSelect={d => { const x=new Date(d); x.setHours(0,0,0,0); setAnchor(x) }} onClose={() => setDatePickerOpen(false)} />}
 
       {/* Settings */}
-      {settingsOpen && <SettingsModal barbers={barbers} services={services} onClose={() => setSettingsOpen(false)} onReload={reloadAll} />}
+      {settingsOpen && <SettingsModal barbers={barbers} services={services} onClose={() => setSettingsOpen(false)} onReload={reloadAll}
+        isStudent={isStudent} studentSchedule={studentSchedule} onStudentScheduleChange={(s: DaySchedule[]) => {
+          setStudentSchedule(s); localStorage.setItem('ELEMENT_STUDENT_SCHEDULE', JSON.stringify(s))
+          // Save to user profile
+          const uid = currentUser?.uid; if (uid) apiFetch(`/api/users/${encodeURIComponent(uid)}`, { method: 'PATCH', body: JSON.stringify({ schedule: s }) }).catch(() => {})
+        }} />}
 
       {/* Booking modal */}
       {modal.open && (
