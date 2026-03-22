@@ -42,12 +42,29 @@ interface Request {
 }
 
 // ─── Tab config ──────────────────────────────────────────────────────────────
-const TABS: { id: Tab; label: string; icon: string; roles: string[] }[] = [
-  { id: 'general',  label: 'General',  icon: '💬', roles: ['owner','admin','barber','student'] },
-  { id: 'barbers',  label: 'Barbers',  icon: '💈', roles: ['owner','admin','barber'] },
-  { id: 'admins',   label: 'Admins',   icon: '🛡️', roles: ['owner','admin'] },
-  { id: 'students', label: 'Students', icon: '🎓', roles: ['owner','admin','student'] },
-  { id: 'requests', label: 'Requests', icon: '📋', roles: ['owner','admin','barber'] },
+// SVG icons for tabs (matching glass-dark style)
+function TabIcon({ id, color }: { id: string; color: string }) {
+  const s = { stroke: color, strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' }
+  switch (id) {
+    case 'general': return <svg width="14" height="14" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" {...s}/></svg>
+    case 'barbers': return <svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 3v18" {...s}/><path d="M5 8c4-1 7 1 7 4s-3 5-7 4" {...s}/><circle cx="16" cy="12" r="3" {...s}/><path d="M19 12h2" {...s}/></svg>
+    case 'admins': return <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" {...s}/></svg>
+    case 'students': return <svg width="14" height="14" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z" {...s}/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5" {...s}/></svg>
+    case 'requests': return <svg width="14" height="14" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" {...s}/><path d="M9 12l2 2 4-4" {...s}/><line x1="9" y1="7" x2="15" y2="7" {...s}/><line x1="9" y1="17" x2="13" y2="17" {...s}/></svg>
+    default: return null
+  }
+}
+
+const TAB_COLORS: Record<string, string> = {
+  general: '#d7ecff', barbers: '#d7ecff', admins: '#c9ffe1', students: '#d4b8ff', requests: '#ffe9a3'
+}
+
+const TABS: { id: Tab; label: string; roles: string[] }[] = [
+  { id: 'general',  label: 'General',  roles: ['owner','admin','barber','student'] },
+  { id: 'barbers',  label: 'Barbers',  roles: ['owner','admin','barber'] },
+  { id: 'admins',   label: 'Admins',   roles: ['owner','admin'] },
+  { id: 'students', label: 'Students', roles: ['owner','admin','student'] },
+  { id: 'requests', label: 'Requests', roles: ['owner','admin','barber'] },
 ]
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
@@ -108,7 +125,11 @@ function RequestCard({ req, isOwnerOrAdmin, onReview }: { req: Request; isOwnerO
     <div style={{ ...GLASS, padding: '14px 16px', marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14 }}>{req.type === 'schedule_change' ? '📅' : '📸'}</span>
+          <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {req.type === 'schedule_change'
+              ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffe9a3" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>}
+          </span>
           <div>
             <div style={{ fontWeight: 800, fontSize: 13 }}>{req.type === 'schedule_change' ? 'Schedule change' : 'Photo change'}</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)' }}>{req.barberName} · {timeAgo(req.createdAt)}</div>
@@ -177,7 +198,7 @@ function NewRequestModal({ onClose, onCreated }: { onClose: () => void; onCreate
         <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Type selector */}
           <div style={{ display: 'flex', gap: 6 }}>
-            {[{ v: 'schedule_change' as const, l: '📅 Schedule' }, { v: 'photo_change' as const, l: '📸 Photo' }].map(t => (
+            {[{ v: 'schedule_change' as const, l: 'Schedule change' }, { v: 'photo_change' as const, l: 'Photo change' }].map(t => (
               <button key={t.v} onClick={() => setType(t.v)}
                 style={{ flex: 1, height: 38, borderRadius: 999, border: `1px solid ${type === t.v ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.10)'}`, background: type === t.v ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.03)', color: type === t.v ? '#fff' : 'rgba(255,255,255,.55)', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit' }}>{t.l}</button>
             ))}
@@ -336,8 +357,8 @@ export default function MessagesPage() {
         <div style={{ display: 'flex', gap: 6, padding: '14px 16px 8px', overflowX: 'auto', flexShrink: 0 }}>
           {visibleTabs.map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
-              style={{ height: 36, padding: '0 14px', borderRadius: 999, border: `1px solid ${activeTab === t.id ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.08)'}`, background: activeTab === t.id ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.03)', color: activeTab === t.id ? '#fff' : 'rgba(255,255,255,.50)', cursor: 'pointer', fontWeight: 800, fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 13 }}>{t.icon}</span> {t.label}
+              style={{ height: 36, padding: '0 14px', borderRadius: 999, border: `1px solid ${activeTab === t.id ? (TAB_COLORS[t.id] || 'rgba(255,255,255,.25)').replace(')', ',.35)').replace('rgb', 'rgba') : 'rgba(255,255,255,.08)'}`, background: activeTab === t.id ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.03)', color: activeTab === t.id ? '#fff' : 'rgba(255,255,255,.50)', cursor: 'pointer', fontWeight: 800, fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <TabIcon id={t.id} color={activeTab === t.id ? (TAB_COLORS[t.id] || '#fff') : 'rgba(255,255,255,.35)'} /> {t.label}
             </button>
           ))}
         </div>
@@ -351,7 +372,7 @@ export default function MessagesPage() {
               {loading && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
               {!loading && messages.length === 0 && (
                 <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.20)' }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
+                  <div style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
                   <div style={{ fontSize: 13 }}>No messages yet</div>
                   <div style={{ fontSize: 11, marginTop: 4, color: 'rgba(255,255,255,.15)' }}>Be the first to say something!</div>
                 </div>
@@ -392,7 +413,7 @@ export default function MessagesPage() {
             {loading && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
             {!loading && requests.length === 0 && (
               <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.20)' }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+                <div style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="17" x2="13" y2="17"/></svg></div>
                 <div style={{ fontSize: 13 }}>No requests</div>
               </div>
             )}
