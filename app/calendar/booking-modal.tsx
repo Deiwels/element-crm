@@ -850,10 +850,9 @@ export function BookingModal({
         setSelectedClient(null)
       }
     } else {
-      // Student: auto-fill name as "Model" and status as 'model'
+      // Student: auto-fill and set status
       if (isStudent) {
-        const studentName = (() => { try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}').name || 'Model' } catch { return 'Model' } })()
-        setClientName('Model — ' + studentName)
+        setClientName('')
         setStatus('model')
       } else {
         setClientName(''); setStatus('booked')
@@ -864,7 +863,7 @@ export function BookingModal({
   }, [isOpen, existingEvent?.id, barberId, startMin])
 
   const svc = services.find(s => s.id === serviceId)
-  const durMin = svc?.durationMin || 30
+  const durMin = isStudent ? 90 : (svc?.durationMin || 30)
   const barberServices = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId))
 
   // Time slots 5min
@@ -875,8 +874,16 @@ export function BookingModal({
     if (!isStudent && !clientName.trim()) { alert('Enter client name'); return }
     if (!isStudent && !serviceId) { alert('Choose service'); return }
     setSaving(true)
+    // Student: format name as "Training · StudentName · ModelName"
+    let finalClientName = clientName.trim()
+    if (isStudent) {
+      const studentName = (() => { try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}').name || 'Student' } catch { return 'Student' } })()
+      finalClientName = finalClientName
+        ? `Training · ${studentName} · ${finalClientName}`
+        : `Training · ${studentName}`
+    }
     onSave({
-      clientName: clientName.trim(),
+      clientName: finalClientName,
       clientPhone: selectedClient?.phone || '',
       clientId: selectedClient?.id,
       barberId: selBarberId,
@@ -956,27 +963,20 @@ export function BookingModal({
             {/* Booking fields — simplified for student */}
             {isStudent ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {/* Mentor assignment — auto, shown as info */}
-                <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
-                  <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 4 }}>Assigned to</div>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{barbers.find(b => b.id === selBarberId)?.name || 'Auto-assigned mentor'}</div>
-                </div>
+                {/* Time + duration info */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={lbl}>Time</label>
-                    <div style={{ ...inp, display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,.70)' }}>{minToHHMM(selStartMin)}</div>
+                  <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
+                    <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 2 }}>Time</div>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{minToHHMM(selStartMin)} — {minToHHMM(selStartMin + durMin)}</div>
                   </div>
-                  <div>
-                    <label style={lbl}>Duration</label>
-                    <div style={{ ...inp, display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,.60)' }}>{durMin}min → {minToHHMM(selStartMin + durMin)}</div>
+                  <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
+                    <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 2 }}>Mentor</div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{barbers.find(b => b.id === selBarberId)?.name || '—'}</div>
                   </div>
                 </div>
                 <div>
                   <label style={lbl}>Model name</label>
-                  <input value={clientName.replace(/^Model — [^:]*: ?/, '')} onChange={e => {
-                    const studentName = (() => { try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}').name || '' } catch { return '' } })()
-                    setClientName(e.target.value ? `Model — ${studentName}: ${e.target.value}` : `Model — ${studentName}`)
-                  }} placeholder="Model's name (optional)" style={inp} />
+                  <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Enter model's name" style={inp} autoFocus />
                 </div>
                 <div>
                   <label style={lbl}>Notes</label>

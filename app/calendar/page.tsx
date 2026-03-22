@@ -1178,10 +1178,10 @@ export default function CalendarPage() {
                       <div style={{ fontWeight: 900, fontSize: 13 }}>{b.name}</div>
                       {b.level && <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgba(255,255,255,.35)' }}>{b.level}</div>}
                       {attachedStudents.length > 0 && (
-                        <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
                           {attachedStudents.map(s => (
-                            <span key={s.id} style={{ fontSize: 9, padding: '1px 7px', borderRadius: 999, border: '1px solid rgba(168,107,255,.35)', background: 'rgba(168,107,255,.10)', color: '#d4b8ff', letterSpacing: '.04em' }}>
-                              🎓 {s.name}
+                            <span key={s.id} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 999, border: '1px solid rgba(168,107,255,.25)', background: 'rgba(168,107,255,.08)', color: 'rgba(168,107,255,.70)', letterSpacing: '.03em' }}>
+                              {s.name}
                             </span>
                           ))}
                         </div>
