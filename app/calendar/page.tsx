@@ -1321,18 +1321,16 @@ export default function CalendarPage() {
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>
                       </div>
                     ) : b.photo ? <img src={b.photo} alt={b.name} style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} /> : <div style={{ width: 10, height: 10, borderRadius: 999, background: b.color, flexShrink: 0 }} />}
-                    <div>
-                      <div style={{ fontWeight: 900, fontSize: 13 }}>{b.name}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'nowrap' }}>
+                        <span style={{ fontWeight: 900, fontSize: 13, whiteSpace: 'nowrap' }}>{b.name}</span>
+                        {attachedStudents.length > 0 && attachedStudents.map(s => (
+                          <span key={s.id} style={{ fontSize: 8, padding: '1px 5px', borderRadius: 999, border: '1px solid rgba(168,107,255,.25)', background: 'rgba(168,107,255,.08)', color: 'rgba(168,107,255,.65)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {s.name.split(' ')[0]}
+                          </span>
+                        ))}
+                      </div>
                       {b.level && <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgba(255,255,255,.35)' }}>{b.level}</div>}
-                      {attachedStudents.length > 0 && (
-                        <div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
-                          {attachedStudents.map(s => (
-                            <span key={s.id} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 999, border: '1px solid rgba(168,107,255,.25)', background: 'rgba(168,107,255,.08)', color: 'rgba(168,107,255,.70)', letterSpacing: '.03em' }}>
-                              {s.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
                 )
