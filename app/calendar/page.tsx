@@ -613,10 +613,10 @@ export default function CalendarPage() {
     try { const s = localStorage.getItem('ELEMENT_STUDENT_SCHEDULE'); if (s) return JSON.parse(s) } catch {}
     return DAY_DEFAULTS.map(d => ({...d}))
   })
-  // Early role check (before isStudent const, for useEffects that need it)
-  const _isStudent = currentUser?.role === 'student'
-
   // Build workHours from barber schedule every time barbers or date changes
+  // Note: _isStudent computed inline to avoid block-scope ordering issues
+  const _isStudent = (() => { try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}')?.role === 'student' } catch { return false } })()
+
   useEffect(() => {
     if (!barbers.length && !_isStudent) return
     // dow = 0=Sun,1=Mon..6=Sat — matches how schedule.days[] is stored on server
