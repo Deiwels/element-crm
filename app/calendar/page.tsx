@@ -1018,9 +1018,10 @@ export default function CalendarPage() {
     try {
       if (!ev._raw?.id) {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
-        const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), notes: updated.notes || '', status: 'booked', reference_photo_url: updated.photoUrl || '', ...(isStudent ? { booking_type: 'model', student_id: currentUser?.uid || '' } : {}) }) })
+        const endAt = new Date(startAt.getTime() + (updated.durMin || 30) * 60000)
+        const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), end_at: endAt.toISOString(), notes: updated.notes || '', status: 'booked', reference_photo_url: updated.photoUrl || '', ...(isStudent ? { booking_type: 'model', student_id: currentUser?.uid || '' } : {}) }) })
         const savedId = res?.booking?.id || res?.id
-        if (savedId) setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, _raw: { id: savedId }, id: String(savedId) } : e))
+        if (savedId) setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, _raw: { ...e._raw, ...res, id: savedId }, id: String(savedId) } : e))
       } else {
         await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: updated.status, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '' }) })
       }
