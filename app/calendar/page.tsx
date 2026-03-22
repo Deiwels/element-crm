@@ -867,14 +867,16 @@ export default function CalendarPage() {
       const startMin = startAt ? startAt.getHours() * 60 + startAt.getMinutes() : 10*60
       const localDate = startAt ? isoDate(startAt) : todayStr
       const isBlock = b.status === 'block' || b.type === 'block'
+      const isModelOrTraining = b.booking_type === 'model' || b.booking_type === 'training'
       const svc = servicesArg.find(s => s.id === String(b.service_id || ''))
       const barber = barbersArg.find(br => br.id === String(b.barber_id || ''))
-      const durMin = isBlock ? (b.end_at ? Math.round((new Date(b.end_at).getTime() - (startAt?.getTime() || 0)) / 60000) : 30) : (svc?.durationMin || 30)
+      // For blocks and model/training: use end_at - start_at; for regular bookings: use service duration
+      const durMin = (isBlock || isModelOrTraining) ? (b.end_at && startAt ? Math.max(5, Math.round((new Date(b.end_at).getTime() - startAt.getTime()) / 60000)) : 90) : (svc?.durationMin || 30)
       return {
         id: String(b.id || uid()), type: isBlock ? 'block' as const : 'booking' as const,
         barberId: String(b.barber_id || ''), barberName: barber?.name || String(b.barber_name || ''),
         clientName: String(b.client_name || 'Client'), clientPhone: String(b.client_phone || ''),
-        serviceId: String(b.service_id || ''), serviceName: svc?.name || String(b.service_name || ''),
+        serviceId: String(b.service_id || ''), serviceName: svc?.name || String(b.service_name || b.notes || ''),
         date: localDate,
         startMin: clamp(startMin), durMin: Math.max(5, durMin),
         status: String(b.status || 'booked'), paid: !!(b.paid || b.is_paid),
@@ -1362,7 +1364,12 @@ export default function CalendarPage() {
                             <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                               {ev._raw?.booking_type === 'model' && <Chip label="Model" type="model" />}
                               {ev._raw?.booking_type === 'training' && <Chip label="Training" type="model" />}
-                              {ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />}
+                              {(ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? (
+                                ev.status === 'completed' || ev.status === 'done' ? <Chip label="Done" type="paid" /> :
+                                <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); if (ev._raw?.id) { apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'PATCH',body:JSON.stringify({status:'completed'})}).then(()=>setEvents(prev=>prev.map(x=>x.id===ev.id?{...x,status:'completed'}:x))).catch(console.warn) } else { setEvents(prev=>prev.map(x=>x.id===ev.id?{...x,status:'completed'}:x)) } }} style={{ height: 20, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(143,240,177,.45)', background: 'rgba(143,240,177,.12)', color: '#c9ffe1', cursor: 'pointer', fontSize: 9, fontWeight: 900, fontFamily: 'inherit' }}>Done</button>
+                              ) : (
+                                ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />
+                              )}
                             </div>
                           </div>
                           {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToHHMM(ev.startMin)} · {ev.serviceName}</div>}

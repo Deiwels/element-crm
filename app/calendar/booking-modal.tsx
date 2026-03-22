@@ -1061,8 +1061,8 @@ export function BookingModal({
             {/* Upload reference photo — not for students */}
             {!isStudent && <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />}
 
-            {/* Payment — owner/admin only */}
-            {isOwnerOrAdmin && existingEvent && (
+            {/* Payment — owner/admin only, NOT for model/training */}
+            {isOwnerOrAdmin && existingEvent && existingEvent._raw?.booking_type !== 'model' && existingEvent._raw?.booking_type !== 'training' && (
               <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} allEvents={allEvents} barberId={barberId} />
             )}
 
