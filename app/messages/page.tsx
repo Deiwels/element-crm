@@ -320,6 +320,11 @@ export default function MessagesPage() {
 
   useEffect(() => {
     try { setUser(JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null')) } catch {}
+    // Re-read after Shell may have updated photo from API
+    const t = setTimeout(() => {
+      try { setUser(JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null')) } catch {}
+    }, 2000)
+    return () => clearTimeout(t)
   }, [])
 
   const role = user?.role || 'barber'
@@ -405,7 +410,9 @@ export default function MessagesPage() {
     if ((!input.trim() && !imagePreview) || sending) return
     setSending(true)
     try {
-      const userPhoto = user?.photo || ''
+      // Re-read photo from localStorage (Shell may have updated it after initial load)
+      let userPhoto = user?.photo || ''
+      try { const fresh = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); userPhoto = fresh?.photo || userPhoto } catch {}
       await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: activeTab, text: input.trim(), senderPhoto: userPhoto, imageUrl: imagePreview || undefined }) })
       setInput(''); setImagePreview('')
       wasAtBottom.current = true
