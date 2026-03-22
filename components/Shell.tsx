@@ -454,18 +454,14 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
           backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
           color:#fff;cursor:pointer;
           align-items:center;justify-content:center;
-          flex-direction:column;gap:5px;padding:0;
+          flex-direction:column;gap:4px;padding:0;
           transition:background .18s;
         }
         .burger-btn:hover{background:rgba(255,255,255,.10);}
-        .burger-line{
-          display:block;width:16px;height:1.5px;
-          border-radius:2px;background:#fff;
-          transition:transform .22s ease, opacity .22s ease;
+        .burger-dot{
+          display:block;width:5px;height:5px;
+          border-radius:999px;background:#fff;
         }
-        .burger-btn.open .burger-line:nth-child(1){transform:translateY(6.5px) rotate(45deg);}
-        .burger-btn.open .burger-line:nth-child(2){opacity:0;transform:scaleX(0);}
-        .burger-btn.open .burger-line:nth-child(3){transform:translateY(-6.5px) rotate(-45deg);}
         @media(max-width:768px){
           .burger-btn.open{ opacity:0; pointer-events:none; }
         }
@@ -524,9 +520,9 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
           onClick={() => setSidebarOpen(v => !v)}
           aria-label="Menu"
         >
-          <span className="burger-line" />
-          <span className="burger-line" />
-          <span className="burger-line" />
+          <span className="burger-dot" />
+          <span className="burger-dot" />
+          <span className="burger-dot" />
         </button>
 
         {/* Backdrop */}
