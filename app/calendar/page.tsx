@@ -618,10 +618,7 @@ export default function CalendarPage() {
     if (!isStudent) return
     ;(async () => {
       try {
-        const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-        const res = await fetch(API + '/api/auth/me', { headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }, credentials: 'include' })
-        if (!res.ok) return
-        const data = await res.json()
+        const data = await apiFetch('/api/auth/me')
         const sched = data?.user?.schedule
         if (Array.isArray(sched) && sched.length === 7) {
           setStudentSchedule(sched)
