@@ -1148,10 +1148,18 @@ export default function CalendarPage() {
               {/* New booking */}
               {isStudent ? (
                 <button onClick={() => {
-                  // Find first free slot from now
+                  // Find first free 90min slot from now
                   const nowM = clamp(new Date().getHours() * 60 + Math.ceil(new Date().getMinutes() / 5) * 5)
-                  const mentorId = studentSlotMentorMap.get(nowM) || mentorBarberIds[0] || ''
-                  if (mentorId) openCreate(mentorId, nowM)
+                  let foundSlot = -1, foundMentor = ''
+                  for (let m = nowM; m < END_HOUR * 60 - 90; m += 5) {
+                    const mid = studentSlotMentorMap.get(m)
+                    if (!mid) continue
+                    let ok = true
+                    for (let c = m; c < m + 90; c += 5) { if (!studentSlotMentorMap.has(c)) { ok = false; break } }
+                    if (ok) { foundSlot = m; foundMentor = mid; break }
+                  }
+                  if (foundMentor && foundSlot >= 0) openCreate(foundMentor, foundSlot)
+                  else alert('No free 90min slot available today')
                 }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(168,107,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d4b8ff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(168,107,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ Model</button>
               ) : (
                 <button onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(10,132,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ New</button>
@@ -1225,9 +1233,17 @@ export default function CalendarPage() {
                       const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
                       // Student: find which mentor is free at this slot
                       if (isStudent) {
-                        const mentorId = studentSlotMentorMap.get(clamp(min))
+                        const slotMin = clamp(min)
+                        const mentorId = studentSlotMentorMap.get(slotMin)
                         if (!mentorId) return // slot is blocked — no free mentor
-                        openCreate(mentorId, clamp(min))
+                        // Check if model would conflict (90min block)
+                        const modelDur = 90
+                        let hasConflict = false
+                        for (let m = slotMin; m < slotMin + modelDur; m += 5) {
+                          if (!studentSlotMentorMap.has(m)) { hasConflict = true; break }
+                        }
+                        if (hasConflict) { alert('Not enough free time for 90min model appointment at this slot'); return }
+                        openCreate(mentorId, slotMin)
                         return
                       }
                       isOwnerOrAdmin ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
@@ -1236,7 +1252,7 @@ export default function CalendarPage() {
                     {isStudent && barber.id === '__student__' && studentBlockedRanges.map((range, ri) => {
                       const STRIPE = 'repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0px,rgba(255,255,255,.07) 3px,transparent 3px,transparent 9px)'
                       return (
-                        <div key={ri} style={{ position: 'absolute', left: 0, right: 0, top: minToY(range.startMin), height: minToY(range.endMin) - minToY(range.startMin), zIndex: 10, background: 'rgba(0,0,0,.72)', backgroundImage: STRIPE, cursor: 'not-allowed', pointerEvents: 'all' }} onClick={e => e.stopPropagation()} />
+                        <div key={ri} style={{ position: 'absolute', left: 0, right: 0, top: minToY(range.startMin), height: minToY(range.endMin) - minToY(range.startMin), zIndex: 2, background: 'rgba(0,0,0,.55)', backgroundImage: STRIPE, cursor: 'not-allowed', pointerEvents: 'none' }} />
                       )
                     })}
                     {/* Off-hours blocks — gray, like red block but for non-working time */}
