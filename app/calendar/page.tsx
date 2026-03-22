@@ -1365,8 +1365,9 @@ export default function CalendarPage() {
                               {ev._raw?.booking_type === 'model' && <Chip label="Model" type="model" />}
                               {ev._raw?.booking_type === 'training' && <Chip label="Training" type="model" />}
                               {(ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? (
-                                ev.status === 'completed' || ev.status === 'done' ? <Chip label="Done" type="paid" /> :
-                                <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); if (ev._raw?.id) { apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'PATCH',body:JSON.stringify({status:'completed'})}).then(()=>setEvents(prev=>prev.map(x=>x.id===ev.id?{...x,status:'completed'}:x))).catch(console.warn) } else { setEvents(prev=>prev.map(x=>x.id===ev.id?{...x,status:'completed'}:x)) } }} style={{ height: 20, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(143,240,177,.45)', background: 'rgba(143,240,177,.12)', color: '#c9ffe1', cursor: 'pointer', fontSize: 9, fontWeight: 900, fontFamily: 'inherit' }}>Done</button>
+                                ev.status === 'completed' || ev.status === 'done'
+                                  ? <Chip label="✓ Done" type="paid" />
+                                  : <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); if (ev._raw?.id) { apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'PATCH',body:JSON.stringify({status:'completed'})}).then(()=>setEvents(prev=>prev.map(x=>x.id===ev.id?{...x,status:'completed'}:x))).catch(console.warn) } else { setEvents(prev=>prev.map(x=>x.id===ev.id?{...x,status:'completed'}:x)) } }} style={{ height: 20, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.50)', cursor: 'pointer', fontSize: 9, fontWeight: 700, fontFamily: 'inherit' }}>Mark done</button>
                               ) : (
                                 ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />
                               )}
