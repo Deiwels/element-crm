@@ -123,7 +123,7 @@ function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: 
   function toggle(i: number) { const n = [...schedule]; n[i] = { ...n[i], enabled: !n[i].enabled }; onChange(n) }
   function setTime(i: number, field: 'startMin'|'endMin', val: string) { const n = [...schedule]; n[i] = { ...n[i], [field]: timeStrToMin(val) }; onChange(n) }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(62px, 1fr))', gap: 4, margin: '6px 0' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, margin: '6px auto' }}>
       {DAY_NAMES.map((name, i) => {
         const day = schedule[i]
         return (
