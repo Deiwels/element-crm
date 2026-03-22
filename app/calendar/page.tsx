@@ -584,6 +584,9 @@ export default function CalendarPage() {
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; barberId: string; min: number } | null>(null)
   const [trainingModal, setTrainingModal] = useState<{ barberId: string; barberName: string; min: number } | null>(null)
+  const [toast, setToast] = useState('')
+  const toastTimer = useRef<any>(null)
+  const showToast = useCallback((msg: string) => { setToast(msg); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 3500) }, [])
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
@@ -1046,6 +1049,7 @@ export default function CalendarPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         .cal-event:hover { filter: brightness(1.12); }
+        @keyframes slideUp { from { opacity:0; transform:translateX(-50%) translateY(12px) } to { opacity:1; transform:translateX(-50%) translateY(0) } }
         /* Desktop: hide mobile-only elements */
         .cal-search-icon{ display:none !important; }
         .cal-settings-icon{ display:none !important; }
@@ -1148,10 +1152,9 @@ export default function CalendarPage() {
               {/* New booking */}
               {isStudent ? (
                 <button onClick={() => {
-                  // Find first free 90min slot from now
-                  const nowM = clamp(new Date().getHours() * 60 + Math.ceil(new Date().getMinutes() / 5) * 5)
+                  // Find first free 90min slot — search all day
                   let foundSlot = -1, foundMentor = ''
-                  for (let m = nowM; m < END_HOUR * 60 - 90; m += 5) {
+                  for (let m = START_HOUR * 60; m <= END_HOUR * 60 - 90; m += 5) {
                     const mid = studentSlotMentorMap.get(m)
                     if (!mid) continue
                     let ok = true
@@ -1159,7 +1162,7 @@ export default function CalendarPage() {
                     if (ok) { foundSlot = m; foundMentor = mid; break }
                   }
                   if (foundMentor && foundSlot >= 0) openCreate(foundMentor, foundSlot)
-                  else alert('No free 90min slot available today')
+                  else showToast('No free 90min slot available today')
                 }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(168,107,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d4b8ff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(168,107,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ Model</button>
               ) : (
                 <button onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(10,132,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ New</button>
@@ -1242,7 +1245,7 @@ export default function CalendarPage() {
                         for (let m = slotMin; m < slotMin + modelDur; m += 5) {
                           if (!studentSlotMentorMap.has(m)) { hasConflict = true; break }
                         }
-                        if (hasConflict) { alert('Not enough free time for 90min model appointment at this slot'); return }
+                        if (hasConflict) { showToast('Not enough free time for 90min model at this slot'); return }
                         openCreate(mentorId, slotMin)
                         return
                       }
@@ -1271,7 +1274,7 @@ export default function CalendarPage() {
                       const TIME_PILL = { fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: 'rgba(0,0,0,.50)', border: '1px solid rgba(255,255,255,.18)', color: 'rgba(255,255,255,.55)', letterSpacing: '.04em', fontFamily: 'Inter,sans-serif' } as React.CSSProperties
 
                       if (dayOff) return (
-                        <div style={{ position: 'absolute', inset: 0, zIndex: 10, background: BG, backgroundImage: STRIPE, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'not-allowed' }}>
+                        <div style={{ position: 'absolute', inset: 0, zIndex: 2, background: BG, backgroundImage: STRIPE, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'not-allowed', pointerEvents: 'none' }}>
                           <span style={{ ...TIME_PILL, fontSize: 11 }}>Day off</span>
                         </div>
                       )
@@ -1280,7 +1283,7 @@ export default function CalendarPage() {
                         <>
                           {/* TOP — before work */}
                           {sy > 0 && (
-                            <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: sy, zIndex: 10, background: BG, backgroundImage: STRIPE, cursor: 'default', pointerEvents: 'none' }}>
+                            <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: sy, zIndex: 2, background: BG, backgroundImage: STRIPE, cursor: 'default', pointerEvents: 'none' }}>
                               {/* Border bottom = work start */}
                               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: BORDER_COLOR, pointerEvents: 'none' }} />
                               {/* Label */}
@@ -1303,7 +1306,7 @@ export default function CalendarPage() {
 
                           {/* BOTTOM — after work */}
                           {ey < totalPx && (
-                            <div style={{ position: 'absolute', left: 0, right: 0, top: ey, height: totalPx - ey, zIndex: 10, background: BG, backgroundImage: STRIPE, cursor: 'default', pointerEvents: 'none' }}>
+                            <div style={{ position: 'absolute', left: 0, right: 0, top: ey, height: totalPx - ey, zIndex: 2, background: BG, backgroundImage: STRIPE, cursor: 'default', pointerEvents: 'none' }}>
                               {/* Border top = work end */}
                               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: BORDER_COLOR, pointerEvents: 'none' }} />
                               {/* Handle zone — only top 28px is draggable */}
@@ -1634,6 +1637,14 @@ export default function CalendarPage() {
           onClose={() => { if (modal.isNew) setEvents(prev => prev.filter(e => e.id !== modal.eventId)); setModal({ open: false, eventId: null, isNew: false }) }}
           onSave={handleSave} onDelete={handleDelete} onPayment={handlePayment}
         />
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)', left: '50%', transform: 'translateX(-50%)', zIndex: 400, padding: '12px 24px', borderRadius: 16, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(30px)', WebkitBackdropFilter: 'saturate(180%) blur(30px)', boxShadow: '0 12px 40px rgba(0,0,0,.50)', color: '#e9e9e9', fontSize: 13, fontWeight: 600, fontFamily: 'Inter,sans-serif', maxWidth: '90vw', textAlign: 'center', animation: 'slideUp .2s ease' }}
+          onClick={() => setToast('')}>
+          {toast}
+        </div>
       )}
     </Shell>
   )

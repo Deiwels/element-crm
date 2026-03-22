@@ -828,6 +828,7 @@ export function BookingModal({
   const [shopSettings, setShopSettings] = useState<any>(null)
   useEffect(() => { getShopSettings().then(setShopSettings) }, [])
   const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
 
   const isNew = !existingEvent?._raw?.id
 
@@ -871,8 +872,9 @@ export function BookingModal({
   for (let m = 9 * 60; m <= 21 * 60 - 5; m += 5) slots.push(m)
 
   async function handleSave() {
-    if (!isStudent && !clientName.trim()) { alert('Enter client name'); return }
-    if (!isStudent && !serviceId) { alert('Choose service'); return }
+    setFormError('')
+    if (!isStudent && !clientName.trim()) { setFormError('Enter client name'); return }
+    if (!isStudent && !serviceId) { setFormError('Choose service'); return }
     setSaving(true)
     // Student: format name as "Training · StudentName · ModelName"
     let finalClientName = clientName.trim()
@@ -1064,6 +1066,11 @@ export function BookingModal({
             {/* Payment — owner/admin only, NOT for model/training */}
             {isOwnerOrAdmin && existingEvent && existingEvent._raw?.booking_type !== 'model' && existingEvent._raw?.booking_type !== 'training' && (
               <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} allEvents={allEvents} barberId={barberId} />
+            )}
+
+            {/* Form error */}
+            {formError && (
+              <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,207,63,.30)', background: 'rgba(255,207,63,.08)', fontSize: 12, color: '#ffe9a3', fontWeight: 600 }}>{formError}</div>
             )}
 
             {/* Footer */}
