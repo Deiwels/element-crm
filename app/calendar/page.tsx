@@ -699,13 +699,57 @@ export default function CalendarPage() {
   const mentorBarberIds: string[] = currentUser?.mentor_barber_ids || []
 
   // Barber sees only their own column
-  // Student sees only mentor barber columns
+  // Student sees ONE column with their name (availability computed from mentors)
   const myBarberObj = isBarber ? barbers.find(b => b.id === myBarberId) : null
+  const studentColumn: Barber | null = isStudent ? {
+    id: '__student__', name: currentUser?.name || currentUser?.username || 'My Schedule',
+    color: '#a86bff', schedule: undefined,
+  } : null
   const visibleBarbers = isStudent
-    ? barbers.filter(b => mentorBarberIds.includes(b.id))
+    ? (studentColumn ? [studentColumn] : [])
     : isBarber
       ? (myBarberObj ? [myBarberObj] : barbers)
       : barbers
+
+  // ── Student: compute blocked slots from mentor schedules + bookings ──
+  const mentorBarbers = isStudent ? barbers.filter(b => mentorBarberIds.includes(b.id)) : []
+
+  // For each 5-min slot: which mentor(s) are free?
+  const studentSlotMentorMap = React.useMemo(() => {
+    if (!isStudent || !mentorBarbers.length) return new Map<number, string>()
+    const map = new Map<number, string>()
+    const dow = anchor.getDay()
+    const mentorEvents = events.filter(e => e.date === todayStr && mentorBarberIds.includes(e.barberId) && e.status !== 'cancelled')
+
+    for (let m = 0; m < END_HOUR * 60; m += 5) {
+      for (const mb of mentorBarbers) {
+        // Check if mentor works this slot
+        const wh = (workHours as any)[mb.id]
+        if (!wh || wh.dayOff) continue
+        if (m < wh.startMin || m >= wh.endMin) continue
+        // Check if mentor has a booking at this slot
+        const busy = mentorEvents.some(e => e.barberId === mb.id && m >= e.startMin && m < e.startMin + e.durMin)
+        if (!busy) { map.set(m, mb.id); break } // first free mentor wins
+      }
+    }
+    return map
+  }, [isStudent, mentorBarbers.length, mentorBarberIds.join(','), events, todayStr, workHours, anchor.getTime()])
+
+  // Blocked ranges: consecutive slots where no mentor is free
+  const studentBlockedRanges = React.useMemo(() => {
+    if (!isStudent || !mentorBarbers.length) return [] as { startMin: number; endMin: number }[]
+    const ranges: { startMin: number; endMin: number }[] = []
+    let rangeStart = -1
+    for (let m = 0; m < END_HOUR * 60; m += 5) {
+      if (!studentSlotMentorMap.has(m)) {
+        if (rangeStart < 0) rangeStart = m
+      } else {
+        if (rangeStart >= 0) { ranges.push({ startMin: rangeStart, endMin: m }); rangeStart = -1 }
+      }
+    }
+    if (rangeStart >= 0) ranges.push({ startMin: rangeStart, endMin: END_HOUR * 60 })
+    return ranges
+  }, [isStudent, studentSlotMentorMap])
 
   const todayStr = isoDate(anchor)
   const selectedEvent = events.find(e => e.id === modal.eventId) || null
@@ -865,8 +909,10 @@ export default function CalendarPage() {
   const todayEvents = events.filter(e => {
     if (e.date !== todayStr) return false
     if (isBarber && myBarberId && e.type !== 'block' && e.barberId !== myBarberId) return false
-    // Student sees all events for mentor barbers (to see which slots are taken)
-    if (isStudent && mentorBarberIds.length && !mentorBarberIds.includes(e.barberId)) return false
+    // Student: only show their own model bookings (not regular client bookings)
+    if (isStudent) {
+      return e._raw?.booking_type === 'model'
+    }
     return true
   })
   const filtered = search ? todayEvents.filter(e => [e.clientName, e.barberName, e.serviceName].join(' ').toLowerCase().includes(search.toLowerCase())) : todayEvents
@@ -1120,21 +1166,35 @@ export default function CalendarPage() {
 
               {/* Columns */}
               {visibleBarbers.map((barber, bi) => {
-                const colEvents = filtered.filter(e => e.barberId === barber.id)
+                // Student: all model events go to the single student column
+                const colEvents = isStudent
+                  ? filtered.filter(e => e._raw?.booking_type === 'model')
+                  : filtered.filter(e => e.barberId === barber.id)
                 return (
                   <div key={barber.id} ref={el => { colRefs.current[bi] = el }}
                     style={{ position: 'relative', borderRight: bi < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'transparent', transition: 'background .15s', touchAction: drag ? 'none' : 'pan-y' }}
                     onClick={e => {
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       if (isBarber && barber.id !== myBarberId) return
-                      if (isStudent && !mentorBarberIds.includes(barber.id)) return
                       const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
-                      // Student: directly open create (no context menu, no blocks)
-                      if (isStudent) { openCreate(barber.id, clamp(min)); return }
+                      // Student: find which mentor is free at this slot
+                      if (isStudent) {
+                        const mentorId = studentSlotMentorMap.get(clamp(min))
+                        if (!mentorId) return // slot is blocked — no free mentor
+                        openCreate(mentorId, clamp(min))
+                        return
+                      }
                       isOwnerOrAdmin ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
                     }}>
+                    {/* Student: blocked slots overlay (where no mentor is free) */}
+                    {isStudent && barber.id === '__student__' && studentBlockedRanges.map((range, ri) => {
+                      const STRIPE = 'repeating-linear-gradient(45deg,rgba(255,255,255,.07) 0px,rgba(255,255,255,.07) 3px,transparent 3px,transparent 9px)'
+                      return (
+                        <div key={ri} style={{ position: 'absolute', left: 0, right: 0, top: minToY(range.startMin), height: minToY(range.endMin) - minToY(range.startMin), zIndex: 10, background: 'rgba(0,0,0,.72)', backgroundImage: STRIPE, cursor: 'not-allowed', pointerEvents: 'all' }} onClick={e => e.stopPropagation()} />
+                      )
+                    })}
                     {/* Off-hours blocks — gray, like red block but for non-working time */}
-                    {(() => {
+                    {!isStudent && (() => {
                       const wh = (workHours as any)[barber.id]
                       if (!wh) return null
                       const { startMin, endMin, dayOff } = wh as { startMin: number; endMin: number; dayOff: boolean }

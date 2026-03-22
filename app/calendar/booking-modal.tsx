@@ -850,7 +850,15 @@ export function BookingModal({
         setSelectedClient(null)
       }
     } else {
-      setClientName(''); setServiceId(''); setStatus('booked'); setNotes(''); setPhotoUrl('')
+      // Student: auto-fill name as "Model" and status as 'model'
+      if (isStudent) {
+        const studentName = (() => { try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}').name || 'Model' } catch { return 'Model' } })()
+        setClientName('Model — ' + studentName)
+        setStatus('model')
+      } else {
+        setClientName(''); setStatus('booked')
+      }
+      setServiceId(''); setNotes(''); setPhotoUrl('')
       setSelectedClient(null)
     }
   }, [isOpen, existingEvent?.id, barberId, startMin])
@@ -864,7 +872,7 @@ export function BookingModal({
   for (let m = 9 * 60; m <= 21 * 60 - 5; m += 5) slots.push(m)
 
   async function handleSave() {
-    if (!clientName.trim()) { alert('Enter client name'); return }
+    if (!isStudent && !clientName.trim()) { alert('Enter client name'); return }
     if (!serviceId) { alert('Choose service'); return }
     setSaving(true)
     onSave({
@@ -916,20 +924,34 @@ export function BookingModal({
 
           <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-            {/* Client search */}
-            <div>
-              <label style={lbl}>Client</label>
-              <ClientSearch
-                key={modalKey}
-                isOwnerOrAdmin={isOwnerOrAdmin}
-                initialClient={selectedClient}
-                initialName={!selectedClient ? clientName : undefined}
-                onSelect={(c, name) => {
-                  setSelectedClient(c)
-                  setClientName(c ? c.name : (name || ''))
-                }}
-              />
-            </div>
+            {/* Client search — hidden for student (model appointment = student is the client) */}
+            {isStudent ? (
+              <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(168,107,255,.30)', background: 'rgba(168,107,255,.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(168,107,255,.20)', border: '1px solid rgba(168,107,255,.30)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 900, fontSize: 14, color: '#d4b8ff' }}>Model appointment</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 2 }}>Free practice — {clientName}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label style={lbl}>Client</label>
+                <ClientSearch
+                  key={modalKey}
+                  isOwnerOrAdmin={isOwnerOrAdmin}
+                  initialClient={selectedClient}
+                  initialName={!selectedClient ? clientName : undefined}
+                  onSelect={(c, name) => {
+                    setSelectedClient(c)
+                    setClientName(c ? c.name : (name || ''))
+                  }}
+                />
+              </div>
+            )}
 
             {/* Booking fields */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -966,7 +988,7 @@ export function BookingModal({
                   {durMin}min → {minToHHMM(selStartMin + durMin)}
                 </div>
               </div>
-              {!isNew && (
+              {!isNew && !isStudent && (
                 <div>
                   <label style={lbl}>Status</label>
                   <select value={status} onChange={e => setStatus(e.target.value)} style={inp}>
