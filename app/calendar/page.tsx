@@ -364,7 +364,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
 
   const inp: React.CSSProperties = { width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 4 }
-  const tabs = (isBarber ? ['barbers','account'] : ['barbers','services','account']) as ('barbers'|'services'|'account')[]
+  const tabs = (isStudent ? ['account'] : ['barbers','services','account']) as ('barbers'|'services'|'account')[]
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -448,7 +448,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
           {tab === 'services' && (
             <div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
-                {services.map(s => {
+                {(isBarber ? services.filter(s => !s.barberIds.length || s.barberIds.includes(myBarberId || '')) : services).map(s => {
                   const assignedBarbers = barbers.filter(b => s.barberIds.includes(b.id))
                   const isEditing = editSvcId === s.id
                   return (
@@ -481,7 +481,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                           }} style={{ height: 32, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,.14)', background: isEditing ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
                             {isEditing ? 'Cancel' : 'Edit'}
                           </button>
-                          <button onClick={async () => { if (!confirm(`Delete ${s.name}?`)) return; try { await apiFetch(`/api/services/${encodeURIComponent(s.id)}`, { method: 'DELETE' }); setMsg('Deleted'); onReload() } catch (e: any) { setMsg('Error: ' + e.message) } }} style={{ height: 32, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>✕</button>
+                          {!isBarber && <button onClick={async () => { if (!confirm(`Delete ${s.name}?`)) return; try { await apiFetch(`/api/services/${encodeURIComponent(s.id)}`, { method: 'DELETE' }); setMsg('Deleted'); onReload() } catch (e: any) { setMsg('Error: ' + e.message) } }} style={{ height: 32, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>✕</button>}
                         </div>
                       </div>
                       {/* Edit form inline */}
@@ -492,8 +492,8 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                             <div><label style={lbl}>Duration (min)</label><input type="number" value={sDur} onChange={e => setSDur(e.target.value)} style={inp} /></div>
                             <div><label style={lbl}>Price ($)</label><input value={sPrice} onChange={e => setSPrice(e.target.value)} style={inp} /></div>
                           </div>
-                          {/* Barbers checkboxes */}
-                          <div style={{ marginTop: 10 }}>
+                          {/* Barbers checkboxes — owner/admin only */}
+                          {!isBarber && <div style={{ marginTop: 10 }}>
                             <label style={lbl}>Assigned barbers</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                               {barbers.map(b => {
@@ -506,17 +506,24 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                                 )
                               })}
                             </div>
-                          </div>
+                          </div>}
                           <button onClick={async () => {
                             setSaving(true)
                             try {
                               const price_cents = sPrice ? Math.round(parseFloat(sPrice) * 100) : 0
-                              await apiFetch(`/api/services/${encodeURIComponent(s.id)}`, { method: 'PATCH', body: JSON.stringify({ name: sName.trim(), duration_minutes: Number(sDur), price_cents, barber_ids: sBarbers }) })
-                              setMsg('Saved'); setEditSvcId(null); onReload()
+                              const changes = { name: sName.trim(), duration_minutes: Number(sDur), price_cents, barber_ids: sBarbers }
+                              if (isBarber) {
+                                // Barber sends service change as request
+                                await apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'service_change', data: { serviceId: s.id, serviceName: s.name, changes } }) })
+                                setMsg('Service change request sent for approval ✓'); setEditSvcId(null)
+                              } else {
+                                await apiFetch(`/api/services/${encodeURIComponent(s.id)}`, { method: 'PATCH', body: JSON.stringify(changes) })
+                                setMsg('Saved'); setEditSvcId(null); onReload()
+                              }
                             } catch (e: any) { setMsg('Error: ' + e.message) }
                             setSaving(false)
-                          }} disabled={saving} style={{ width: '100%', height: 38, borderRadius: 10, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.08)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', marginTop: 10 }}>
-                            {saving ? 'Saving…' : 'Save changes'}
+                          }} disabled={saving} style={{ width: '100%', height: 38, borderRadius: 10, border: `1px solid ${isBarber ? 'rgba(168,107,255,.40)' : 'rgba(255,255,255,.20)'}`, background: isBarber ? 'rgba(168,107,255,.10)' : 'rgba(255,255,255,.08)', color: isBarber ? '#d4b8ff' : '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', marginTop: 10 }}>
+                            {saving ? 'Saving…' : isBarber ? 'Send for approval' : 'Save changes'}
                           </button>
                         </div>
                       )}
@@ -524,7 +531,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                   )
                 })}
               </div>
-              <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 14 }}>
+              {!isBarber && <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 14 }}>
                 <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 10 }}>Add new service</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Service name</label><input value={editSvcId ? '' : sName} onChange={e => setSName(e.target.value)} placeholder="Fade" style={inp} /></div>
@@ -548,7 +555,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                 <button onClick={addService} disabled={saving || !!editSvcId} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: editSvcId ? 0.4 : 1 }}>
                   {saving ? 'Saving…' : '+ Add service'}
                 </button>
-              </div>
+              </div>}
             </div>
           )}
 
