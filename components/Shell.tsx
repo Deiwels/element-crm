@@ -127,17 +127,33 @@ function ProfileModal({ user, onClose, onUpdated }: {
     try {
       const token = localStorage.getItem('ELEMENT_TOKEN') || ''
       const h = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }
+      const isBarberRole = user.role === 'barber'
+      const photoChanged = photo !== (user.photo || '')
+
       if (user.barber_id) {
-        await fetch(`${API}/api/barbers/${encodeURIComponent(user.barber_id)}`, {
-          method: 'PATCH', headers: h, body: JSON.stringify({ name, photo_url: photo })
-        })
+        if (isBarberRole && photoChanged) {
+          // Barber photo change → send request for approval, save name only
+          await fetch(`${API}/api/barbers/${encodeURIComponent(user.barber_id)}`, {
+            method: 'PATCH', headers: h, body: JSON.stringify({ name })
+          })
+          await fetch(`${API}/api/requests`, {
+            method: 'POST', headers: h, body: JSON.stringify({ type: 'photo_change', data: { newPhotoUrl: photo, barberId: user.barber_id, barberName: name } })
+          })
+          setMsg('Name saved. Photo sent for approval ✓')
+        } else {
+          // Owner/admin — save directly
+          await fetch(`${API}/api/barbers/${encodeURIComponent(user.barber_id)}`, {
+            method: 'PATCH', headers: h, body: JSON.stringify({ name, photo_url: photo })
+          })
+          setMsg('Saved ✓')
+        }
       }
       await fetch(`${API}/api/users/${encodeURIComponent(user.uid)}`, {
         method: 'PATCH', headers: h, body: JSON.stringify({ name })
       })
-      const updated = { ...user, name, photo }
+      const updated = { ...user, name, photo: isBarberRole && photoChanged ? user.photo : photo }
       localStorage.setItem('ELEMENT_USER', JSON.stringify(updated))
-      onUpdated(updated); setMsg('Saved ✓')
+      onUpdated(updated)
     } catch (e: any) { setErr(e.message) }
     setSaving(false)
   }

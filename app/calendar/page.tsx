@@ -1041,6 +1041,15 @@ export default function CalendarPage() {
 
   // ── Create / Block ─────────────────────────────────────────────────────────
   function openCreateBlock(barberId: string, startMin: number) {
+    // Barber sends block as request for approval
+    if (isBarber && !isOwnerOrAdmin && barberId === myBarberId) {
+      const startAt = new Date(todayStr + 'T' + minToHHMM(clamp(startMin)) + ':00')
+      apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
+        type: 'block_time',
+        data: { barberId, barberName: barbers.find(b => b.id === barberId)?.name || '', date: todayStr, startMin: clamp(startMin), startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + 30*60000).toISOString() }
+      })}).then(() => showToast('Block request sent for approval')).catch(e => showToast('Error: ' + e.message))
+      return
+    }
     const id = 'block_' + Date.now()
     const barber = barbers.find(b => b.id === barberId)
     setEvents(prev => [...prev, { id, type: 'block', barberId, barberName: barber?.name || '', clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Blocked', date: todayStr, startMin: clamp(startMin), durMin: 30, status: 'block', paid: false, notes: '', _raw: null }])
@@ -1299,7 +1308,7 @@ export default function CalendarPage() {
                         openCreate(mentorId, slotMin)
                         return
                       }
-                      isOwnerOrAdmin ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
+                      (isOwnerOrAdmin || (isBarber && barber.id === myBarberId)) ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
                     }}>
                     {/* Student: blocked slots overlay (where no mentor is free) */}
                     {isStudent && barber.id === '__student__' && studentBlockedRanges.map((range, ri) => {
@@ -1342,8 +1351,8 @@ export default function CalendarPage() {
                                   <span style={TIME_PILL}>{minToHHMM(startMin)}</span>
                                 </div>
                               )}
-                              {/* Handle zone — only bottom 28px is draggable */}
-                              {isOwnerOrAdmin && (
+                              {/* Handle zone — owner/admin/barber(own column) can drag */}
+                              {(isOwnerOrAdmin || (isBarber && barber.id === myBarberId)) && (
                                 <div
                                   style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 28, cursor: 'ns-resize', pointerEvents: 'all', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11 }}
                                   onMouseDown={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'top', startY: e.clientY, origMin: startMin } }}
@@ -1610,6 +1619,17 @@ export default function CalendarPage() {
         async function confirm() {
           setScheduleConfirm(null)
           try {
+            // Barber sends request instead of direct save
+            if (isBarber && !isOwnerOrAdmin) {
+              await apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
+                type: 'schedule_change',
+                data: { barberName, barberId, dayName, dow, startTime: fmt(startMin), endTime: fmt(endMin), startMin, endMin }
+              })})
+              showToast('Schedule change request sent for approval')
+              // Revert visual — barber can't apply directly
+              loadBarbers().then(list => setBarbers(list))
+              return
+            }
             const barber = barbers.find(b => b.id === barberId)
             const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
 
@@ -1647,16 +1667,16 @@ export default function CalendarPage() {
         return (
           <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', backdropFilter:'blur(18px)', WebkitBackdropFilter:'blur(18px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
             <div style={{ width:'min(360px,92vw)', borderRadius:22, border:'1px solid rgba(255,255,255,.10)', background:'rgba(0,0,0,.65)', backdropFilter:'saturate(180%) blur(40px)', WebkitBackdropFilter:'saturate(180%) blur(40px)', boxShadow:'0 32px 80px rgba(0,0,0,.55)', padding:22, color:'#e9e9e9', fontFamily:'Inter,sans-serif' }}>
-              <div style={{ fontFamily:'"Julius Sans One",sans-serif', letterSpacing:'.16em', textTransform:'uppercase', fontSize:13, marginBottom:14 }}>Update schedule</div>
+              <div style={{ fontFamily:'"Julius Sans One",sans-serif', letterSpacing:'.16em', textTransform:'uppercase', fontSize:13, marginBottom:14 }}>{isBarber && !isOwnerOrAdmin ? 'Request schedule change' : 'Update schedule'}</div>
               <div style={{ fontSize:13, color:'rgba(255,255,255,.70)', lineHeight:1.6, marginBottom:18 }}>
-                Change <span style={{ color:'#fff', fontWeight:700 }}>{barberName}</span>'s schedule for every <span style={{ color:'#fff', fontWeight:700 }}>{dayName}</span> to:
+                {isBarber && !isOwnerOrAdmin ? 'Request to change' : 'Change'} <span style={{ color:'#fff', fontWeight:700 }}>{barberName}</span>'s schedule for every <span style={{ color:'#fff', fontWeight:700 }}>{dayName}</span> to:
                 <div style={{ marginTop:10, fontSize:22, fontWeight:800, color:'#fff', letterSpacing:'.04em' }}>
                   {fmt(startMin)} — {fmt(endMin)}
                 </div>
               </div>
               <div style={{ display:'flex', gap:10 }}>
                 <button onClick={cancel} style={{ flex:1, height:42, borderRadius:12, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.70)', cursor:'pointer', fontSize:13, fontWeight:700, fontFamily:'inherit' }}>Cancel</button>
-                <button onClick={confirm} style={{ flex:1, height:42, borderRadius:12, border:'1px solid rgba(255,255,255,.22)', background:'rgba(255,255,255,.12)', color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700, fontFamily:'inherit' }}>Save</button>
+                <button onClick={confirm} style={{ flex:1, height:42, borderRadius:12, border:'1px solid rgba(255,255,255,.22)', background:'rgba(255,255,255,.12)', color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700, fontFamily:'inherit' }}>{isBarber && !isOwnerOrAdmin ? 'Send request' : 'Save'}</button>
               </div>
             </div>
           </div>

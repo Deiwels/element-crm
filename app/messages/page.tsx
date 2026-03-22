@@ -25,6 +25,7 @@ interface Message {
   senderId: string
   senderName: string
   senderRole: string
+  senderPhoto?: string
   text: string
   createdAt: string
 }
@@ -94,9 +95,13 @@ function MessageBubble({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
   return (
     <div style={{ display: 'flex', flexDirection: isOwn ? 'row-reverse' : 'row', gap: 10, alignItems: 'flex-end', marginBottom: 4, padding: '0 16px' }}>
       {/* Avatar */}
-      <div style={{ width: 32, height: 32, borderRadius: 10, background: isOwn ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.08)', border: `1px solid ${isOwn ? 'rgba(10,132,255,.30)' : 'rgba(255,255,255,.10)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: isOwn ? '#d7ecff' : roleColor, flexShrink: 0 }}>
-        {initials(msg.senderName)}
-      </div>
+      {msg.senderPhoto ? (
+        <img src={msg.senderPhoto} alt="" style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover', border: `1px solid ${isOwn ? 'rgba(10,132,255,.30)' : 'rgba(255,255,255,.10)'}`, flexShrink: 0 }} />
+      ) : (
+        <div style={{ width: 32, height: 32, borderRadius: 10, background: isOwn ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.08)', border: `1px solid ${isOwn ? 'rgba(10,132,255,.30)' : 'rgba(255,255,255,.10)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: isOwn ? '#d7ecff' : roleColor, flexShrink: 0 }}>
+          {initials(msg.senderName)}
+        </div>
+      )}
       {/* Bubble */}
       <div style={{ maxWidth: '70%', padding: '10px 14px', borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px', background: isOwn ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.06)', border: `1px solid ${isOwn ? 'rgba(10,132,255,.25)' : 'rgba(255,255,255,.08)'}` }}>
         {!isOwn && (
@@ -351,7 +356,8 @@ export default function MessagesPage() {
     if (!input.trim() || sending) return
     setSending(true)
     try {
-      await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: activeTab, text: input.trim() }) })
+      const userPhoto = user?.photo || ''
+      await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: activeTab, text: input.trim(), senderPhoto: userPhoto }) })
       setInput('')
       wasAtBottom.current = true
       await loadMessages()
