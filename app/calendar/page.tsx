@@ -144,9 +144,10 @@ function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: 
 }
 
 // ─── BarberEditCard ───────────────────────────────────────────────────────────
-function BarberEditCard({ b, onDelete, onSaved, onError }: {
-  b: Barber; onDelete: (id: string, name: string) => void
+function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
+  b: Barber; onDelete?: (id: string, name: string) => void
   onSaved: () => void; onError: (e: string) => void
+  isBarberSelf?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -201,19 +202,25 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
   async function save() {
     setSaving(true)
     try {
-      // days[] uses JS getDay() numbering: 0=Sun,1=Mon..6=Sat (same as DAY_NAMES index)
       const enabledDays = sched.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
       const enabledScheds = sched.filter(d => d.enabled)
       const startMin = enabledScheds.length ? Math.min(...enabledScheds.map(d => d.startMin)) : 10*60
       const endMin   = enabledScheds.length ? Math.max(...enabledScheds.map(d => d.endMin))   : 20*60
-      // Send flat schedule — server normalizeSchedule() stores {startMin, endMin, days}
       const schedPayload = { startMin, endMin, days: enabledDays }
       const rLabels = radarLabels.split(',').map(s => s.trim()).filter(Boolean)
       const rValues = radarValues.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
-      await apiFetch(`/api/barbers/${encodeURIComponent(b.id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ level, base_price: price, public_role: publicRole || level, about, description: about, bio: about, radar_labels: rLabels, radar_values: rValues, photo_url: photoPreview || b.photo || '', schedule: schedPayload, work_schedule: schedPayload, public_off_days: DAY_NAMES.filter((_,i) => !sched[i].enabled), public_enabled: true })
-      })
+      const changes = { level, base_price: price, public_role: publicRole || level, about, description: about, bio: about, radar_labels: rLabels, radar_values: rValues, photo_url: photoPreview || b.photo || '', schedule: schedPayload, work_schedule: schedPayload, public_off_days: DAY_NAMES.filter((_,i) => !sched[i].enabled), public_enabled: true }
+
+      if (isBarberSelf) {
+        // Barber sends profile changes as request for approval
+        await apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
+          type: 'profile_change',
+          data: { barberId: b.id, barberName: b.name, changes }
+        })})
+      } else {
+        // Owner/admin saves directly
+        await apiFetch(`/api/barbers/${encodeURIComponent(b.id)}`, { method: 'PATCH', body: JSON.stringify(changes) })
+      }
       setPhotoFile(null); setPhotoPreview(''); onSaved()
     } catch (e: any) { onError(e.message) }
     setSaving(false)
@@ -238,7 +245,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <button onClick={() => setOpen(v => !v)} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: `1px solid ${open ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.14)'}`, background: open ? 'rgba(10,132,255,.12)' : 'rgba(255,255,255,.05)', color: open ? '#d7ecff' : '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>{open ? 'Collapse' : 'Edit'}</button>
-          <button onClick={() => onDelete(b.id, b.name)} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>Remove</button>
+          {!isBarberSelf && onDelete && <button onClick={() => onDelete(b.id, b.name)} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>Remove</button>}
         </div>
       </div>
 
@@ -273,7 +280,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
             <SchedGrid schedule={sched} onChange={setSched} />
           </div>
           <button onClick={save} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', marginTop: 12 }}>
-            {saving ? 'Saving…' : 'Save changes — update on website'}
+            {saving ? 'Saving…' : isBarberSelf ? 'Send for approval' : 'Save changes — update on website'}
           </button>
         </div>
       )}
@@ -282,11 +289,13 @@ function BarberEditCard({ b, onDelete, onSaved, onError }: {
 }
 
 // ─── SettingsModal ────────────────────────────────────────────────────────────
-function SettingsModal({ barbers, services, onClose, onReload, isStudent, studentSchedule, onStudentScheduleChange }: {
+function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarber, myBarberId, studentSchedule, onStudentScheduleChange }: {
   barbers: Barber[]; services: any[]; onClose: () => void; onReload: () => void
-  isStudent?: boolean; studentSchedule?: DaySchedule[]; onStudentScheduleChange?: (s: DaySchedule[]) => void
+  isStudent?: boolean; isBarber?: boolean; myBarberId?: string
+  studentSchedule?: DaySchedule[]; onStudentScheduleChange?: (s: DaySchedule[]) => void
 }) {
-  const [tab, setTab] = useState<'barbers'|'services'|'account'>(isStudent ? 'account' : 'barbers')
+  const _isOwnerOrAdmin = !isStudent && !isBarber
+  const [tab, setTab] = useState<'barbers'|'services'|'account'>(isStudent ? 'account' : (isBarber ? 'barbers' : 'barbers'))
   const [msg, setMsg] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -355,7 +364,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, studen
 
   const inp: React.CSSProperties = { width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 4 }
-  const tabs = ['barbers','services','account'] as const
+  const tabs = (isBarber ? ['barbers','account'] : ['barbers','services','account']) as ('barbers'|'services'|'account')[]
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -378,15 +387,15 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, studen
           {tab === 'barbers' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)' }}>Current barbers ({barbers.length})</div>
-                {barbers.map(b => (
-                  <BarberEditCard key={b.id} b={b} onDelete={deleteBarber}
-                    onSaved={() => { setMsg('Saved ✓ — updated on website'); onReload() }}
+                <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)' }}>{isBarber ? 'My profile' : `Current barbers (${barbers.length})`}</div>
+                {(isBarber ? barbers.filter(b => b.id === myBarberId) : barbers).map(b => (
+                  <BarberEditCard key={b.id} b={b} onDelete={isBarber ? undefined as any : deleteBarber} isBarberSelf={isBarber}
+                    onSaved={() => { setMsg(isBarber ? 'Changes sent for approval ✓' : 'Saved ✓ — updated on website'); onReload() }}
                     onError={(e: string) => setMsg('Error: ' + e)} />
                 ))}
               </div>
 
-              <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 16 }}>
+              {!isBarber && <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 16 }}>
                 <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 12 }}>Add new barber</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {[['Name *', bName, setBName, 'Nazar'], ['Level', bLevel, setBLevel, 'Senior'], ['Login', bUsername, setBUsername, 'nazar'], ['Password *', bPassword, setBPassword, '1234'], ['Base price', bPrice, setBPrice, '55.99'], ['Public role', bPublicRole, setBPublicRole, 'Ambassador']].map(([l, v, s, p]) => (
@@ -431,7 +440,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, studen
                 <button onClick={addBarber} disabled={saving} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', marginTop: 12 }}>
                   {saving ? 'Saving…' : '+ Add barber'}
                 </button>
-              </div>
+              </div>}
             </div>
           )}
 
@@ -1198,7 +1207,7 @@ export default function CalendarPage() {
               {isOwnerOrAdmin && <button className="cal-settings-btn" onClick={() => setSettingsOpen(true)} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>Settings</button>}
 
               {/* Settings icon — mobile */}
-              {(isOwnerOrAdmin || isStudent) && <button onClick={() => setSettingsOpen(true)} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} className="cal-settings-icon">
+              {(isOwnerOrAdmin || isStudent || isBarber) && <button onClick={() => setSettingsOpen(true)} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} className="cal-settings-icon">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               </button>}
 
@@ -1687,7 +1696,8 @@ export default function CalendarPage() {
 
       {/* Settings */}
       {settingsOpen && <SettingsModal barbers={barbers} services={services} onClose={() => setSettingsOpen(false)} onReload={reloadAll}
-        isStudent={isStudent} studentSchedule={studentSchedule} onStudentScheduleChange={(s: DaySchedule[]) => {
+        isStudent={isStudent} isBarber={isBarber} myBarberId={myBarberId}
+        studentSchedule={studentSchedule} onStudentScheduleChange={(s: DaySchedule[]) => {
           setStudentSchedule(s); localStorage.setItem('ELEMENT_STUDENT_SCHEDULE', JSON.stringify(s))
           // Save to user profile
           const uid = currentUser?.uid; if (uid) apiFetch(`/api/users/${encodeURIComponent(uid)}`, { method: 'PATCH', body: JSON.stringify({ schedule: s }) }).catch(() => {})
