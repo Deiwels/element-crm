@@ -27,6 +27,7 @@ interface Message {
   senderRole: string
   senderPhoto?: string
   text: string
+  imageUrl?: string
   createdAt: string
 }
 
@@ -90,7 +91,7 @@ const ROLE_COLORS: Record<string, string> = {
 }
 
 // ─── MessageBubble ───────────────────────────────────────────────────────────
-function MessageBubble({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
+function MessageBubble({ msg, isOwn, onImageClick }: { msg: Message; isOwn: boolean; onImageClick?: (url: string) => void }) {
   const roleColor = ROLE_COLORS[msg.senderRole] || '#e9e9e9'
   return (
     <div style={{ display: 'flex', flexDirection: isOwn ? 'row-reverse' : 'row', gap: 10, alignItems: 'flex-end', marginBottom: 4, padding: '0 16px' }}>
@@ -109,7 +110,12 @@ function MessageBubble({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
             {msg.senderName} <span style={{ color: 'rgba(255,255,255,.25)', fontWeight: 400 }}>· {msg.senderRole}</span>
           </div>
         )}
-        <div style={{ fontSize: 13, lineHeight: 1.5, color: '#e9e9e9', wordBreak: 'break-word' }}>{msg.text}</div>
+        {msg.text && <div style={{ fontSize: 13, lineHeight: 1.5, color: '#e9e9e9', wordBreak: 'break-word' }}>{msg.text}</div>}
+        {msg.imageUrl && (
+          <img src={msg.imageUrl} alt="" onClick={() => onImageClick?.(msg.imageUrl!)}
+            style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 10, marginTop: msg.text ? 6 : 0, cursor: 'pointer', objectFit: 'cover', border: '1px solid rgba(255,255,255,.10)' }}
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+        )}
         <div style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginTop: 4, textAlign: isOwn ? 'right' : 'left' }}>{timeAgo(msg.createdAt)}</div>
       </div>
     </div>
@@ -266,6 +272,8 @@ export default function MessagesPage() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [showNewRequest, setShowNewRequest] = useState(false)
+  const [lightboxUrl, setLightboxUrl] = useState('')
+  const [imagePreview, setImagePreview] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
   const wasAtBottom = useRef(true)
 
@@ -353,16 +361,35 @@ export default function MessagesPage() {
   }
 
   async function sendMessage() {
-    if (!input.trim() || sending) return
+    if ((!input.trim() && !imagePreview) || sending) return
     setSending(true)
     try {
       const userPhoto = user?.photo || ''
-      await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: activeTab, text: input.trim(), senderPhoto: userPhoto }) })
-      setInput('')
+      await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: activeTab, text: input.trim(), senderPhoto: userPhoto, imageUrl: imagePreview || undefined }) })
+      setInput(''); setImagePreview('')
       wasAtBottom.current = true
       await loadMessages()
     } catch (e: any) { console.warn(e.message) }
     setSending(false)
+  }
+
+  function handleImageAttach(file: File | null) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 800, scale = Math.min(1, MAX / img.width, MAX / img.height)
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale)
+        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+        let q = 0.75, out = canvas.toDataURL('image/jpeg', q)
+        while (out.length > 500000 && q > 0.3) { q -= 0.1; out = canvas.toDataURL('image/jpeg', q) }
+        setImagePreview(out)
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
   }
 
   async function reviewRequest(id: string, status: 'approved' | 'rejected') {
@@ -413,12 +440,25 @@ export default function MessagesPage() {
                 </div>
               )}
               {messages.map(msg => (
-                <MessageBubble key={msg.id} msg={msg} isOwn={msg.senderId === uid} />
+                <MessageBubble key={msg.id} msg={msg} isOwn={msg.senderId === uid} onImageClick={url => setLightboxUrl(url)} />
               ))}
             </div>
 
+            {/* Image preview */}
+            {imagePreview && (
+              <div style={{ padding: '8px 16px 0', flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <img src={imagePreview} alt="" style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)' }} />
+                <button onClick={() => setImagePreview('')} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              </div>
+            )}
+
             {/* Input */}
             <div style={{ padding: '8px 16px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', borderTop: '1px solid rgba(255,255,255,.07)', flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* Attach image */}
+              <label style={{ width: 42, height: 42, borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { handleImageAttach(e.target.files?.[0] || null); e.target.value = '' }} />
+              </label>
               <input
                 className="msg-input"
                 value={input}
@@ -427,8 +467,8 @@ export default function MessagesPage() {
                 placeholder="Type a message…"
                 style={{ flex: 1, height: 42, borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 16px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }}
               />
-              <button onClick={sendMessage} disabled={sending || !input.trim()}
-                style={{ width: 42, height: 42, borderRadius: 999, border: '1px solid rgba(10,132,255,.55)', background: input.trim() ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.04)', color: input.trim() ? '#d7ecff' : 'rgba(255,255,255,.25)', cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
+              <button onClick={sendMessage} disabled={sending || (!input.trim() && !imagePreview)}
+                style={{ width: 42, height: 42, borderRadius: 999, border: '1px solid rgba(10,132,255,.55)', background: (input.trim() || imagePreview) ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.04)', color: (input.trim() || imagePreview) ? '#d7ecff' : 'rgba(255,255,255,.25)', cursor: (input.trim() || imagePreview) ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
             </div>
@@ -457,6 +497,16 @@ export default function MessagesPage() {
           </div>
         )}
       </div>
+
+      {/* Image lightbox */}
+      {lightboxUrl && (
+        <div onClick={() => setLightboxUrl('')}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, cursor: 'zoom-out', padding: 16 }}>
+          <img src={lightboxUrl} alt="" style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 16, objectFit: 'contain', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }} />
+          <button onClick={() => setLightboxUrl('')}
+            style={{ position: 'absolute', top: 20, right: 20, width: 40, height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(0,0,0,.50)', color: '#fff', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        </div>
+      )}
 
       {/* New request modal */}
       {showNewRequest && <NewRequestModal onClose={() => setShowNewRequest(false)} onCreated={() => { setShowNewRequest(false); loadRequests() }} />}
