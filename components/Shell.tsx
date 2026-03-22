@@ -447,7 +447,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         /* Burger */
         .burger-btn{
           display:none;
-          position:fixed;top:12px;left:10px;z-index:80;
+          position:fixed;top:8px;left:10px;z-index:80;
           width:36px;height:36px;border-radius:999px;
           border:1px solid rgba(255,255,255,.12);
           background:rgba(255,255,255,.05);
