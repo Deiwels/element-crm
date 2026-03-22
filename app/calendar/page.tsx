@@ -677,7 +677,7 @@ export default function CalendarPage() {
     }
   }, [workHours])
 
-  const [currentUser, setCurrentUser] = useState<{ role: string; barber_id?: string; mentor_barber_ids?: string[]; uid?: string } | null>(() => {
+  const [currentUser, setCurrentUser] = useState<{ role: string; barber_id?: string; mentor_barber_ids?: string[]; uid?: string; name?: string; username?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null }
   })
   // Re-read user from localStorage when Shell updates it (barber_id might arrive late)
