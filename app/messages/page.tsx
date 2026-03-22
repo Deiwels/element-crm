@@ -436,13 +436,12 @@ export default function MessagesPage() {
         ) : (
           /* Requests tab */
           <div className="msg-list" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-            {/* New request button for barbers */}
+            {/* Info for barbers */}
             {(role === 'barber') && (
-              <button onClick={() => setShowNewRequest(true)}
-                style={{ width: '100%', height: 44, borderRadius: 14, border: '1px solid rgba(10,132,255,.40)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', cursor: 'pointer', fontWeight: 800, fontSize: 13, fontFamily: 'inherit', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                New request
-              </button>
+              <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', marginBottom: 12, fontSize: 12, color: 'rgba(255,255,255,.40)', lineHeight: 1.5 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.30)" strokeWidth="2" strokeLinecap="round" style={{ verticalAlign: 'middle', marginRight: 6 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                Requests are created automatically when you change your schedule, photo, or profile in Calendar Settings.
+              </div>
             )}
 
             {loading && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
