@@ -566,6 +566,7 @@ export default function CalendarPage() {
   const [barbers, setBarbers] = useState<Barber[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [events, setEvents] = useState<CalEvent[]>([])
+  const [studentUsers, setStudentUsers] = useState<{ id: string; name: string; mentorIds: string[] }[]>([])
   const [search, setSearch] = useState('')
   const [isMobile, setIsMobile] = useState(false) // mobile detection
   useEffect(() => {
@@ -882,19 +883,33 @@ export default function CalendarPage() {
     })
   }, [todayStr])
 
+  // Load student users (for showing badges on barber headers)
+  const loadStudents = useCallback(async () => {
+    if (!isOwnerOrAdmin) return
+    try {
+      const data = await apiFetch('/api/users')
+      const users = Array.isArray(data?.users) ? data.users : []
+      setStudentUsers(users.filter((u: any) => u.role === 'student' && u.active !== false).map((u: any) => ({
+        id: u.id, name: u.name || u.username || '', mentorIds: Array.isArray(u.mentor_barber_ids) ? u.mentor_barber_ids : []
+      })))
+    } catch { /* ignore */ }
+  }, [isOwnerOrAdmin])
+
   const reloadAll = useCallback(async () => {
     try {
       const [b, s] = await Promise.all([loadBarbers(), loadServices()])
       setBarbers(b); setServices(s)
       setEvents(await loadBookings(b, s))
+      loadStudents()
     } catch(e) { console.warn(e) }
-  }, [loadBarbers, loadServices, loadBookings])
+  }, [loadBarbers, loadServices, loadBookings, loadStudents])
 
   useEffect(() => {
     setLoading(true)
     Promise.all([loadBarbers(), loadServices()]).then(async ([b, s]) => {
       setBarbers(b); setServices(s)
       setEvents(await loadBookings(b, s)); setLoading(false)
+      loadStudents()
     }).catch(e => { console.warn(e); setLoading(false) })
   }, [todayStr])
 
@@ -910,10 +925,8 @@ export default function CalendarPage() {
   const todayEvents = events.filter(e => {
     if (e.date !== todayStr) return false
     if (isBarber && myBarberId && e.type !== 'block' && e.barberId !== myBarberId) return false
-    // Student: only show their own model bookings (not regular client bookings)
-    if (isStudent) {
-      return e._raw?.booking_type === 'model'
-    }
+    // Student: show only their own model bookings
+    if (isStudent) return e._raw?.booking_type === 'model'
     return true
   })
   const filtered = search ? todayEvents.filter(e => [e.clientName, e.barberName, e.serviceName].join(' ').toLowerCase().includes(search.toLowerCase())) : todayEvents
@@ -1129,7 +1142,16 @@ export default function CalendarPage() {
               </button>}
 
               {/* New booking */}
-              <button onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(10,132,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ New</button>
+              {isStudent ? (
+                <button onClick={() => {
+                  // Find first free slot from now
+                  const nowM = clamp(new Date().getHours() * 60 + Math.ceil(new Date().getMinutes() / 5) * 5)
+                  const mentorId = studentSlotMentorMap.get(nowM) || mentorBarberIds[0] || ''
+                  if (mentorId) openCreate(mentorId, nowM)
+                }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(168,107,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d4b8ff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(168,107,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ Model</button>
+              ) : (
+                <button onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(10,132,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ New</button>
+              )}
 
               {/* Reload — desktop only */}
               {!isMobile && <button onClick={reload} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>↻</button>}
@@ -1143,12 +1165,31 @@ export default function CalendarPage() {
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: `${isMobile ? 46 : 90}px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
               <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,.10)', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', textAlign: 'center' }}>Time</div>
-              {visibleBarbers.map((b, i) => (
-                <div key={b.id} style={{ padding: '10px 12px', borderRight: i < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {b.photo ? <img src={b.photo} alt={b.name} style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} /> : <div style={{ width: 10, height: 10, borderRadius: 999, background: b.color, flexShrink: 0 }} />}
-                  <div><div style={{ fontWeight: 900, fontSize: 13 }}>{b.name}</div>{b.level && <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgba(255,255,255,.35)' }}>{b.level}</div>}</div>
-                </div>
-              ))}
+              {visibleBarbers.map((b, i) => {
+                const attachedStudents = studentUsers.filter(s => s.mentorIds.includes(b.id))
+                return (
+                  <div key={b.id} style={{ padding: '10px 12px', borderRight: i < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {b.id === '__student__' ? (
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(168,107,255,.20)', border: '1px solid rgba(168,107,255,.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>
+                      </div>
+                    ) : b.photo ? <img src={b.photo} alt={b.name} style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} /> : <div style={{ width: 10, height: 10, borderRadius: 999, background: b.color, flexShrink: 0 }} />}
+                    <div>
+                      <div style={{ fontWeight: 900, fontSize: 13 }}>{b.name}</div>
+                      {b.level && <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgba(255,255,255,.35)' }}>{b.level}</div>}
+                      {attachedStudents.length > 0 && (
+                        <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+                          {attachedStudents.map(s => (
+                            <span key={s.id} style={{ fontSize: 9, padding: '1px 7px', borderRadius: 999, border: '1px solid rgba(168,107,255,.35)', background: 'rgba(168,107,255,.10)', color: '#d4b8ff', letterSpacing: '.04em' }}>
+                              🎓 {s.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
             {/* Body */}

@@ -873,7 +873,7 @@ export function BookingModal({
 
   async function handleSave() {
     if (!isStudent && !clientName.trim()) { alert('Enter client name'); return }
-    if (!serviceId) { alert('Choose service'); return }
+    if (!isStudent && !serviceId) { alert('Choose service'); return }
     setSaving(true)
     onSave({
       clientName: clientName.trim(),
@@ -953,55 +953,86 @@ export function BookingModal({
               </div>
             )}
 
-            {/* Booking fields */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div>
-                <label style={lbl}>Barber</label>
-                <select value={selBarberId} onChange={e => setSelBarberId(e.target.value)}
-                  disabled={!isOwnerOrAdmin && !isStudent}
-                  style={{ ...inp, opacity: (isOwnerOrAdmin || isStudent) ? 1 : 0.6, cursor: (isOwnerOrAdmin || isStudent) ? 'auto' : 'not-allowed' }}>
-                  {(isStudent ? barbers.filter(b => mentorBarberIds?.includes(b.id)) : barbers).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lbl}>Service</label>
-                <select value={serviceId} onChange={e => setServiceId(e.target.value)} style={inp}>
-                  <option value="">Choose service…</option>
-                  {barberServices.map(s => {
-                    const bp = s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0
-                    const calc = calcTotal(bp, shopSettings)
-                    // Student: no prices shown
-                    const label = isStudent ? '' : (bp > 0 ? (calc.total !== bp ? ` — $${calc.total.toFixed(2)} (base $${bp.toFixed(2)})` : ` — $${bp.toFixed(2)}`) : '')
-                    return <option key={s.id} value={s.id}>{s.name}{label}</option>
-                  })}
-                </select>
-              </div>
-              <div>
-                <label style={lbl}>Time</label>
-                <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} style={inp}>
-                  {slots.map(m => <option key={m} value={m}>{minToHHMM(m)}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lbl}>Duration → end time</label>
-                <div style={{ height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', padding: '0 12px', display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,.60)' }}>
-                  {durMin}min → {minToHHMM(selStartMin + durMin)}
+            {/* Booking fields — simplified for student */}
+            {isStudent ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* Mentor assignment — auto, shown as info */}
+                <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
+                  <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 4 }}>Assigned to</div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{barbers.find(b => b.id === selBarberId)?.name || 'Auto-assigned mentor'}</div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={lbl}>Time</label>
+                    <div style={{ ...inp, display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,.70)' }}>{minToHHMM(selStartMin)}</div>
+                  </div>
+                  <div>
+                    <label style={lbl}>Duration</label>
+                    <div style={{ ...inp, display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,.60)' }}>{durMin}min → {minToHHMM(selStartMin + durMin)}</div>
+                  </div>
+                </div>
+                <div>
+                  <label style={lbl}>Model name</label>
+                  <input value={clientName.replace(/^Model — [^:]*: ?/, '')} onChange={e => {
+                    const studentName = (() => { try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}').name || '' } catch { return '' } })()
+                    setClientName(e.target.value ? `Model — ${studentName}: ${e.target.value}` : `Model — ${studentName}`)
+                  }} placeholder="Model's name (optional)" style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Notes</label>
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="What to practice…" rows={2}
+                    style={{ ...inp, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
                 </div>
               </div>
-              {!isNew && !isStudent && (
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
-                  <label style={lbl}>Status</label>
-                  <select value={status} onChange={e => setStatus(e.target.value)} style={inp}>
-                    {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                  <label style={lbl}>Barber</label>
+                  <select value={selBarberId} onChange={e => setSelBarberId(e.target.value)}
+                    disabled={!isOwnerOrAdmin}
+                    style={{ ...inp, opacity: isOwnerOrAdmin ? 1 : 0.6, cursor: isOwnerOrAdmin ? 'auto' : 'not-allowed' }}>
+                    {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </div>
-              )}
-              <div style={{ gridColumn: !isNew ? '2 / 3' : '1 / -1' }}>
-                <label style={lbl}>Notes</label>
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes…" rows={2}
-                  style={{ ...inp, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
+                <div>
+                  <label style={lbl}>Service</label>
+                  <select value={serviceId} onChange={e => setServiceId(e.target.value)} style={inp}>
+                    <option value="">Choose service…</option>
+                    {barberServices.map(s => {
+                      const bp = s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0
+                      const calc = calcTotal(bp, shopSettings)
+                      const label = bp > 0 ? (calc.total !== bp ? ` — $${calc.total.toFixed(2)} (base $${bp.toFixed(2)})` : ` — $${bp.toFixed(2)}`) : ''
+                      return <option key={s.id} value={s.id}>{s.name}{label}</option>
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Time</label>
+                  <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} style={inp}>
+                    {slots.map(m => <option key={m} value={m}>{minToHHMM(m)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Duration → end time</label>
+                  <div style={{ height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', padding: '0 12px', display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,.60)' }}>
+                    {durMin}min → {minToHHMM(selStartMin + durMin)}
+                  </div>
+                </div>
+                {!isNew && (
+                  <div>
+                    <label style={lbl}>Status</label>
+                    <select value={status} onChange={e => setStatus(e.target.value)} style={inp}>
+                      {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div style={{ gridColumn: !isNew ? '2 / 3' : '1 / -1' }}>
+                  <label style={lbl}>Notes</label>
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes…" rows={2}
+                    style={{ ...inp, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Client photo — clean, no decoration */}
             {existingEvent?.photoUrl && (
@@ -1027,8 +1058,8 @@ export function BookingModal({
               </>
             )}
 
-            {/* Upload reference photo */}
-            <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />
+            {/* Upload reference photo — not for students */}
+            {!isStudent && <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />}
 
             {/* Payment — owner/admin only */}
             {isOwnerOrAdmin && existingEvent && (
@@ -1041,8 +1072,8 @@ export function BookingModal({
                 <button onClick={onDelete} style={{ height: 42, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>Delete</button>
               )}
               <button onClick={onClose} style={{ height: 42, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Close</button>
-              <button onClick={handleSave} disabled={saving} style={{ height: 42, padding: '0 20px', borderRadius: 999, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.12)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: saving ? .5 : 1 }}>
-                {saving ? 'Saving…' : 'Save'}
+              <button onClick={handleSave} disabled={saving} style={{ height: 42, padding: '0 20px', borderRadius: 999, border: isStudent ? '1px solid rgba(168,107,255,.55)' : '1px solid rgba(255,255,255,.25)', background: isStudent ? 'rgba(168,107,255,.18)' : 'rgba(255,255,255,.12)', color: isStudent ? '#d4b8ff' : '#fff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: saving ? .5 : 1 }}>
+                {saving ? 'Saving…' : isStudent ? 'Book model' : 'Save'}
               </button>
             </div>
           </div>
