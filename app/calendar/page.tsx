@@ -953,10 +953,20 @@ export default function CalendarPage() {
 
   // Load student users (for showing badges on barber headers)
   const loadStudents = useCallback(async () => {
-    if (!isOwnerOrAdmin) return
+    if (isStudent) return
     try {
-      const data = await apiFetch('/api/users')
-      const users = Array.isArray(data?.users) ? data.users : []
+      // Try /api/users first (owner/admin), fallback to /api/users/students (barber)
+      let users: any[] = []
+      try {
+        const data = await apiFetch('/api/users')
+        users = Array.isArray(data?.users) ? data.users : []
+      } catch {
+        // Barber may not have access to /api/users — try students endpoint
+        try {
+          const data = await apiFetch('/api/users/students')
+          users = Array.isArray(data?.students) ? data.students : []
+        } catch { /* no access */ }
+      }
       setStudentUsers(users.filter((u: any) => u.role === 'student' && u.active !== false).map((u: any) => ({
         id: u.id, name: u.name || u.username || '', mentorIds: Array.isArray(u.mentor_barber_ids) ? u.mentor_barber_ids : []
       })))
