@@ -78,6 +78,7 @@ function UsersTab() {
   const [role, setRole] = useState<'owner'|'admin'|'barber'|'student'>('barber')
   const [barberId, setBarberId] = useState('')
   const [mentorBarberIds, setMentorBarberIds] = useState<string[]>([])
+  const [phone, setPhone] = useState('')
   const [creating, setCreating] = useState(false)
 
   const load = useCallback(async () => {
@@ -97,8 +98,8 @@ function UsersTab() {
     if (password.length < 4) { setMsg('Password min 4 characters'); return }
     setCreating(true); setMsg('')
     try {
-      await apiFetch('/api/users', { method: 'POST', body: JSON.stringify({ name: name.trim(), username: username.trim().toLowerCase(), password, role, barber_id: barberId, ...(role === 'student' ? { mentor_barber_ids: mentorBarberIds } : {}) }) })
-      setName(''); setUsername(''); setPassword(''); setBarberId(''); setMentorBarberIds([])
+      await apiFetch('/api/users', { method: 'POST', body: JSON.stringify({ name: name.trim(), username: username.trim().toLowerCase(), password, role, barber_id: barberId, phone: phone.trim() || undefined, ...(role === 'student' ? { mentor_barber_ids: mentorBarberIds } : {}) }) })
+      setName(''); setUsername(''); setPassword(''); setBarberId(''); setMentorBarberIds([]); setPhone('')
       setMsg('Account created ✓'); load()
     } catch (e: any) { setMsg('Error: ' + e.message) }
     setCreating(false)
@@ -113,6 +114,13 @@ function UsersTab() {
 
   async function toggleActive(uid: string, active: boolean) {
     try { await apiFetch(`/api/users/${encodeURIComponent(uid)}`, { method: 'PATCH', body: JSON.stringify({ active }) }); load() }
+    catch (e: any) { alert(e.message) }
+  }
+
+  async function editPhone(uid: string, currentPhone?: string) {
+    const ph = prompt('Phone number:', currentPhone || '')
+    if (ph === null) return  // cancelled
+    try { await apiFetch(`/api/users/${encodeURIComponent(uid)}`, { method: 'PATCH', body: JSON.stringify({ phone: ph.trim() }) }); load() }
     catch (e: any) { alert(e.message) }
   }
 
@@ -132,6 +140,7 @@ function UsersTab() {
           <Field label="Display name"><input value={name} onChange={e => setName(e.target.value)} placeholder="Nazar" style={inp} /></Field>
           <Field label="Username (login)"><input value={username} onChange={e => setUsername(e.target.value)} placeholder="nazar" style={inp} /></Field>
           <Field label="Password"><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="min 4 chars" style={inp} /></Field>
+          <Field label="Phone"><input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (___) ___-____" type="tel" style={inp} /></Field>
           <Field label="Role">
             <select value={role} onChange={e => setRole(e.target.value as any)} style={inp}>
               <option value="owner">Owner — full access</option>
@@ -195,12 +204,13 @@ function UsersTab() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 900, fontSize: 14 }}>{u.name || u.username}</div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
-                    @{u.username}{linked ? ` · 💈 ${linked.name}` : ''}{u.role === 'student' && (u as any).mentor_barber_ids?.length ? ` · 🎓 ${(u as any).mentor_barber_ids.map((id: string) => barbers.find(b => b.id === id)?.name || id).join(', ')}` : ''}{u.last_login ? ` · last login ${u.last_login.slice(0,10)}` : ''}
+                    @{u.username}{(u as any).phone ? ` · ${(u as any).phone}` : ''}{linked ? ` · 💈 ${linked.name}` : ''}{u.role === 'student' && (u as any).mentor_barber_ids?.length ? ` · ${(u as any).mentor_barber_ids.map((id: string) => barbers.find(b => b.id === id)?.name || id).join(', ')}` : ''}{u.last_login ? ` · ${u.last_login.slice(0,10)}` : ''}
                     {!u.active && <span style={{ color: '#ff6b6b', marginLeft: 8 }}>disabled</span>}
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   <span style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', padding: '3px 9px', borderRadius: 999, border: `1px solid ${rc.border}`, background: 'rgba(0,0,0,.14)', color: rc.color }}>{u.role}</span>
+                  <SmBtn onClick={() => editPhone(u.id, (u as any).phone)}>Phone</SmBtn>
                   <SmBtn onClick={() => resetPw(u.id)}>Reset PW</SmBtn>
                   <SmBtn danger onClick={() => toggleActive(u.id, !u.active)}>{u.active ? 'Disable' : 'Enable'}</SmBtn>
                 </div>

@@ -583,6 +583,7 @@ export default function CalendarPage() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; barberId: string; min: number } | null>(null)
+  const [trainingModal, setTrainingModal] = useState<{ barberId: string; barberName: string; min: number } | null>(null)
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
@@ -925,8 +926,8 @@ export default function CalendarPage() {
   const todayEvents = events.filter(e => {
     if (e.date !== todayStr) return false
     if (isBarber && myBarberId && e.type !== 'block' && e.barberId !== myBarberId) return false
-    // Student: show only their own model bookings
-    if (isStudent) return e._raw?.booking_type === 'model'
+    // Student: show model + training bookings
+    if (isStudent) return e._raw?.booking_type === 'model' || e._raw?.booking_type === 'training'
     return true
   })
   const filtered = search ? todayEvents.filter(e => [e.clientName, e.barberName, e.serviceName].join(' ').toLowerCase().includes(search.toLowerCase())) : todayEvents
@@ -1210,7 +1211,7 @@ export default function CalendarPage() {
               {visibleBarbers.map((barber, bi) => {
                 // Student: all model events go to the single student column
                 const colEvents = isStudent
-                  ? filtered.filter(e => e._raw?.booking_type === 'model')
+                  ? filtered.filter(e => e._raw?.booking_type === 'model' || e._raw?.booking_type === 'training')
                   : filtered.filter(e => e.barberId === barber.id)
                 return (
                   <div key={barber.id} ref={el => { colRefs.current[bi] = el }}
@@ -1352,7 +1353,7 @@ export default function CalendarPage() {
 
                       return (
                         <div key={ev.id} className="cal-event"
-                          style={{ position: 'absolute', left: 8, right: 8, top, height: height-2, borderRadius: 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: ev._raw?.booking_type === 'model' ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}26,${barber.color}12)`, padding: '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
+                          style={{ position: 'absolute', left: 8, right: 8, top, height: height-2, borderRadius: 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}26,${barber.color}12)`, padding: '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
                           onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; startDrag(e, ev, bi) }}
                           onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
@@ -1360,6 +1361,7 @@ export default function CalendarPage() {
                             <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{ev.clientName}</div>
                             <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                               {ev._raw?.booking_type === 'model' && <Chip label="Model" type="model" />}
+                              {ev._raw?.booking_type === 'training' && <Chip label="Training" type="model" />}
                               {ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />}
                             </div>
                           </div>
@@ -1384,6 +1386,10 @@ export default function CalendarPage() {
             <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', padding: '6px 10px 4px' }}>{minToHHMM(contextMenu.min)} · {barbers.find(b=>b.id===contextMenu.barberId)?.name}</div>
             {[
               { label: 'New booking', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, bg: 'rgba(10,132,255,.18)', brd: 'rgba(10,132,255,.35)', col: '#e9e9e9', fn: () => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) } },
+              // Show "Schedule training" only if this barber has students
+              ...(studentUsers.some(s => s.mentorIds.includes(contextMenu.barberId)) ? [{
+                label: 'Schedule training', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2.2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>, bg: 'rgba(168,107,255,.14)', brd: 'rgba(168,107,255,.35)', col: '#d4b8ff', fn: () => { const b = barbers.find(x=>x.id===contextMenu.barberId); setContextMenu(null); setTrainingModal({ barberId: contextMenu.barberId, barberName: b?.name || '', min: contextMenu.min }) }
+              }] : []),
               { label: 'Block this time', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffd0d0" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, bg: 'rgba(255,107,107,.12)', brd: 'rgba(255,107,107,.30)', col: '#ffd0d0', fn: () => { setContextMenu(null); openCreateBlock(contextMenu.barberId, contextMenu.min) } },
             ].map(item => (
               <button key={item.label} onClick={item.fn} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: 'none', background: 'transparent', color: item.col, cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
@@ -1411,6 +1417,104 @@ export default function CalendarPage() {
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button onClick={() => setDragConfirm(null)} style={{ height: 40, padding: '0 18px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Cancel</button>
                 <button onClick={confirmDragMove} style={{ height: 40, padding: '0 20px', borderRadius: 999, border: '1px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.18)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>Move</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Training modal */}
+      {trainingModal && (() => {
+        const barberStudents = studentUsers.filter(s => s.mentorIds.includes(trainingModal.barberId))
+        const TRAINING_TYPES = [
+          { value: 'model', label: 'Model haircut', durMin: 90 },
+          { value: 'beard', label: 'Beard training', durMin: 90 },
+          { value: 'head', label: 'Head training', durMin: 90 },
+          { value: 'beard_head', label: 'Beard + Head', durMin: 90 },
+          { value: 'theory', label: 'Theory', durMin: 60 },
+        ]
+        function TrainingForm() {
+          const [studentId, setStudentId] = React.useState(barberStudents[0]?.id || '')
+          const [trainingType, setTrainingType] = React.useState('model')
+          const [tNotes, setTNotes] = React.useState('')
+          const [tSaving, setTSaving] = React.useState(false)
+          const tt = TRAINING_TYPES.find(t => t.value === trainingType) || TRAINING_TYPES[0]
+          const student = barberStudents.find(s => s.id === studentId)
+          async function saveTraining() {
+            if (!studentId || !student) return
+            setTSaving(true)
+            const clientName = `Training · ${student.name} · ${tt.label}`
+            const startAt = new Date(todayStr + 'T' + minToHHMM(trainingModal.min) + ':00')
+            const endAt = new Date(startAt.getTime() + tt.durMin * 60000)
+            const id = uid()
+            setEvents(prev => [...prev, { id, type: 'booking' as const, barberId: trainingModal.barberId, barberName: trainingModal.barberName, clientName, clientPhone: '', serviceId: '', serviceName: tt.label, date: todayStr, startMin: clamp(trainingModal.min), durMin: tt.durMin, status: 'model', paid: false, notes: tNotes, _raw: { booking_type: 'training', student_id: studentId, training_type: trainingType } }])
+            try {
+              const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: trainingModal.barberId, client_name: clientName, start_at: startAt.toISOString(), end_at: endAt.toISOString(), notes: tNotes || tt.label, status: 'booked', booking_type: 'training', student_id: studentId, training_type: trainingType }) })
+              const savedId = res?.id || res?.booking?.id
+              if (savedId) setEvents(prev => prev.map(e => e.id === id ? { ...e, _raw: { ...e._raw, id: savedId }, id: String(savedId) } : e))
+            } catch (e: any) { console.warn('training save:', e.message) }
+            setTSaving(false); setTrainingModal(null)
+          }
+          const mInp: React.CSSProperties = { width: '100%', height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
+          const mLbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
+                  <div style={{ ...mLbl, marginBottom: 2 }}>Time</div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{minToHHMM(trainingModal.min)} — {minToHHMM(trainingModal.min + tt.durMin)}</div>
+                </div>
+                <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
+                  <div style={{ ...mLbl, marginBottom: 2 }}>Duration</div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{tt.durMin} min</div>
+                </div>
+              </div>
+              {barberStudents.length > 1 && (
+                <div>
+                  <label style={mLbl}>Student</label>
+                  <select value={studentId} onChange={e => setStudentId(e.target.value)} style={mInp}>
+                    {barberStudents.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label style={mLbl}>Training type</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
+                  {TRAINING_TYPES.map(t => (
+                    <button key={t.value} onClick={() => setTrainingType(t.value)}
+                      style={{ height: 36, padding: '0 14px', borderRadius: 999, border: `1px solid ${trainingType === t.value ? 'rgba(168,107,255,.65)' : 'rgba(255,255,255,.12)'}`, background: trainingType === t.value ? 'rgba(168,107,255,.16)' : 'rgba(255,255,255,.04)', color: trainingType === t.value ? '#d4b8ff' : 'rgba(255,255,255,.65)', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={mLbl}>Notes</label>
+                <textarea value={tNotes} onChange={e => setTNotes(e.target.value)} placeholder="Lesson details…" rows={2}
+                  style={{ ...mInp, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={() => setTrainingModal(null)} style={{ height: 42, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Cancel</button>
+                <button onClick={saveTraining} disabled={tSaving || !studentId} style={{ height: 42, padding: '0 20px', borderRadius: 999, border: '1px solid rgba(168,107,255,.55)', background: 'rgba(168,107,255,.18)', color: '#d4b8ff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: tSaving ? .5 : 1 }}>
+                  {tSaving ? 'Saving…' : 'Schedule training'}
+                </button>
+              </div>
+            </div>
+          )
+        }
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 16 }}
+            onClick={e => { if (e.target === e.currentTarget) setTrainingModal(null) }}>
+            <div style={{ width: 'min(480px,100%)', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60), inset 0 0 0 0.5px rgba(255,255,255,.07)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+              <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)', borderRadius: '22px 22px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13 }}>Schedule training</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 3, letterSpacing: '.08em' }}>{todayStr} · {trainingModal.barberName}</div>
+                </div>
+                <button onClick={() => setTrainingModal(null)} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontFamily: 'inherit' }}>✕</button>
+              </div>
+              <div style={{ padding: '16px 20px 20px' }}>
+                <TrainingForm />
               </div>
             </div>
           </div>
