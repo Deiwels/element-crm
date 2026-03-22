@@ -250,8 +250,8 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
       </div>
 
       {open && (
-        <div style={{ padding: '0 14px 14px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
-          <div style={{ paddingTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={{ padding: '0 14px 14px', borderTop: '1px solid rgba(255,255,255,.08)', overflow: 'hidden' }}>
+          <div style={{ paddingTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, maxWidth: '100%' }}>
             {[['Level / Rank', level, setLevel, 'Senior / Expert'], ['Base price ($)', price, setPrice, '55.99'], ['Public role', publicRole, setPublicRole, 'Ambassador'], ['Radar labels', radarLabels, setRadarLabels, 'FADE,LONG,BEARD,STYLE,DETAIL']].map(([lbText, val, setter, ph]) => (
               <div key={lbText as string}><label style={lbl}>{lbText as string}</label><input value={val as string} onChange={e => (setter as any)(e.target.value)} placeholder={ph as string} style={inp} /></div>
             ))}
@@ -367,8 +367,8 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
   const tabs = (isStudent ? ['account'] : ['barbers','services','account']) as ('barbers'|'services'|'account')[]
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ width: 'min(680px,100%)', height: 'min(800px,calc(100dvh - 32px))', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto', overflowX: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,.55), inset 0 0 0 0.5px rgba(255,255,255,.06)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 'clamp(8px,2vw,16px)' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ width: 'min(680px,100%)', maxWidth: 'calc(100vw - 16px)', height: 'min(800px,calc(100dvh - 32px))', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto', overflowX: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,.55), inset 0 0 0 0.5px rgba(255,255,255,.06)', display: 'flex', flexDirection: 'column', margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 14 }}>Settings</div>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit' }}>✕</button>
@@ -1540,27 +1540,38 @@ export default function CalendarPage() {
       </div>
 
       {/* Context menu */}
-      {contextMenu && (
+      {contextMenu && (() => {
+        const cmBarber = barbers.find(b=>b.id===contextMenu.barberId)
+        const cmItems = [
+          { label: 'New booking', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, bg: 'rgba(10,132,255,.14)', brd: 'rgba(10,132,255,.30)', col: '#d7ecff', fn: () => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) } },
+          ...(studentUsers.some(s => s.mentorIds.includes(contextMenu.barberId)) ? [{
+            label: 'Training', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2.2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>, bg: 'rgba(168,107,255,.14)', brd: 'rgba(168,107,255,.30)', col: '#d4b8ff', fn: () => { setContextMenu(null); setTrainingModal({ barberId: contextMenu.barberId, barberName: cmBarber?.name || '', min: contextMenu.min }) }
+          }] : []),
+          { label: 'Block', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffd0d0" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, bg: 'rgba(255,107,107,.10)', brd: 'rgba(255,107,107,.25)', col: '#ffd0d0', fn: () => { setContextMenu(null); openCreateBlock(contextMenu.barberId, contextMenu.min) } },
+        ]
+        // Position: clamp to screen
+        const menuW = 180, menuH = cmItems.length * 44 + 36
+        const left = Math.max(8, Math.min(contextMenu.x - menuW/2, window.innerWidth - menuW - 8))
+        const top = Math.max(8, Math.min(contextMenu.y - 20, window.innerHeight - menuH - 8))
+        return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setContextMenu(null)}>
-          <div style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 200), top: Math.min(contextMenu.y, window.innerHeight - 200), zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 16px 40px rgba(0,0,0,.50), inset 0 0 0 0.5px rgba(255,255,255,.07)', padding: 6, minWidth: 190, fontFamily: 'Inter,sans-serif' }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', padding: '6px 10px 4px' }}>{minToHHMM(contextMenu.min)} · {barbers.find(b=>b.id===contextMenu.barberId)?.name}</div>
-            {[
-              { label: 'New booking', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, bg: 'rgba(10,132,255,.18)', brd: 'rgba(10,132,255,.35)', col: '#e9e9e9', fn: () => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) } },
-              // Show "Schedule training" only if this barber has students
-              ...(studentUsers.some(s => s.mentorIds.includes(contextMenu.barberId)) ? [{
-                label: 'Schedule training', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2.2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>, bg: 'rgba(168,107,255,.14)', brd: 'rgba(168,107,255,.35)', col: '#d4b8ff', fn: () => { const b = barbers.find(x=>x.id===contextMenu.barberId); setContextMenu(null); setTrainingModal({ barberId: contextMenu.barberId, barberName: b?.name || '', min: contextMenu.min }) }
-              }] : []),
-              { label: 'Block this time', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffd0d0" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, bg: 'rgba(255,107,107,.12)', brd: 'rgba(255,107,107,.30)', col: '#ffd0d0', fn: () => { setContextMenu(null); openCreateBlock(contextMenu.barberId, contextMenu.min) } },
-            ].map(item => (
-              <button key={item.label} onClick={item.fn} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: 'none', background: 'transparent', color: item.col, cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}
+          <div style={{ position: 'fixed', left, top, width: menuW, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(30,30,35,.95),rgba(15,15,20,.95))', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 12px 40px rgba(0,0,0,.60)', padding: '8px 6px', fontFamily: 'Inter,sans-serif' }} onClick={e => e.stopPropagation()}>
+            {/* Time header — like appointment card */}
+            <div style={{ padding: '4px 8px 8px', borderBottom: '1px solid rgba(255,255,255,.06)', marginBottom: 4 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{minToHHMM(contextMenu.min)}</div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', letterSpacing: '.06em' }}>{cmBarber?.name}</div>
+            </div>
+            {cmItems.map(item => (
+              <button key={item.label} onClick={item.fn} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '8px 8px', borderRadius: 8, border: 'none', background: 'transparent', color: item.col, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}
                 onMouseEnter={e => (e.currentTarget.style.background=item.bg)} onMouseLeave={e => (e.currentTarget.style.background='transparent')}>
-                <span style={{ width: 28, height: 28, borderRadius: 8, background: item.bg, border: `1px solid ${item.brd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{item.icon}</span>
+                <span style={{ width: 24, height: 24, borderRadius: 6, background: item.bg, border: `1px solid ${item.brd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{item.icon}</span>
                 {item.label}
               </button>
             ))}
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Drag confirm */}
       {dragConfirm && (() => {
