@@ -123,6 +123,14 @@ function MessageBubble({ msg, isOwn, onImageClick }: { msg: Message; isOwn: bool
 }
 
 // ─── RequestCard ─────────────────────────────────────────────────────────────
+const REQ_TYPE_INFO: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  schedule_change: { label: 'Schedule change', color: '#ffe9a3', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffe9a3" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+  photo_change:    { label: 'Photo change', color: '#d7ecff', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> },
+  profile_change:  { label: 'Profile update', color: '#d4b8ff', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+  service_change:  { label: 'Service change', color: '#35d6c7', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#35d6c7" strokeWidth="2" strokeLinecap="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> },
+  block_time:      { label: 'Block time', color: '#ffd0d0', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffd0d0" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> },
+}
+
 function RequestCard({ req, isOwnerOrAdmin, onReview }: { req: Request; isOwnerOrAdmin: boolean; onReview: (id: string, status: 'approved' | 'rejected') => void }) {
   const isPending = req.status === 'pending'
   const statusColors: Record<string, { bg: string; border: string; color: string }> = {
@@ -131,35 +139,68 @@ function RequestCard({ req, isOwnerOrAdmin, onReview }: { req: Request; isOwnerO
     rejected: { bg: 'rgba(255,107,107,.08)', border: 'rgba(255,107,107,.25)', color: '#ffd0d0' },
   }
   const sc = statusColors[req.status] || statusColors.pending
+  const info = REQ_TYPE_INFO[req.type] || { label: req.type, color: '#e9e9e9', icon: null }
+  const detailStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)', fontSize: 12, color: 'rgba(255,255,255,.55)', marginBottom: isPending && isOwnerOrAdmin ? 10 : 0, lineHeight: 1.6 }
 
   return (
     <div style={{ ...GLASS, padding: '14px 16px', marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            {req.type === 'schedule_change'
-              ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffe9a3" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>}
-          </span>
+          <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{info.icon}</span>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 13 }}>{req.type === 'schedule_change' ? 'Schedule change' : 'Photo change'}</div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: info.color }}>{info.label}</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)' }}>{req.barberName} · {timeAgo(req.createdAt)}</div>
           </div>
         </div>
         <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: sc.bg, border: `1px solid ${sc.border}`, color: sc.color, textTransform: 'uppercase', letterSpacing: '.06em' }}>{req.status}</span>
       </div>
 
-      {/* Details */}
+      {/* Details per type */}
       {req.type === 'schedule_change' && req.data && (
-        <div style={{ padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)', fontSize: 12, color: 'rgba(255,255,255,.55)', marginBottom: isPending && isOwnerOrAdmin ? 10 : 0 }}>
-          <div>Days: <strong style={{ color: '#e9e9e9' }}>{(req.data.workDays || []).join(', ')}</strong></div>
+        <div style={detailStyle}>
+          {req.data.dayName && <div>Day: <strong style={{ color: '#e9e9e9' }}>{req.data.dayName}</strong></div>}
+          {req.data.workDays && <div>Days: <strong style={{ color: '#e9e9e9' }}>{req.data.workDays.join(', ')}</strong></div>}
           <div>Hours: <strong style={{ color: '#e9e9e9' }}>{req.data.startTime} — {req.data.endTime}</strong></div>
-          {req.data.note && <div style={{ marginTop: 4 }}>Note: {req.data.note}</div>}
+          {req.data.note && <div style={{ marginTop: 4, color: 'rgba(255,255,255,.40)' }}>Note: {req.data.note}</div>}
         </div>
       )}
+
       {req.type === 'photo_change' && req.data?.newPhotoUrl && (
         <div style={{ marginBottom: isPending && isOwnerOrAdmin ? 10 : 0 }}>
           <img src={req.data.newPhotoUrl} alt="new photo" style={{ width: 80, height: 80, borderRadius: 12, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)' }} />
+        </div>
+      )}
+
+      {req.type === 'profile_change' && req.data?.changes && (
+        <div style={detailStyle}>
+          {req.data.changes.about && <div>Bio: <strong style={{ color: '#e9e9e9' }}>{String(req.data.changes.about).slice(0, 60)}{String(req.data.changes.about).length > 60 ? '…' : ''}</strong></div>}
+          {req.data.changes.level && <div>Level: <strong style={{ color: '#e9e9e9' }}>{req.data.changes.level}</strong></div>}
+          {req.data.changes.base_price && <div>Price: <strong style={{ color: '#e9e9e9' }}>${req.data.changes.base_price}</strong></div>}
+          {req.data.changes.public_role && <div>Role: <strong style={{ color: '#e9e9e9' }}>{req.data.changes.public_role}</strong></div>}
+          {req.data.changes.schedule && <div>Schedule: <strong style={{ color: '#e9e9e9' }}>Updated</strong></div>}
+          {req.data.changes.photo_url && (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ marginBottom: 4 }}>New photo:</div>
+              <img src={req.data.changes.photo_url} alt="" style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)' }} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {req.type === 'service_change' && req.data && (
+        <div style={detailStyle}>
+          <div>Service: <strong style={{ color: '#e9e9e9' }}>{req.data.serviceName || req.data.changes?.name || '—'}</strong></div>
+          {req.data.changes?.duration_minutes && <div>Duration: <strong style={{ color: '#e9e9e9' }}>{req.data.changes.duration_minutes} min</strong></div>}
+          {req.data.changes?.price_cents != null && <div>Price: <strong style={{ color: '#e9e9e9' }}>${(req.data.changes.price_cents / 100).toFixed(2)}</strong></div>}
+          {req.data.changes?.name && <div>New name: <strong style={{ color: '#e9e9e9' }}>{req.data.changes.name}</strong></div>}
+        </div>
+      )}
+
+      {req.type === 'block_time' && req.data && (
+        <div style={detailStyle}>
+          <div>Date: <strong style={{ color: '#e9e9e9' }}>{req.data.date || '—'}</strong></div>
+          <div>Time: <strong style={{ color: '#e9e9e9' }}>{req.data.startAt ? new Date(req.data.startAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'} — {req.data.endAt ? new Date(req.data.endAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'}</strong></div>
+          {req.data.barberName && <div>Barber: <strong style={{ color: '#e9e9e9' }}>{req.data.barberName}</strong></div>}
         </div>
       )}
 
