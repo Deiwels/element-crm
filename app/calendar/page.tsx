@@ -1541,11 +1541,8 @@ export default function CalendarPage() {
 
       {/* Context menu */}
       {contextMenu && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 150, background: isMobile ? 'rgba(0,0,0,.40)' : 'transparent', display: isMobile ? 'flex' : 'block', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setContextMenu(null)}>
-          <div style={isMobile
-            ? { position: 'relative', width: '100%', maxWidth: 340, borderRadius: '18px 18px 0 0', border: '1px solid rgba(255,255,255,.14)', background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 -8px 40px rgba(0,0,0,.50)', padding: '12px 8px max(8px, env(safe-area-inset-bottom))', fontFamily: 'Inter,sans-serif', zIndex: 151 }
-            : { position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 16px 40px rgba(0,0,0,.50), inset 0 0 0 0.5px rgba(255,255,255,.07)', padding: 6, minWidth: 190, fontFamily: 'Inter,sans-serif' }
-          } onClick={e => e.stopPropagation()}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setContextMenu(null)}>
+          <div style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 200), top: Math.min(contextMenu.y, window.innerHeight - 200), zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 16px 40px rgba(0,0,0,.50), inset 0 0 0 0.5px rgba(255,255,255,.07)', padding: 6, minWidth: 190, fontFamily: 'Inter,sans-serif' }} onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', padding: '6px 10px 4px' }}>{minToHHMM(contextMenu.min)} · {barbers.find(b=>b.id===contextMenu.barberId)?.name}</div>
             {[
               { label: 'New booking', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, bg: 'rgba(10,132,255,.18)', brd: 'rgba(10,132,255,.35)', col: '#e9e9e9', fn: () => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) } },
