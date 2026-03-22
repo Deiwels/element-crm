@@ -711,6 +711,8 @@ export default function CalendarPage() {
       ? (myBarberObj ? [myBarberObj] : barbers)
       : barbers
 
+  const todayStr = isoDate(anchor)
+
   // ── Student: compute blocked slots from mentor schedules + bookings ──
   const mentorBarbers = isStudent ? barbers.filter(b => mentorBarberIds.includes(b.id)) : []
 
@@ -751,7 +753,6 @@ export default function CalendarPage() {
     return ranges
   }, [isStudent, studentSlotMentorMap])
 
-  const todayStr = isoDate(anchor)
   const selectedEvent = events.find(e => e.id === modal.eventId) || null
 
   useEffect(() => {
