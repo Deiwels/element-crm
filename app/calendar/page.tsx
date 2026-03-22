@@ -608,29 +608,17 @@ export default function CalendarPage() {
   const offResize = useRef<{ barberId: string; type: 'top' | 'bottom'; startY: number; origMin: number } | null>(null)
   const [scheduleConfirm, setScheduleConfirm] = useState<{ barberId: string; barberName: string; dow: number; startMin: number; endMin: number } | null>(null)
 
-  // Student schedule — stored in user profile
+  // Student schedule state
   const [studentSchedule, setStudentSchedule] = useState<DaySchedule[]>(() => {
     try { const s = localStorage.getItem('ELEMENT_STUDENT_SCHEDULE'); if (s) return JSON.parse(s) } catch {}
     return DAY_DEFAULTS.map(d => ({...d}))
   })
-  // Load student schedule from API on mount
-  useEffect(() => {
-    if (!isStudent) return
-    ;(async () => {
-      try {
-        const data = await apiFetch('/api/auth/me')
-        const sched = data?.user?.schedule
-        if (Array.isArray(sched) && sched.length === 7) {
-          setStudentSchedule(sched)
-          localStorage.setItem('ELEMENT_STUDENT_SCHEDULE', JSON.stringify(sched))
-        }
-      } catch {}
-    })()
-  }, [isStudent])
+  // Early role check (before isStudent const, for useEffects that need it)
+  const _isStudent = currentUser?.role === 'student'
 
   // Build workHours from barber schedule every time barbers or date changes
   useEffect(() => {
-    if (!barbers.length && !isStudent) return
+    if (!barbers.length && !_isStudent) return
     // dow = 0=Sun,1=Mon..6=Sat — matches how schedule.days[] is stored on server
     const dow = anchor.getDay() // anchor is Date object, 0=Sun..6=Sat
     const next: Record<string, { startMin: number; endMin: number; dayOff: boolean }> = {}
@@ -652,7 +640,7 @@ export default function CalendarPage() {
       }
     })
     // Student column work hours
-    if (isStudent && studentSchedule.length === 7) {
+    if (_isStudent && studentSchedule.length === 7) {
       const day = studentSchedule[dow]
       if (!day || !day.enabled) {
         next['__student__'] = { startMin: 0, endMin: 0, dayOff: true }
@@ -661,7 +649,7 @@ export default function CalendarPage() {
       }
     }
     setWorkHours(next as any)
-  }, [barbers, anchor, isStudent, studentSchedule])
+  }, [barbers, anchor, _isStudent, studentSchedule])
 
   // Scroll to current time — runs after barbers load so DOM is ready
   useEffect(() => {
@@ -743,6 +731,21 @@ export default function CalendarPage() {
   const isOwnerOrAdmin = currentUser?.role === 'owner' || currentUser?.role === 'admin'
   const myBarberId = currentUser?.barber_id || ''
   const mentorBarberIds: string[] = currentUser?.mentor_barber_ids || []
+
+  // Load student schedule from API on mount
+  useEffect(() => {
+    if (!isStudent) return
+    ;(async () => {
+      try {
+        const data = await apiFetch('/api/auth/me')
+        const sched = data?.user?.schedule
+        if (Array.isArray(sched) && sched.length === 7) {
+          setStudentSchedule(sched)
+          localStorage.setItem('ELEMENT_STUDENT_SCHEDULE', JSON.stringify(sched))
+        }
+      } catch {}
+    })()
+  }, [isStudent])
 
   // Barber sees only their own column
   // Student sees ONE column with their name (availability computed from mentors)
