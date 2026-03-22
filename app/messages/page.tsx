@@ -33,7 +33,7 @@ interface Message {
 
 interface Request {
   id: string
-  type: 'schedule_change' | 'photo_change'
+  type: 'schedule_change' | 'photo_change' | 'profile_change' | 'service_change' | 'block_time'
   barberId: string
   barberName: string
   status: 'pending' | 'approved' | 'rejected'
