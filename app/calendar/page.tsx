@@ -123,18 +123,16 @@ function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: 
   function toggle(i: number) { const n = [...schedule]; n[i] = { ...n[i], enabled: !n[i].enabled }; onChange(n) }
   function setTime(i: number, field: 'startMin'|'endMin', val: string) { const n = [...schedule]; n[i] = { ...n[i], [field]: timeStrToMin(val) }; onChange(n) }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 5, margin: '8px 0' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(62px, 1fr))', gap: 4, margin: '6px 0' }}>
       {DAY_NAMES.map((name, i) => {
         const day = schedule[i]
         return (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.10)'}`, borderRadius: 12, padding: '7px 5px', background: day.enabled ? 'rgba(10,132,255,.08)' : 'rgba(0,0,0,.18)', opacity: day.enabled ? 1 : 0.55 }}>
-            <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', textAlign: 'center', fontWeight: 900, color: 'rgba(255,255,255,.60)' }}>{name}</div>
-            <button onClick={() => toggle(i)} style={{ height: 26, borderRadius: 999, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.16)'}`, background: day.enabled ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.05)', color: day.enabled ? '#d7ecff' : '#fff', cursor: 'pointer', fontSize: 9, textTransform: 'uppercase', fontWeight: 900, fontFamily: 'inherit', width: '100%' }}>{day.enabled ? 'ON' : 'OFF'}</button>
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.10)'}`, borderRadius: 10, padding: '5px 4px', background: day.enabled ? 'rgba(10,132,255,.08)' : 'rgba(0,0,0,.18)', opacity: day.enabled ? 1 : 0.55 }}>
+            <div style={{ fontSize: 9, letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'center', fontWeight: 900, color: 'rgba(255,255,255,.60)' }}>{name}</div>
+            <button onClick={() => toggle(i)} style={{ height: 22, borderRadius: 999, border: `1px solid ${day.enabled ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.16)'}`, background: day.enabled ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.05)', color: day.enabled ? '#d7ecff' : '#fff', cursor: 'pointer', fontSize: 8, textTransform: 'uppercase', fontWeight: 900, fontFamily: 'inherit', width: '100%' }}>{day.enabled ? 'ON' : 'OFF'}</button>
             <div style={{ opacity: day.enabled ? 1 : 0.3, pointerEvents: day.enabled ? 'auto' : 'none' }}>
-              <label style={{ fontSize: 8, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 2 }}>From</label>
-              <input type="time" value={minToTimeStr(day.startMin)} onChange={e => setTime(i,'startMin',e.target.value)} style={{ height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 4px', fontSize: 10, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
-              <label style={{ fontSize: 8, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', margin: '3px 0 2px' }}>To</label>
-              <input type="time" value={minToTimeStr(day.endMin)} onChange={e => setTime(i,'endMin',e.target.value)} style={{ height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 4px', fontSize: 10, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
+              <input type="time" value={minToTimeStr(day.startMin)} onChange={e => setTime(i,'startMin',e.target.value)} style={{ height: 24, borderRadius: 6, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 3px', fontSize: 9, outline: 'none', width: '100%', colorScheme: 'dark' as any }} />
+              <input type="time" value={minToTimeStr(day.endMin)} onChange={e => setTime(i,'endMin',e.target.value)} style={{ height: 24, borderRadius: 6, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 3px', fontSize: 9, outline: 'none', width: '100%', colorScheme: 'dark' as any, marginTop: 2 }} />
             </div>
           </div>
         )
@@ -370,7 +368,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 90, padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ width: 'min(680px,100%)', height: 'min(800px,calc(100vh - 32px))', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto', boxShadow: '0 32px 80px rgba(0,0,0,.55), inset 0 0 0 0.5px rgba(255,255,255,.06)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ width: 'min(680px,100%)', height: 'min(800px,calc(100dvh - 32px))', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', overflowY: 'auto', overflowX: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,.55), inset 0 0 0 0.5px rgba(255,255,255,.06)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 14 }}>Settings</div>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit' }}>✕</button>
