@@ -123,7 +123,7 @@ function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: 
   function toggle(i: number) { const n = [...schedule]; n[i] = { ...n[i], enabled: !n[i].enabled }; onChange(n) }
   function setTime(i: number, field: 'startMin'|'endMin', val: string) { const n = [...schedule]; n[i] = { ...n[i], [field]: timeStrToMin(val) }; onChange(n) }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 5, margin: '8px 0' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 5, margin: '8px 0' }}>
       {DAY_NAMES.map((name, i) => {
         const day = schedule[i]
         return (
@@ -615,6 +615,28 @@ export default function CalendarPage() {
   const [trainingModal, setTrainingModal] = useState<{ barberId: string; barberName: string; min: number } | null>(null)
   const [toast, setToast] = useState('')
   const [slotPicker, setSlotPicker] = useState<{ min: number; mentorId: string; mentorName: string }[] | null>(null)
+  const [mobilePage, setMobilePage] = useState(0)
+  const BARBERS_PER_PAGE = 2
+  const totalPages = Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE)
+  const swipeRef = useRef<{ startX: number; startY: number } | null>(null)
+  // Swipe handler for mobile barber pages
+  useEffect(() => {
+    if (!isMobile || isStudent || isBarber || visibleBarbers.length <= BARBERS_PER_PAGE) return
+    const el = scrollContainerRef.current; if (!el) return
+    function onTouchStart(e: TouchEvent) { swipeRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY } }
+    function onTouchEnd(e: TouchEvent) {
+      if (!swipeRef.current) return
+      const dx = e.changedTouches[0].clientX - swipeRef.current.startX
+      const dy = e.changedTouches[0].clientY - swipeRef.current.startY
+      swipeRef.current = null
+      if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return // not a horizontal swipe
+      if (dx < 0) setMobilePage(p => Math.min(p + 1, totalPages - 1)) // swipe left → next
+      else setMobilePage(p => Math.max(p - 1, 0)) // swipe right → prev
+    }
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    return () => { el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchend', onTouchEnd) }
+  }, [isMobile, isStudent, isBarber, visibleBarbers.length, totalPages])
   const toastTimer = useRef<any>(null)
   const showToast = useCallback((msg: string) => { setToast(msg); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 3500) }, [])
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -1154,12 +1176,17 @@ export default function CalendarPage() {
           .cal-topbar-left{
             display:none !important;
           }
-          /* Buttons row — compact, right side */
+          /* Buttons row — compact, center, no wrap */
           .cal-topbar-btns{
             flex-wrap:nowrap !important;
-            gap:5px !important;
-            justify-content:flex-end !important;
+            gap:4px !important;
+            justify-content:center !important;
             width:100% !important;
+            overflow-x:auto !important;
+            padding:0 4px !important;
+          }
+          .cal-topbar-btns button, .cal-topbar-btns label, .cal-topbar-btns div {
+            flex-shrink:0 !important;
           }
           /* Hide desktop Date btn, show date pill instead */
           .cal-btn-date{ display:none !important; }
@@ -1174,6 +1201,8 @@ export default function CalendarPage() {
           .cal-settings-icon{ display:flex !important; }
           /* Hide Calendar title + date on mobile */
           .cal-topbar-left{ display:none !important; }
+          /* Compact topbar on mobile */
+          .cal-topbar-wrap{ padding:6px 8px 8px !important; }
         }
         select option { background: #111; }
         input[type=date],input[type=time] { color-scheme: dark; }
@@ -1181,7 +1210,7 @@ export default function CalendarPage() {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
 
         {/* Topbar */}
-        <div style={{ padding: '10px 18px 12px', background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', flexShrink: 0 }}>
+        <div className="cal-topbar-wrap" style={{ padding: '10px 18px 12px', background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', flexShrink: 0 }}>
           <div className="cal-topbar-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             {!isMobile && (
               <div className="cal-topbar-left">
@@ -1261,13 +1290,30 @@ export default function CalendarPage() {
           </div>
         </div>
 
+        {/* Mobile page dots */}
+        {isMobile && !isStudent && !isBarber && visibleBarbers.length > BARBERS_PER_PAGE && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '6px 0 2px', flexShrink: 0 }}>
+            {Array.from({ length: Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE) }, (_, i) => (
+              <button key={i} onClick={() => setMobilePage(i)}
+                style={{ width: mobilePage === i ? 18 : 8, height: 8, borderRadius: 4, border: 'none', background: mobilePage === i ? 'rgba(10,132,255,.80)' : 'rgba(255,255,255,.20)', cursor: 'pointer', transition: 'all .2s', padding: 0 }} />
+            ))}
+          </div>
+        )}
+
         {/* Calendar grid */}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', touchAction: drag ? 'none' : 'pan-x pan-y' }} ref={scrollContainerRef}>
-          <div style={{ minWidth: (isMobile ? 46 : 90) + visibleBarbers.length * COL_MIN }}>
+        {(() => {
+          // On mobile (owner/admin with multiple barbers): show BARBERS_PER_PAGE at a time
+          const pageBarbers = (isMobile && !isStudent && !isBarber && visibleBarbers.length > BARBERS_PER_PAGE)
+            ? visibleBarbers.slice(mobilePage * BARBERS_PER_PAGE, mobilePage * BARBERS_PER_PAGE + BARBERS_PER_PAGE)
+            : visibleBarbers
+          const timeColW = isMobile ? 46 : 90
+          return (
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', touchAction: drag ? 'none' : 'pan-x pan-y' }} ref={scrollContainerRef}>
+          <div style={{ minWidth: timeColW + pageBarbers.length * COL_MIN }}>
             {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: `${isMobile ? 46 : 90}px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
               <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,.10)', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', textAlign: 'center' }}>Time</div>
-              {visibleBarbers.map((b, i) => {
+              {pageBarbers.map((b, i) => {
                 const attachedStudents = studentUsers.filter(s => s.mentorIds.includes(b.id))
                 return (
                   <div key={b.id} style={{ padding: '10px 12px', borderRight: i < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1295,7 +1341,7 @@ export default function CalendarPage() {
             </div>
 
             {/* Body */}
-            <div style={{ display: 'grid', gridTemplateColumns: `${isMobile ? 46 : 90}px repeat(${visibleBarbers.length}, minmax(${COL_MIN}px,1fr))`, height: totalH, position: 'relative' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${COL_MIN}px,1fr))`, height: totalH, position: 'relative' }}>
               {/* Time labels */}
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
                 {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
@@ -1309,7 +1355,7 @@ export default function CalendarPage() {
               </div>
 
               {/* Columns */}
-              {visibleBarbers.map((barber, bi) => {
+              {pageBarbers.map((barber, bi) => {
                 // Student: all model events go to the single student column
                 const colEvents = isStudent
                   ? filtered.filter(e => e._raw?.booking_type === 'model' || e._raw?.booking_type === 'training')
@@ -1490,6 +1536,8 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
+          )
+        })()}
 
         {loading && <div style={{ position: 'fixed', bottom: 20, right: 20, padding: '8px 16px', borderRadius: 999, background: 'rgba(10,132,255,.20)', border: '1px solid rgba(10,132,255,.40)', color: '#d7ecff', fontSize: 12, zIndex: 99 }}>Loading…</div>}
       </div>
