@@ -1442,8 +1442,8 @@ export default function CalendarPage() {
                             <div style={{ position: 'absolute', left: 0, right: 0, top: ey, height: totalPx - ey, zIndex: 2, background: BG, backgroundImage: STRIPE, cursor: 'default', pointerEvents: 'none' }}>
                               {/* Border top = work end */}
                               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: BORDER_COLOR, pointerEvents: 'none' }} />
-                              {/* Handle zone — only top 28px is draggable */}
-                              {isOwnerOrAdmin && (
+                              {/* Handle zone — owner/admin/barber(own column) can drag */}
+                              {(isOwnerOrAdmin || (isBarber && barber.id === myBarberId)) && (
                                 <div
                                   style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 28, cursor: 'ns-resize', pointerEvents: 'all', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11 }}
                                   onMouseDown={e => { e.stopPropagation(); offResize.current = { barberId: barber.id, type: 'bottom', startY: e.clientY, origMin: endMin } }}
@@ -1697,12 +1697,26 @@ export default function CalendarPage() {
           try {
             // Barber sends request instead of direct save
             if (isBarber && !isOwnerOrAdmin) {
+              // Build full schedule with the change applied so backend can save directly
+              const barber = barbers.find(b => b.id === barberId)
+              const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
+              const newSched = baseSched.map((d: any, i: number) => i === dow ? { ...d, startMin, endMin } : d)
+              const enabledDays = newSched.map((d: any, i: number) => d.enabled ? i : -1).filter((i: number) => i >= 0)
+              const enabledScheds = newSched.filter((d: any) => d.enabled)
+              const globalStart = enabledScheds.length ? Math.min(...enabledScheds.map((d: any) => d.startMin)) : startMin
+              const globalEnd = enabledScheds.length ? Math.max(...enabledScheds.map((d: any) => d.endMin)) : endMin
+
               await apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
                 type: 'schedule_change',
-                data: { barberName, barberId, dayName, dow, startTime: fmt(startMin), endTime: fmt(endMin), startMin, endMin }
+                data: {
+                  barberName, barberId, dayName, dow,
+                  startTime: fmt(startMin), endTime: fmt(endMin),
+                  // Full schedule for backend to apply on approve
+                  schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays },
+                  work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays },
+                }
               })})
               showToast('Schedule change request sent for approval')
-              // Revert visual — barber can't apply directly
               loadBarbers().then(list => setBarbers(list))
               return
             }
