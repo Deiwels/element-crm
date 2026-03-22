@@ -305,19 +305,33 @@ export default function MessagesPage() {
     return () => clearInterval(interval)
   }, [activeTab, loadMessages, loadRequests])
 
-  // Fix mobile keyboard pushing content up
+  // Fix mobile keyboard pushing content — reset scroll position on blur
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
     function onResize() {
       const container = document.querySelector('.msg-container') as HTMLElement
-      if (container) {
-        container.style.height = `${vv!.height}px`
-      }
+      if (!container) return
+      container.style.height = `${vv!.height}px`
+      // Prevent iOS Safari from scrolling the page up
+      window.scrollTo(0, 0)
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
     }
     vv.addEventListener('resize', onResize)
     vv.addEventListener('scroll', onResize)
-    return () => { vv.removeEventListener('resize', onResize); vv.removeEventListener('scroll', onResize) }
+    // Also reset on any input blur (keyboard close)
+    function onBlur() {
+      setTimeout(() => {
+        window.scrollTo(0, 0)
+        document.documentElement.scrollTop = 0
+        document.body.scrollTop = 0
+        const container = document.querySelector('.msg-container') as HTMLElement
+        if (container) container.style.height = '100dvh'
+      }, 100)
+    }
+    document.addEventListener('focusout', onBlur)
+    return () => { vv.removeEventListener('resize', onResize); vv.removeEventListener('scroll', onResize); document.removeEventListener('focusout', onBlur) }
   }, [])
 
   // Auto-scroll to bottom
