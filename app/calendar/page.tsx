@@ -617,26 +617,7 @@ export default function CalendarPage() {
   const [slotPicker, setSlotPicker] = useState<{ min: number; mentorId: string; mentorName: string }[] | null>(null)
   const [mobilePage, setMobilePage] = useState(0)
   const BARBERS_PER_PAGE = 2
-  const totalPages = Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE)
   const swipeRef = useRef<{ startX: number; startY: number } | null>(null)
-  // Swipe handler for mobile barber pages
-  useEffect(() => {
-    if (!isMobile || isStudent || isBarber || visibleBarbers.length <= BARBERS_PER_PAGE) return
-    const el = scrollContainerRef.current; if (!el) return
-    function onTouchStart(e: TouchEvent) { swipeRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY } }
-    function onTouchEnd(e: TouchEvent) {
-      if (!swipeRef.current) return
-      const dx = e.changedTouches[0].clientX - swipeRef.current.startX
-      const dy = e.changedTouches[0].clientY - swipeRef.current.startY
-      swipeRef.current = null
-      if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return // not a horizontal swipe
-      if (dx < 0) setMobilePage(p => Math.min(p + 1, totalPages - 1)) // swipe left → next
-      else setMobilePage(p => Math.max(p - 1, 0)) // swipe right → prev
-    }
-    el.addEventListener('touchstart', onTouchStart, { passive: true })
-    el.addEventListener('touchend', onTouchEnd, { passive: true })
-    return () => { el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchend', onTouchEnd) }
-  }, [isMobile, isStudent, isBarber, visibleBarbers.length, totalPages])
   const toastTimer = useRef<any>(null)
   const showToast = useCallback((msg: string) => { setToast(msg); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 3500) }, [])
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -799,6 +780,26 @@ export default function CalendarPage() {
     : isBarber
       ? (myBarberObj ? [myBarberObj] : barbers)
       : barbers
+  const totalPages = Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE)
+
+  // Swipe handler for mobile barber pages
+  useEffect(() => {
+    if (!isMobile || isStudent || isBarber || visibleBarbers.length <= BARBERS_PER_PAGE) return
+    const el = scrollContainerRef.current; if (!el) return
+    function onTouchStart(e: TouchEvent) { swipeRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY } }
+    function onTouchEnd(e: TouchEvent) {
+      if (!swipeRef.current) return
+      const dx = e.changedTouches[0].clientX - swipeRef.current.startX
+      const dy = e.changedTouches[0].clientY - swipeRef.current.startY
+      swipeRef.current = null
+      if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return
+      if (dx < 0) setMobilePage(p => Math.min(p + 1, totalPages - 1))
+      else setMobilePage(p => Math.max(p - 1, 0))
+    }
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    return () => { el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchend', onTouchEnd) }
+  }, [isMobile, isStudent, isBarber, visibleBarbers.length, totalPages])
 
   const todayStr = isoDate(anchor)
 
