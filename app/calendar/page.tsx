@@ -1306,7 +1306,7 @@ export default function CalendarPage() {
                       )
                     })}
                     {/* Off-hours blocks — gray, like red block but for non-working time */}
-                    {!isStudent && (() => {
+                    {(() => {
                       const wh = (workHours as any)[barber.id]
                       if (!wh) return null
                       const { startMin, endMin, dayOff } = wh as { startMin: number; endMin: number; dayOff: boolean }
