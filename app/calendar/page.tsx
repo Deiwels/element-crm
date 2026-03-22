@@ -780,9 +780,9 @@ export default function CalendarPage() {
       : barbers
   const totalPages = Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE)
 
-  // Swipe handler for mobile barber pages
+  // Swipe handler for mobile
   useEffect(() => {
-    if (!isMobile || isStudent || isBarber || visibleBarbers.length <= BARBERS_PER_PAGE) return
+    if (!isMobile) return
     const el = scrollContainerRef.current; if (!el) return
     function onTouchStart(e: TouchEvent) { swipeRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY } }
     function onTouchEnd(e: TouchEvent) {
@@ -791,8 +791,15 @@ export default function CalendarPage() {
       const dy = e.changedTouches[0].clientY - swipeRef.current.startY
       swipeRef.current = null
       if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return
-      if (dx < 0) setMobilePage(p => Math.min(p + 1, totalPages - 1))
-      else setMobilePage(p => Math.max(p - 1, 0))
+      if (isBarber || isStudent || visibleBarbers.length <= BARBERS_PER_PAGE) {
+        // Barber/student: swipe changes day
+        if (dx < 0) setAnchor(a => { const x = new Date(a); x.setDate(x.getDate() + 1); return x })
+        else setAnchor(a => { const x = new Date(a); x.setDate(x.getDate() - 1); return x })
+      } else {
+        // Owner/admin: swipe changes barber page
+        if (dx < 0) setMobilePage(p => Math.min(p + 1, totalPages - 1))
+        else setMobilePage(p => Math.max(p - 1, 0))
+      }
     }
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchend', onTouchEnd, { passive: true })
