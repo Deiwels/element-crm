@@ -440,7 +440,11 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
           /* Topbar padding-left reset — burger is fixed, not in flow */
           .content > div > div:first-child{
-            padding-left:60px!important;
+            padding-left:54px!important;
+          }
+          /* Modals should NOT be shifted — reset padding */
+          .content [style*="position: fixed"]{
+            padding-left:0!important;
           }
         }
 

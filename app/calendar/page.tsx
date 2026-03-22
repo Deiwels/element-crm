@@ -1542,32 +1542,34 @@ export default function CalendarPage() {
       {/* Context menu */}
       {contextMenu && (() => {
         const cmBarber = barbers.find(b=>b.id===contextMenu.barberId)
+        const hasStudents = studentUsers.some(s => s.mentorIds.includes(contextMenu.barberId))
         const cmItems = [
-          { label: 'New booking', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, bg: 'rgba(10,132,255,.14)', brd: 'rgba(10,132,255,.30)', col: '#d7ecff', fn: () => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) } },
-          ...(studentUsers.some(s => s.mentorIds.includes(contextMenu.barberId)) ? [{
-            label: 'Training', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2.2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>, bg: 'rgba(168,107,255,.14)', brd: 'rgba(168,107,255,.30)', col: '#d4b8ff', fn: () => { setContextMenu(null); setTrainingModal({ barberId: contextMenu.barberId, barberName: cmBarber?.name || '', min: contextMenu.min }) }
+          { label: 'Booking', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2.2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>, bg: 'rgba(10,132,255,.18)', brd: 'rgba(10,132,255,.35)', col: '#d7ecff', fn: () => { setContextMenu(null); openCreate(contextMenu.barberId, contextMenu.min) } },
+          ...(hasStudents ? [{
+            label: 'Training', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2.2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>, bg: 'rgba(168,107,255,.18)', brd: 'rgba(168,107,255,.35)', col: '#d4b8ff', fn: () => { setContextMenu(null); setTrainingModal({ barberId: contextMenu.barberId, barberName: cmBarber?.name || '', min: contextMenu.min }) }
           }] : []),
-          { label: 'Block', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffd0d0" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, bg: 'rgba(255,107,107,.10)', brd: 'rgba(255,107,107,.25)', col: '#ffd0d0', fn: () => { setContextMenu(null); openCreateBlock(contextMenu.barberId, contextMenu.min) } },
+          { label: 'Block', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffd0d0" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, bg: 'rgba(255,107,107,.12)', brd: 'rgba(255,107,107,.25)', col: '#ffd0d0', fn: () => { setContextMenu(null); openCreateBlock(contextMenu.barberId, contextMenu.min) } },
         ]
-        // Position: clamp to screen
-        const menuW = 180, menuH = cmItems.length * 44 + 36
-        const left = Math.max(8, Math.min(contextMenu.x - menuW/2, window.innerWidth - menuW - 8))
-        const top = Math.max(8, Math.min(contextMenu.y - 20, window.innerHeight - menuH - 8))
+        // Clamp position to screen
+        const top = Math.max(8, Math.min(contextMenu.y - 24, window.innerHeight - 120))
+        const left = Math.max(8, Math.min(contextMenu.x - 90, window.innerWidth - 200))
         return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setContextMenu(null)}>
-          <div style={{ position: 'fixed', left, top, width: menuW, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(30,30,35,.95),rgba(15,15,20,.95))', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 12px 40px rgba(0,0,0,.60)', padding: '8px 6px', fontFamily: 'Inter,sans-serif' }} onClick={e => e.stopPropagation()}>
-            {/* Time header — like appointment card */}
-            <div style={{ padding: '4px 8px 8px', borderBottom: '1px solid rgba(255,255,255,.06)', marginBottom: 4 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{minToHHMM(contextMenu.min)}</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', letterSpacing: '.06em' }}>{cmBarber?.name}</div>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 150, background: 'rgba(0,0,0,.25)' }} onClick={() => setContextMenu(null)}>
+          <div style={{ position: 'fixed', left, top, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 16px 40px rgba(0,0,0,.65), inset 0 0 0 0.5px rgba(255,255,255,.06)', padding: '10px 10px 8px', fontFamily: 'Inter,sans-serif' }} onClick={e => e.stopPropagation()}>
+            {/* Time + barber */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{minToHHMM(contextMenu.min)}</span>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,.35)' }}>{cmBarber?.name}</span>
             </div>
-            {cmItems.map(item => (
-              <button key={item.label} onClick={item.fn} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '8px 8px', borderRadius: 8, border: 'none', background: 'transparent', color: item.col, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}
-                onMouseEnter={e => (e.currentTarget.style.background=item.bg)} onMouseLeave={e => (e.currentTarget.style.background='transparent')}>
-                <span style={{ width: 24, height: 24, borderRadius: 6, background: item.bg, border: `1px solid ${item.brd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{item.icon}</span>
-                {item.label}
-              </button>
-            ))}
+            {/* Buttons in a row */}
+            <div style={{ display: 'flex', gap: 4 }}>
+              {cmItems.map(item => (
+                <button key={item.label} onClick={item.fn} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 6px', borderRadius: 10, border: `1px solid ${item.brd}`, background: item.bg, color: item.col, cursor: 'pointer', fontSize: 10, fontWeight: 700, fontFamily: 'inherit' }}>
+                  {item.icon}
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         )
