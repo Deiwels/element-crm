@@ -14,6 +14,7 @@ interface User {
 const NAV = [
   { id: 'dashboard', href: '/dashboard', label: 'Dashboard',  sub: 'Today overview' },
   { id: 'calendar',  href: '/calendar',  label: 'Calendar',   sub: 'Bookings grid' },
+  { id: 'messages',  href: '/messages',  label: 'Messages',   sub: 'Team chat' },
   { id: 'clients',   href: '/clients',   label: 'Clients',    sub: 'Search / notes',      ownerAdmin: true },
   { id: 'payments',  href: '/payments',  label: 'Payments',   sub: 'Square + Terminal',   ownerAdmin: true },
   { id: 'payroll',   href: '/payroll',   label: 'Payroll',    sub: 'Commission + tips',   ownerOnly: true },
@@ -40,6 +41,10 @@ function Icon({ id, color }: { id: string; color: string }) {
         <circle cx="8" cy="15" r="1" fill={color}/>
         <circle cx="12" cy="15" r="1" fill={color}/>
         <circle cx="16" cy="15" r="1" fill={color}/>
+      </svg>
+    case 'messages':
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" {...s}/>
       </svg>
     case 'clients':
       return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
@@ -294,7 +299,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
     if ((item as any).ownerOnly && role !== 'owner') return false
     if ((item as any).ownerAdmin && (isBarber || isStudent)) return false
     // Student sees ONLY calendar
-    if (isStudent && item.id !== 'calendar') return false
+    if (isStudent && item.id !== 'calendar' && item.id !== 'messages') return false
     return true
   })
   const initials = (n: string) => { const p = (n || '').split(' '); return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() }
