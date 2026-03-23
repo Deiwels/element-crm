@@ -363,10 +363,11 @@ export default function PayrollPage() {
   const [filterBarber, setFilterBarber] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [showDatePicker, setShowDatePicker] = useState(false)
-  const [activeTab, setActiveTab] = useState<'summary'|'rules'>('summary')
+  const [activeTab, setActiveTab] = useState<'summary'|'rules'|'attendance'>('summary')
   const [adminUsers, setAdminUsers] = useState<any[]>([])
   const [adminAttendance, setAdminAttendance] = useState<Record<string, number>>({})
   const [adminWorkDays, setAdminWorkDays] = useState<Record<string, number[]>>({})
+  const [allAttendance, setAllAttendance] = useState<any[]>([])
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -385,12 +386,13 @@ export default function PayrollPage() {
       // Only admin users (not owner) for admin payroll
       const admins = allUsers.filter((u: any) => u.role === 'admin' && u.active !== false)
       setAdminUsers(admins)
-      // Attendance hours per user
+      // Attendance hours per user (keyed by user_id AND barber_id)
       const attHours: Record<string, number> = {}
       const attRecords = attData?.attendance || []
       attRecords.forEach((r: any) => {
         if (r.duration_minutes) {
           attHours[r.user_id] = (attHours[r.user_id] || 0) + r.duration_minutes
+          if (r.barber_id) attHours[r.barber_id] = (attHours[r.barber_id] || 0) + r.duration_minutes
         }
       })
       // For currently clocked in, add elapsed
@@ -398,9 +400,11 @@ export default function PayrollPage() {
         if (!r.clock_out && r.clock_in) {
           const elapsed = Math.round((Date.now() - new Date(r.clock_in).getTime()) / 60000)
           attHours[r.user_id] = (attHours[r.user_id] || 0) + Math.max(0, elapsed)
+          if (r.barber_id) attHours[r.barber_id] = (attHours[r.barber_id] || 0) + Math.max(0, elapsed)
         }
       })
       setAdminAttendance(attHours)
+      setAllAttendance(attRecords)
       // Also compute service fee days for admins
       // Store which days each user worked
       const attDaysSet: Record<string, Set<number>> = {}
@@ -546,7 +550,7 @@ export default function PayrollPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
-                      {['Barber','Rate','Services','Barber share','Owner share','Tips','Total payout',''].map(h => (
+                      {['Barber','Hours','Rate','Services','Barber share','Owner share','Tips','Total payout',''].map(h => (
                         <th key={h} style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.08)', textAlign: 'left', ...lbl, background: 'rgba(0,0,0,.10)', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -570,6 +574,9 @@ export default function PayrollPage() {
                                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 2 }}>{b.client_count} clients · {b.bookings_count} bookings</div>
                               </div>
                             </div>
+                          </td>
+                          <td style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', whiteSpace: 'nowrap' }}>
+                            {(() => { const mins = adminAttendance[b.barber_id] || 0; const h = mins / 60; return h > 0 ? <span style={{ fontSize: 12, color: '#d7ecff', fontWeight: 700 }}>{h.toFixed(1)}h</span> : <span style={{ fontSize: 11, color: 'rgba(255,255,255,.25)' }}>—</span> })()}
                           </td>
                           <td style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', whiteSpace: 'nowrap' }}>
                             <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, border: isBoosted ? '1px solid rgba(143,240,177,.45)' : '1px solid rgba(10,132,255,.40)', background: isBoosted ? 'rgba(143,240,177,.10)' : 'rgba(10,132,255,.10)', color: isBoosted ? '#c9ffe1' : '#d7ecff' }}>
@@ -628,11 +635,12 @@ export default function PayrollPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={card}>
               {/* Tabs */}
-              <div style={{ display: 'flex', gap: 6, padding: '12px 14px 0' }}>
-                {(['summary','rules'] as const).map(tab => (
+              <div style={{ display: 'flex', gap: 6, padding: '12px 14px 0', flexWrap: 'wrap' }}>
+                {(['summary','attendance','rules'] as const).map(tab => (
                   <button key={tab} onClick={() => setActiveTab(tab)}
-                    style={{ height: 34, padding: '0 14px', borderRadius: 999, border: `1px solid ${activeTab===tab ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.10)'}`, background: activeTab===tab ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.04)', color: activeTab===tab ? '#d7ecff' : 'rgba(255,255,255,.70)', cursor: 'pointer', fontWeight: 900, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit' }}>
-                    {tab === 'summary' ? 'Summary' : 'Commission rules'}
+                    style={{ height: 34, padding: '0 14px', borderRadius: 999, border: `1px solid ${activeTab===tab ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.10)'}`, background: activeTab===tab ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.04)', color: activeTab===tab ? '#d7ecff' : 'rgba(255,255,255,.70)', cursor: 'pointer', fontWeight: 900, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {tab === 'attendance' && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
+                    {tab === 'summary' ? 'Summary' : tab === 'attendance' ? 'Hours & Clock' : 'Commission rules'}
                   </button>
                 ))}
               </div>
@@ -729,6 +737,59 @@ export default function PayrollPage() {
                     )
                   })()}
                 </>
+              )}
+
+              {activeTab === 'attendance' && (
+                <div style={{ padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)', fontWeight: 900 }}>Attendance history</span>
+                  </div>
+                  {/* Hours summary per person */}
+                  {(() => {
+                    const byUser: Record<string, { name: string; role: string; mins: number; shifts: number }> = {}
+                    allAttendance.forEach((r: any) => {
+                      if (!byUser[r.user_id]) byUser[r.user_id] = { name: r.user_name || 'Unknown', role: r.role || '', mins: 0, shifts: 0 }
+                      if (r.duration_minutes) byUser[r.user_id].mins += r.duration_minutes
+                      if (!r.clock_out && r.clock_in) byUser[r.user_id].mins += Math.max(0, Math.round((Date.now() - new Date(r.clock_in).getTime()) / 60000))
+                      byUser[r.user_id].shifts++
+                    })
+                    const entries = Object.entries(byUser).sort((a, b) => b[1].mins - a[1].mins)
+                    return entries.length > 0 ? (
+                      <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 14, background: 'rgba(0,0,0,.14)', border: '1px solid rgba(255,255,255,.08)' }}>
+                        {entries.map(([uid, u]) => (
+                          <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+                            <span style={{ fontWeight: 700, fontSize: 13, color: '#e9e9e9', flex: 1 }}>{u.name}</span>
+                            <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.50)' }}>{u.role}</span>
+                            <span style={{ fontSize: 13, color: '#8ff0b1', fontWeight: 900 }}>{(u.mins / 60).toFixed(1)}h</span>
+                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,.35)' }}>{u.shifts} shift{u.shifts !== 1 ? 's' : ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <div style={{ fontSize: 12, color: 'rgba(255,255,255,.35)', marginBottom: 12 }}>No attendance records for this period.</div>
+                  })()}
+                  {/* Full log */}
+                  <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', fontWeight: 900, marginBottom: 8 }}>Full log</div>
+                  <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                    {allAttendance.length === 0 && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.30)', padding: 8 }}>No records found.</div>}
+                    {allAttendance.map((r: any) => {
+                      const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'
+                      const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Still in'
+                      const isIn = !r.clock_out
+                      return (
+                        <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.06)', fontSize: 12 }}>
+                          {isIn && <span style={{ width: 6, height: 6, borderRadius: 999, background: '#8ff0b1', animation: 'clockDot 2s ease-in-out infinite', flexShrink: 0 }} />}
+                          <span style={{ fontWeight: 700, color: '#e9e9e9', flex: 1, minWidth: 70 }}>{r.user_name}</span>
+                          <span style={{ color: 'rgba(255,255,255,.35)', minWidth: 72, fontSize: 11 }}>{r.date}</span>
+                          <span style={{ color: 'rgba(255,255,255,.55)' }}>{inTime}</span>
+                          <span style={{ color: 'rgba(255,255,255,.20)' }}>→</span>
+                          <span style={{ color: isIn ? '#8ff0b1' : 'rgba(255,255,255,.55)' }}>{outTime}</span>
+                          <span style={{ color: '#8ff0b1', fontWeight: 700, minWidth: 45, textAlign: 'right' as const }}>{r.duration_minutes ? `${(r.duration_minutes/60).toFixed(1)}h` : isIn ? 'now' : '—'}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
               )}
 
               {activeTab === 'rules' && (
