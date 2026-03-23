@@ -1551,9 +1551,12 @@ export default function CalendarPage() {
                       // Find a free slot in working hours
                       const wh = (workHours as any)[barber.id]
                       if (!wh || wh.dayOff) return null
-                      const startSearch = Math.max(wh.startMin, nowMin)
+                      const prefStart = Number(w.preferred_start_min || wh.startMin)
+                      const prefEnd = Number(w.preferred_end_min || wh.endMin)
+                      const startSearch = Math.max(wh.startMin, prefStart)
+                      const endSearch = Math.min(wh.endMin, prefEnd)
                       let slotMin = -1
-                      for (let m = startSearch; m <= wh.endMin - dur; m += 5) {
+                      for (let m = startSearch; m <= endSearch - dur; m += 5) {
                         const hasConflict = colEvents.some(e => {
                           const eEnd = e.startMin + e.durMin
                           return m < eEnd && (m + dur) > e.startMin
@@ -1570,7 +1573,7 @@ export default function CalendarPage() {
                               .then(() => { showToast('Waitlist confirmed'); loadWaitlist() }).catch(e => showToast('Error: ' + e.message))
                           }}}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: '#ffe9a3' }}>{w.client_name || 'Waitlist'}</div>
-                          <div style={{ fontSize: 9, color: 'rgba(255,207,63,.60)', marginTop: 1 }}>{minToHHMM(slotMin)} · {dur}min · WAITLIST</div>
+                          <div style={{ fontSize: 9, color: 'rgba(255,207,63,.60)', marginTop: 1 }}>{minToHHMM(slotMin)} · {dur}min · {prefStart !== wh.startMin || prefEnd !== wh.endMin ? `${minToHHMM(prefStart)}-${minToHHMM(prefEnd)}` : 'WAITLIST'}</div>
                         </div>
                       )
                     })}

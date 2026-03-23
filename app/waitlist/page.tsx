@@ -47,6 +47,8 @@ export default function WaitlistPage() {
   const [newBarberId, setNewBarberId] = useState('')
   const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [newDuration, setNewDuration] = useState(30)
+  const [prefStartMin, setPrefStartMin] = useState(8 * 60) // 8:00 AM
+  const [prefEndMin, setPrefEndMin] = useState(20 * 60)     // 8:00 PM
   const [saving, setSaving] = useState(false)
   const [phoneSearching, setPhoneSearching] = useState(false)
   const [foundClients, setFoundClients] = useState<any[]>([])
@@ -160,6 +162,8 @@ export default function WaitlistPage() {
           duration_minutes: totalDur,
           service_ids: newServiceIds,
           service_names: selSvcs.map((s: any) => s.name),
+          preferred_start_min: prefStartMin,
+          preferred_end_min: prefEndMin,
         }),
       })
       clearClient(); setAdding(false); setNewServiceIds([])
@@ -316,6 +320,33 @@ export default function WaitlistPage() {
               </div>
             )}
 
+            {/* Preferred time range */}
+            <div>
+              <label style={lbl}>Preferred time range</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <select value={prefStartMin} onChange={e => setPrefStartMin(Number(e.target.value))} style={{ ...inp, flex: 1 }}>
+                  {Array.from({ length: 28 }, (_, i) => {
+                    const m = (7 * 60) + i * 30 // 7:00 AM to 20:30
+                    const h = Math.floor(m / 60), mm = m % 60
+                    const ampm = h >= 12 ? 'PM' : 'AM'
+                    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+                    return <option key={m} value={m}>{h12}:{String(mm).padStart(2,'0')} {ampm}</option>
+                  })}
+                </select>
+                <span style={{ color: 'rgba(255,255,255,.35)', fontSize: 12, fontWeight: 700 }}>to</span>
+                <select value={prefEndMin} onChange={e => setPrefEndMin(Number(e.target.value))} style={{ ...inp, flex: 1 }}>
+                  {Array.from({ length: 28 }, (_, i) => {
+                    const m = (7 * 60 + 30) + i * 30 // 7:30 AM to 21:00
+                    const h = Math.floor(m / 60), mm = m % 60
+                    const ampm = h >= 12 ? 'PM' : 'AM'
+                    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+                    return <option key={m} value={m}>{h12}:{String(mm).padStart(2,'0')} {ampm}</option>
+                  })}
+                </select>
+              </div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.30)', marginTop: 4 }}>Client will be notified only if a slot opens in this window</div>
+            </div>
+
             {/* Duration override if no services selected */}
             {newServiceIds.length === 0 && (
               <div>
@@ -360,6 +391,11 @@ export default function WaitlistPage() {
                       <span>{barber?.name || entry.barber_name || '—'}</span>
                       <span>{entry.date}</span>
                       <span>{entry.duration_minutes}min</span>
+                      {(entry as any).preferred_start_min != null && (entry as any).preferred_end_min != null && (entry as any).preferred_end_min < 1440 && (
+                        <span style={{ color: 'rgba(10,132,255,.70)' }}>
+                          {(() => { const s = (entry as any).preferred_start_min, e = (entry as any).preferred_end_min; const fmt = (m: number) => { const h = Math.floor(m/60), mm = m%60; return `${h===0?12:h>12?h-12:h}:${String(mm).padStart(2,'0')}${h>=12?'PM':'AM'}` }; return `${fmt(s)}–${fmt(e)}` })()}
+                        </span>
+                      )}
                       {entry.phone_raw && <span>{entry.phone_raw}</span>}
                     </div>
                     {entry.service_names?.length ? (
