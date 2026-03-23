@@ -689,11 +689,12 @@ export default function CalendarPage() {
     }
     // If today → scroll to current time (30% from top)
     // If another day → scroll to work start
-    const scrollMin = todayStr === today ? currentMin : earliestWorkStart
+    const anchorStr = isoDate(anchor)
+    const scrollMin = anchorStr === today ? currentMin : earliestWorkStart
     const y = ((scrollMin - START_HOUR * 60) / 5) * SLOT_H
     const offset = Math.max(0, y - container.clientHeight * 0.3)
     requestAnimationFrame(() => { container.scrollTop = offset })
-  }, [barbers, todayStr, workHours])
+  }, [barbers, anchor, workHours])
 
   // Off-block resize handlers
   useEffect(() => {
