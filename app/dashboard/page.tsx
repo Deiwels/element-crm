@@ -75,6 +75,20 @@ export default function DashboardPage() {
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusMsg, setStatusMsg] = useState('')
 
+  // Attendance
+  const [clockedIn, setClockedIn] = useState(false)
+  const [clockInTime, setClockInTime] = useState<string | null>(null)
+  const [todayMinutes, setTodayMinutes] = useState(0)
+  const [clockLoading, setClockLoading] = useState(false)
+  const [clockError, setClockError] = useState('')
+  const [staffOnClock, setStaffOnClock] = useState<any[]>([])
+  const [attHistory, setAttHistory] = useState<any[]>([])
+  const [attSummary, setAttSummary] = useState<any>(null)
+  const [attFrom, setAttFrom] = useState(() => isoToday())
+  const [attTo, setAttTo] = useState(() => isoToday())
+  const [attOpen, setAttOpen] = useState(false)
+  const [attLoading, setAttLoading] = useState(false)
+
   // Get current user from localStorage
   const [user] = useState(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null }
@@ -168,6 +182,24 @@ export default function DashboardPage() {
       const rvData = await rvRes.json()
       setReviews(rvData?.reviews || [])
     } catch { setReviews([]) }
+    // Load attendance status
+    try {
+      const attStatusRes = await fetch(`${API}/api/attendance/status`, { credentials: 'include', headers })
+      const attStatus = await attStatusRes.json()
+      setClockedIn(!!attStatus.clocked_in)
+      setClockInTime(attStatus.clock_in || null)
+      setTodayMinutes(attStatus.today_minutes || 0)
+    } catch { setClockedIn(false) }
+    // Admin: load who's on clock today
+    if (!isBarber) {
+      try {
+        const staffRes = await fetch(`${API}/api/attendance?from=${today}&to=${today}`, { credentials: 'include', headers })
+        const staffData = await staffRes.json()
+        const records = staffData?.attendance || []
+        // Currently clocked in = clock_out is null
+        setStaffOnClock(records.filter((r: any) => !r.clock_out))
+      } catch { setStaffOnClock([]) }
+    }
     setLoading(false)
   }, [isBarber, myBarberId])
 
@@ -243,6 +275,51 @@ export default function DashboardPage() {
 
   const DAY_NAMES_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
+  // Attendance helpers
+  const fmtMins = (m: number) => { const h = Math.floor(m / 60); const mm = m % 60; return h > 0 ? `${h}h ${mm}m` : `${mm}m` }
+  const clockInSince = clockInTime ? new Date(clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : ''
+
+  async function handleClockAction() {
+    setClockLoading(true)
+    setClockError('')
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
+      })
+      const { latitude: lat, longitude: lng } = pos.coords
+      const endpoint = clockedIn ? '/api/attendance/clock-out' : '/api/attendance/clock-in'
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      const res = await fetch(`${API}${endpoint}`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY },
+        body: JSON.stringify({ lat, lng })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      loadAll()
+    } catch (err: any) {
+      if (err?.code === 1) setClockError('Location access denied. Enable GPS in your browser settings.')
+      else if (err?.code === 2 || err?.code === 3) setClockError('Could not get location. Try again.')
+      else setClockError(err?.message || 'Clock action failed')
+    }
+    setClockLoading(false)
+  }
+
+  async function loadAttHistory() {
+    setAttLoading(true)
+    try {
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      const res = await fetch(`${API}/api/attendance?from=${attFrom}&to=${attTo}`, {
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, Accept: 'application/json' }
+      })
+      const data = await res.json()
+      setAttHistory(data?.attendance || [])
+      setAttSummary(data?.summary || null)
+    } catch { setAttHistory([]); setAttSummary(null) }
+    setAttLoading(false)
+  }
+
   return (
     <Shell page="dashboard">
       <div style={{ padding: '18px 18px 40px', maxWidth: 1400, margin: '0 auto', overflowY: 'auto', height: '100vh', color: '#e9e9e9', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -265,6 +342,129 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Clock In/Out card */}
+        <style>{`
+          @keyframes clockPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(143,240,177,0); }
+            50% { box-shadow: 0 0 16px 4px rgba(143,240,177,.35); }
+          }
+          @keyframes clockDot {
+            0%, 100% { opacity: .4; }
+            50% { opacity: 1; }
+          }
+        `}</style>
+        <div style={{ borderRadius: 18, border: `1px solid ${clockedIn ? 'rgba(143,240,177,.25)' : 'rgba(255,255,255,.10)'}`, background: clockedIn ? 'linear-gradient(180deg,rgba(143,240,177,.06),rgba(143,240,177,.01))' : 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', boxShadow: '0 10px 40px rgba(0,0,0,.35)', padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          {/* Status icon */}
+          <div style={{ width: 44, height: 44, borderRadius: 14, background: clockedIn ? 'rgba(143,240,177,.12)' : 'rgba(255,255,255,.06)', border: `1px solid ${clockedIn ? 'rgba(143,240,177,.30)' : 'rgba(255,255,255,.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={clockedIn ? '#8ff0b1' : 'rgba(255,255,255,.45)'} strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          {/* Text */}
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {clockedIn && <span style={{ width: 8, height: 8, borderRadius: 999, background: '#8ff0b1', display: 'inline-block', animation: 'clockDot 2s ease-in-out infinite' }} />}
+              <span style={{ fontWeight: 800, fontSize: 14, color: clockedIn ? '#c9ffe1' : 'rgba(255,255,255,.70)' }}>
+                {clockedIn ? `Clocked in since ${clockInSince}` : 'Not clocked in'}
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
+              Today: {fmtMins(todayMinutes)}
+            </div>
+            {clockError && <div style={{ fontSize: 11, color: '#ff6b6b', marginTop: 4 }}>{clockError}</div>}
+          </div>
+          {/* Button */}
+          <button onClick={handleClockAction} disabled={clockLoading}
+            style={{
+              height: 44, padding: '0 22px', borderRadius: 999, cursor: clockLoading ? 'wait' : 'pointer',
+              fontWeight: 900, fontSize: 13, fontFamily: 'inherit', letterSpacing: '.04em', textTransform: 'uppercase',
+              border: `1px solid ${clockedIn ? 'rgba(255,107,107,.45)' : 'rgba(143,240,177,.45)'}`,
+              background: clockedIn ? 'rgba(255,107,107,.12)' : 'rgba(143,240,177,.12)',
+              color: clockedIn ? '#ffd0d0' : '#c9ffe1',
+              opacity: clockLoading ? .5 : 1,
+              animation: !clockLoading && !clockedIn ? 'clockPulse 2.6s ease-in-out infinite' : 'none',
+              flexShrink: 0,
+            }}>
+            {clockLoading ? 'Locating…' : clockedIn ? 'Clock Out' : 'Clock In'}
+          </button>
+        </div>
+
+        {/* Staff on clock — admin/owner only */}
+        {isOwnerOrAdmin && staffOnClock.length > 0 && (
+          <div style={{ borderRadius: 18, border: '1px solid rgba(143,240,177,.15)', background: 'linear-gradient(180deg,rgba(143,240,177,.04),rgba(143,240,177,.01))', boxShadow: '0 10px 40px rgba(0,0,0,.35)', padding: '14px 16px', marginBottom: 14 }}>
+            <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)', marginBottom: 10, fontWeight: 900 }}>Staff on clock</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {staffOnClock.map((s: any) => {
+                const since = s.clock_in ? new Date(s.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'
+                const elapsed = s.clock_in ? Math.round((Date.now() - new Date(s.clock_in).getTime()) / 60000) : 0
+                return (
+                  <div key={s.id || s.user_id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: '#8ff0b1', animation: 'clockDot 2s ease-in-out infinite', flexShrink: 0 }} />
+                    <span style={{ fontWeight: 700, fontSize: 13, color: '#e9e9e9', flex: 1 }}>{s.user_name || 'Staff'}</span>
+                    <span style={{ fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', padding: '3px 8px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.50)' }}>{s.role}</span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,.45)' }}>since {since}</span>
+                    <span style={{ fontSize: 12, color: '#8ff0b1', fontWeight: 700 }}>{fmtMins(elapsed)}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Attendance history — admin/owner */}
+        {isOwnerOrAdmin && (
+          <div style={{ marginBottom: 14 }}>
+            <button onClick={() => { setAttOpen(o => !o); if (!attOpen) loadAttHistory() }}
+              style={{ height: 36, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.65)', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', letterSpacing: '.06em', textTransform: 'uppercase' }}>
+              {attOpen ? 'Hide' : 'Show'} Attendance History
+            </button>
+            {attOpen && (
+              <div style={{ marginTop: 10, borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: '14px 16px' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+                  <input type="date" value={attFrom} onChange={e => setAttFrom(e.target.value)} style={{ height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 12, colorScheme: 'dark' as any }} />
+                  <span style={{ color: 'rgba(255,255,255,.35)', fontSize: 12 }}>to</span>
+                  <input type="date" value={attTo} onChange={e => setAttTo(e.target.value)} style={{ height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 12, colorScheme: 'dark' as any }} />
+                  <button onClick={loadAttHistory} disabled={attLoading} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(10,132,255,.45)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', opacity: attLoading ? .5 : 1 }}>
+                    {attLoading ? 'Loading…' : 'Load'}
+                  </button>
+                </div>
+                {/* Summary */}
+                {attSummary && (
+                  <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 14, background: 'rgba(0,0,0,.14)', border: '1px solid rgba(255,255,255,.08)' }}>
+                    <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 8, fontWeight: 900 }}>Summary · {attSummary.total_hours || 0}h total</div>
+                    {Object.entries(attSummary.by_user || {}).map(([uid, u]: any) => (
+                      <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: '#e9e9e9', flex: 1 }}>{u.name}</span>
+                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.50)' }}>{u.role}</span>
+                        <span style={{ fontSize: 12, color: '#8ff0b1', fontWeight: 700 }}>{fmtMins(u.total_minutes)}</span>
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,.35)' }}>{u.shifts} shift{u.shifts !== 1 ? 's' : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Records */}
+                <div style={{ maxHeight: 340, overflowY: 'auto' }}>
+                  {attHistory.length === 0 && !attLoading && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.35)', padding: 8 }}>No records found.</div>}
+                  {attHistory.map((r: any) => {
+                    const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'
+                    const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Still in'
+                    return (
+                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,.06)', fontSize: 12 }}>
+                        <span style={{ fontWeight: 700, color: '#e9e9e9', flex: 1, minWidth: 80 }}>{r.user_name}</span>
+                        <span style={{ color: 'rgba(255,255,255,.40)', minWidth: 75 }}>{r.date}</span>
+                        <span style={{ color: 'rgba(255,255,255,.55)' }}>{inTime}</span>
+                        <span style={{ color: 'rgba(255,255,255,.30)' }}>→</span>
+                        <span style={{ color: r.clock_out ? 'rgba(255,255,255,.55)' : '#8ff0b1' }}>{outTime}</span>
+                        <span style={{ color: '#8ff0b1', fontWeight: 700, minWidth: 50, textAlign: 'right' as const }}>{r.duration_minutes ? fmtMins(r.duration_minutes) : '—'}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* KPIs — barber sees their own earnings, owner sees totals */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
