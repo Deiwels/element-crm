@@ -7,7 +7,7 @@ const API_KEY = 'R1403ss81fxrx*rx1403'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Tier { type: 'revenue' | 'clients'; threshold: number; pct: number }
-interface Rule { base_pct: number; tips_pct: number; tiers: Tier[] }
+interface Rule { base_pct: number; tips_pct: number; tiers: Tier[]; hourly_rate?: number; owner_profit_pct?: number; service_fee_pct?: number; service_fee_days?: number[] }
 interface Booking { id: string; date: string; client: string; service: string; service_amount: number; tip: number; status: string; paid: boolean }
 interface BarberPayroll {
   barber_id: string; barber_name: string; barber_photo: string; barber_level: string
@@ -228,6 +228,88 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
   )
 }
 
+// ─── AdminPayrollEditor ───────────────────────────────────────────────────────
+const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+function AdminPayrollEditor({ userId, userName, rule, onSaved }: { userId: string; userName: string; rule: Rule; onSaved: (r: Rule) => void }) {
+  const [open, setOpen] = useState(false)
+  const [hourly, setHourly] = useState(rule.hourly_rate ?? 0)
+  const [ownerPct, setOwnerPct] = useState(rule.owner_profit_pct ?? 2)
+  const [feePct, setFeePct] = useState(rule.service_fee_pct ?? 3)
+  const [feeDays, setFeeDays] = useState<number[]>(rule.service_fee_days ?? [0,1,2,3,4,5,6])
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const inp: React.CSSProperties = { height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 13, fontFamily: 'inherit', width: '100%' }
+
+  async function save() {
+    setSaving(true)
+    try {
+      await apiFetch(`/api/payroll/rules/${encodeURIComponent(userId)}`, {
+        method: 'POST', body: JSON.stringify({ ...rule, hourly_rate: hourly, owner_profit_pct: ownerPct, service_fee_pct: feePct, service_fee_days: feeDays })
+      })
+      onSaved({ ...rule, hourly_rate: hourly, owner_profit_pct: ownerPct, service_fee_pct: feePct, service_fee_days: feeDays })
+      setSaved(true); setTimeout(() => setSaved(false), 2000)
+    } catch (e: any) { alert('Error: ' + e.message) }
+    setSaving(false)
+  }
+
+  function toggleDay(d: number) { setFeeDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort()) }
+
+  return (
+    <div style={{ borderRadius: 14, border: `1px solid ${open ? 'rgba(143,240,177,.25)' : 'rgba(255,255,255,.08)'}`, overflow: 'hidden', background: open ? 'rgba(143,240,177,.04)' : 'rgba(0,0,0,.12)' }}>
+      <div onClick={() => setOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', cursor: 'pointer' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(143,240,177,.12)', border: '1px solid rgba(143,240,177,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: '#c9ffe1' }}>{initials(userName)}</div>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 13 }}>{userName}</div>
+            <div style={{ fontSize: 10, color: '#c9ffe1' }}>ADMIN</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)' }}>${hourly}/hr · {ownerPct}% profit · {feePct}% fee</span>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,.40)' }}>{open ? '▴' : '▾'}</span>
+        </div>
+      </div>
+      {open && (
+        <div style={{ padding: '12px 14px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div>
+              <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>Hourly rate ($)</label>
+              <input type="number" min={0} step={0.5} value={hourly} onChange={e => setHourly(Number(e.target.value))} style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>Owner profit %</label>
+              <input type="number" min={0} max={100} step={0.5} value={ownerPct} onChange={e => setOwnerPct(Number(e.target.value))} style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>Service fee %</label>
+              <input type="number" min={0} max={100} step={0.5} value={feePct} onChange={e => setFeePct(Number(e.target.value))} style={inp} />
+            </div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 6 }}>Service fee applies on days</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {DAY_LABELS.map((d, i) => (
+                <button key={i} onClick={() => toggleDay(i)}
+                  style={{ height: 30, width: 40, borderRadius: 8, border: `1px solid ${feeDays.includes(i) ? 'rgba(143,240,177,.45)' : 'rgba(255,255,255,.10)'}`, background: feeDays.includes(i) ? 'rgba(143,240,177,.12)' : 'rgba(255,255,255,.03)', color: feeDays.includes(i) ? '#c9ffe1' : 'rgba(255,255,255,.40)', cursor: 'pointer', fontSize: 10, fontWeight: 700, fontFamily: 'inherit' }}>
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginBottom: 12, lineHeight: 1.5 }}>
+            <strong style={{ color: 'rgba(255,255,255,.55)' }}>Formula:</strong> Base = hourly × attendance hours · Profit = owner share × {ownerPct}% · Fee = service fees × {feePct}% (only on selected days)
+          </div>
+          <button onClick={save} disabled={saving}
+            style={{ width: '100%', height: 40, borderRadius: 12, border: `1px solid ${saved ? 'rgba(143,240,177,.45)' : 'rgba(143,240,177,.40)'}`, background: saved ? 'rgba(143,240,177,.18)' : 'rgba(143,240,177,.10)', color: '#c9ffe1', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
+            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save admin rules'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PayrollPage() {
   const [from, setFrom] = useState(daysAgo(14))
@@ -241,17 +323,54 @@ export default function PayrollPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [activeTab, setActiveTab] = useState<'summary'|'rules'>('summary')
+  const [adminUsers, setAdminUsers] = useState<any[]>([])
+  const [adminAttendance, setAdminAttendance] = useState<Record<string, number>>({})
+  const [adminWorkDays, setAdminWorkDays] = useState<Record<string, Set<number>>>({})
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const [payData, rulesData] = await Promise.all([
+      const [payData, rulesData, usersData, attData] = await Promise.all([
         apiFetch(`/api/payroll?from=${encodeURIComponent(from+'T00:00:00.000Z')}&to=${encodeURIComponent(to+'T23:59:59.999Z')}`),
-        apiFetch('/api/payroll/rules').catch(() => ({ rules: {} }))
+        apiFetch('/api/payroll/rules').catch(() => ({ rules: {} })),
+        apiFetch('/api/users').catch(() => ({ users: [] })),
+        apiFetch(`/api/attendance?from=${from}&to=${to}`).catch(() => ({ attendance: [], summary: {} })),
       ])
       setBarbers(payData?.barbers || [])
       setTotals(payData?.totals || null)
       setRules(rulesData?.rules || {})
+      // Admin users
+      const admins = (usersData?.users || []).filter((u: any) => u.role === 'admin' && u.active !== false)
+      setAdminUsers(admins)
+      // Attendance hours per user
+      const attHours: Record<string, number> = {}
+      const attRecords = attData?.attendance || []
+      attRecords.forEach((r: any) => {
+        if (r.duration_minutes) {
+          attHours[r.user_id] = (attHours[r.user_id] || 0) + r.duration_minutes
+        }
+      })
+      // For currently clocked in, add elapsed
+      attRecords.forEach((r: any) => {
+        if (!r.clock_out && r.clock_in) {
+          const elapsed = Math.round((Date.now() - new Date(r.clock_in).getTime()) / 60000)
+          attHours[r.user_id] = (attHours[r.user_id] || 0) + Math.max(0, elapsed)
+        }
+      })
+      setAdminAttendance(attHours)
+      // Also compute service fee days for admins
+      // Store which days each user worked
+      const attDays: Record<string, Set<number>> = {}
+      attRecords.forEach((r: any) => {
+        if (r.clock_in) {
+          const d = new Date(r.clock_in)
+          if (!isNaN(d.getTime())) {
+            if (!attDays[r.user_id]) attDays[r.user_id] = new Set()
+            attDays[r.user_id].add(d.getDay())
+          }
+        }
+      })
+      setAdminWorkDays(attDays)
     } catch (e: any) { setError(e.message) }
     setLoading(false)
   }, [from, to])
@@ -495,11 +614,66 @@ export default function PayrollPage() {
                     Owner share = services × (100 − rate%)<br/>
                     Tiers override base % when threshold reached
                   </div>
+
+                  {/* Admin payroll summary */}
+                  {adminUsers.length > 0 && (() => {
+                    const ownerShare = totals?.owner_service_share || 0
+                    // Calculate total service fees from payments for the period
+                    // Service fee is 3% of total services — approximate
+                    const totalServices = totals?.service_total || 0
+                    return (
+                      <div style={{ margin: '0 14px 14px', borderRadius: 14, border: '1px solid rgba(143,240,177,.20)', background: 'rgba(143,240,177,.04)', padding: '14px' }}>
+                        <div style={{ ...lbl, color: '#c9ffe1', marginBottom: 10 }}>Admin payroll</div>
+                        {adminUsers.map(u => {
+                          const r = rules[u.id] || { hourly_rate: 0, owner_profit_pct: 2, service_fee_pct: 3, service_fee_days: [0,1,2,3,4,5,6] }
+                          const hours = (adminAttendance[u.id] || 0) / 60
+                          const basePay = (r.hourly_rate || 0) * hours
+                          const profitShare = ownerShare * ((r.owner_profit_pct || 0) / 100)
+                          // Service fee: approximate from total services × fee rate, prorated by days worked
+                          const feeDays = r.service_fee_days || [0,1,2,3,4,5,6]
+                          const worked = adminWorkDays[u.id] || new Set()
+                          const feeWorkDays = feeDays.filter(d => worked.has(d)).length
+                          const totalFeeDays = feeDays.length || 1
+                          const serviceFeeTotal = totalServices * 0.03 // 3% service fee on all services
+                          const feeShare = serviceFeeTotal * ((r.service_fee_pct || 0) / 100) * (feeWorkDays / totalFeeDays)
+                          const totalPay = basePay + profitShare + feeShare
+                          return (
+                            <div key={u.id} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
+                              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: '#e9e9e9' }}>{u.name || u.username}</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
+                                <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Hours: </span><span style={{ color: '#d7ecff' }}>{hours.toFixed(1)}h</span></div>
+                                <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Base pay: </span><span style={{ color: '#8ff0b1' }}>{fmtMoney(basePay)}</span></div>
+                                <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Profit {r.owner_profit_pct || 0}%: </span><span style={{ color: '#ffe9a3' }}>{fmtMoney(profitShare)}</span></div>
+                                <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Fee {r.service_fee_pct || 0}%: </span><span style={{ color: '#ffe9a3' }}>{fmtMoney(feeShare)}</span></div>
+                              </div>
+                              <div style={{ marginTop: 6, fontWeight: 900, fontSize: 16 }}>
+                                Total: <span style={{ color: '#8ff0b1' }}>{fmtMoney(totalPay)}</span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </>
               )}
 
               {activeTab === 'rules' && (
                 <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Admin rules */}
+                  {adminUsers.length > 0 && (
+                    <>
+                      <div style={{ ...lbl, marginBottom: 4, marginTop: 4 }}>Admin payroll rules</div>
+                      {adminUsers.map(u => (
+                        <AdminPayrollEditor key={u.id} userId={u.id} userName={u.name || u.username}
+                          rule={rules[u.id] || { base_pct: 0, tips_pct: 0, tiers: [], hourly_rate: 0, owner_profit_pct: 2, service_fee_pct: 3, service_fee_days: [0,1,2,3,4,5,6] }}
+                          onSaved={r => { setRules(prev => ({ ...prev, [u.id]: r })); load() }}
+                        />
+                      ))}
+                      <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '4px 0' }} />
+                      <div style={{ ...lbl, marginBottom: 4 }}>Barber commission rules</div>
+                    </>
+                  )}
                   {barbers.length === 0 ? (
                     <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 12, padding: '12px 0' }}>Load data first</div>
                   ) : barbers.map(b => (

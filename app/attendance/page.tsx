@@ -1,0 +1,281 @@
+'use client'
+import { useEffect, useState, useCallback } from 'react'
+import Shell from '@/components/Shell'
+
+const API = 'https://element-crm-api-431945333485.us-central1.run.app'
+const API_KEY = 'R1403ss81fxrx*rx1403'
+
+const isoToday = () => { const d = new Date(); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
+const fmtTime = (iso?: string) => { if (!iso) return '—'; try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) } catch { return '—' } }
+const fmtMins = (m: number) => { const h = Math.floor(m / 60); const mm = m % 60; return h > 0 ? `${h}h ${mm}m` : `${mm}m` }
+const fmtHours = (m: number) => (m / 60).toFixed(1) + 'h'
+
+const ROLE_COLORS: Record<string, string> = { owner: '#ffe9a3', admin: '#c9ffe1', barber: '#d7ecff', student: '#d4b8ff' }
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+interface AttRecord {
+  id: string; user_id: string; user_name: string; role: string; barber_id?: string
+  clock_in: string | null; clock_out: string | null; duration_minutes: number | null; date: string
+}
+interface Barber {
+  id: string; name: string; schedule?: any; work_schedule?: any
+}
+interface UserSummary {
+  name: string; role: string; total_minutes: number; shifts: number; late_minutes: number; late_count: number
+}
+
+function getScheduleStartMin(barber: Barber | undefined, dayOfWeek: number): number | null {
+  const sch = barber?.schedule || barber?.work_schedule
+  if (!sch) return null
+  if (Array.isArray(sch)) {
+    const day = sch[dayOfWeek]
+    if (!day || !day.enabled) return null
+    return day.startMin ?? null
+  }
+  if (typeof sch === 'object' && sch.startMin !== undefined) {
+    const days: number[] = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6]
+    if (!days.includes(dayOfWeek)) return null
+    return Number(sch.startMin)
+  }
+  return null
+}
+
+function getLateMinutes(clockIn: string | null, barber: Barber | undefined): number {
+  if (!clockIn) return 0
+  const d = new Date(clockIn)
+  if (isNaN(d.getTime())) return 0
+  const dow = d.getDay()
+  const schedStart = getScheduleStartMin(barber, dow)
+  if (schedStart === null) return 0
+  const clockMinOfDay = d.getHours() * 60 + d.getMinutes()
+  const late = clockMinOfDay - schedStart
+  return late > 2 ? late : 0 // 2 min grace
+}
+
+export default function AttendancePage() {
+  const [from, setFrom] = useState(isoToday())
+  const [to, setTo] = useState(isoToday())
+  const [records, setRecords] = useState<AttRecord[]>([])
+  const [barbers, setBarbers] = useState<Barber[]>([])
+  const [users, setUsers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filterUser, setFilterUser] = useState('')
+
+  const [user] = useState(() => { try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null } })
+  const isOwner = user?.role === 'owner'
+
+  async function apiFetch(path: string) {
+    const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+    const res = await fetch(`${API}${path}`, {
+      credentials: 'include',
+      headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, Accept: 'application/json' }
+    })
+    return res.json()
+  }
+
+  const loadAll = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [attData, brData, usData] = await Promise.all([
+        apiFetch(`/api/attendance?from=${from}&to=${to}`),
+        apiFetch('/api/barbers'),
+        apiFetch('/api/users'),
+      ])
+      setRecords(attData?.attendance || [])
+      const barberList = Array.isArray(brData) ? brData : (brData?.barbers || [])
+      setBarbers(barberList)
+      setUsers(usData?.users || [])
+    } catch { setRecords([]); setBarbers([]); setUsers([]) }
+    setLoading(false)
+  }, [from, to])
+
+  useEffect(() => { loadAll() }, [loadAll])
+
+  // Build barber map (barber_id → Barber) and user→barber map
+  const barberMap: Record<string, Barber> = {}
+  barbers.forEach(b => { barberMap[b.id] = b })
+
+  // Map user_id → barber (via users table barber_id)
+  const userBarberMap: Record<string, Barber | undefined> = {}
+  users.forEach((u: any) => {
+    if (u.barber_id && barberMap[u.barber_id]) userBarberMap[u.id] = barberMap[u.barber_id]
+  })
+
+  // Filter
+  const filtered = filterUser ? records.filter(r => r.user_id === filterUser) : records
+
+  // Group by date
+  const byDate: Record<string, AttRecord[]> = {}
+  filtered.forEach(r => {
+    const d = r.date || '?'
+    if (!byDate[d]) byDate[d] = []
+    byDate[d].push(r)
+  })
+  const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a))
+
+  // Summary per user
+  const summaryMap: Record<string, UserSummary> = {}
+  filtered.forEach(r => {
+    if (!summaryMap[r.user_id]) summaryMap[r.user_id] = { name: r.user_name, role: r.role, total_minutes: 0, shifts: 0, late_minutes: 0, late_count: 0 }
+    const s = summaryMap[r.user_id]
+    if (r.duration_minutes) s.total_minutes += r.duration_minutes
+    s.shifts++
+    const barber = r.barber_id ? barberMap[r.barber_id] : userBarberMap[r.user_id]
+    const late = getLateMinutes(r.clock_in, barber)
+    if (late > 0) { s.late_minutes += late; s.late_count++ }
+  })
+  const summaryList = Object.entries(summaryMap).sort((a, b) => b[1].total_minutes - a[1].total_minutes)
+
+  // Unique users for filter
+  const uniqueUsers = [...new Map(records.map(r => [r.user_id, { id: r.user_id, name: r.user_name }])).values()]
+
+  const card: React.CSSProperties = { borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', boxShadow: '0 10px 40px rgba(0,0,0,.35)', padding: 16 }
+  const inp: React.CSSProperties = { height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 12, colorScheme: 'dark' as any }
+
+  return (
+    <Shell page="attendance">
+      <div style={{ padding: '18px 18px 40px', maxWidth: 1400, margin: '0 auto', overflowY: 'auto', height: '100vh', color: '#e9e9e9', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <style>{`
+          @keyframes latePulse { 0%,100%{opacity:.7} 50%{opacity:1} }
+          .late-badge { animation: latePulse 2s ease-in-out infinite; }
+        `}</style>
+
+        {/* Topbar */}
+        <div style={{ position: 'sticky', top: 0, zIndex: 20, padding: '10px 0 12px', background: 'linear-gradient(to bottom,rgba(0,0,0,.88),rgba(0,0,0,.68),transparent)', backdropFilter: 'blur(14px)', marginBottom: 16 } as React.CSSProperties}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ margin: 0, fontFamily: '"Julius Sans One", sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 16 }}>Attendance</h2>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>Hours & clock history</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={inp} />
+              <span style={{ color: 'rgba(255,255,255,.30)', fontSize: 12 }}>→</span>
+              <input type="date" value={to} onChange={e => setTo(e.target.value)} style={inp} />
+              <select value={filterUser} onChange={e => setFilterUser(e.target.value)} style={{ ...inp, minWidth: 120 }}>
+                <option value="">All staff</option>
+                {uniqueUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+              <button onClick={loadAll} disabled={loading} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(10,132,255,.45)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', opacity: loading ? .5 : 1 }}>
+                {loading ? 'Loading…' : '↻ Refresh'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 14 }}>
+
+          {/* Left — Attendance Log */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {loading && <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,.40)' }}>Loading attendance records…</div>}
+            {!loading && sortedDates.length === 0 && <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,.40)' }}>No attendance records for this period.</div>}
+
+            {sortedDates.map(date => {
+              const dayRecords = byDate[date]
+              const dayDate = new Date(date + 'T12:00:00')
+              const dayName = !isNaN(dayDate.getTime()) ? dayDate.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) : date
+              return (
+                <div key={date} style={card}>
+                  <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 10, fontWeight: 900 }}>{dayName}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {dayRecords.map(r => {
+                      const barber = r.barber_id ? barberMap[r.barber_id] : userBarberMap[r.user_id]
+                      const late = getLateMinutes(r.clock_in, barber)
+                      const schedStart = barber ? getScheduleStartMin(barber, r.clock_in ? new Date(r.clock_in).getDay() : 0) : null
+                      return (
+                        <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 12, background: late > 0 ? 'rgba(255,107,107,.06)' : 'rgba(255,255,255,.03)', border: `1px solid ${late > 0 ? 'rgba(255,107,107,.15)' : 'rgba(255,255,255,.06)'}` }}>
+                          {/* Clock icon */}
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={r.clock_out ? 'rgba(255,255,255,.30)' : '#8ff0b1'} strokeWidth="2" strokeLinecap="round">
+                            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                          </svg>
+                          {/* Name + role */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontWeight: 700, fontSize: 13, color: '#e9e9e9' }}>{r.user_name}</span>
+                              <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: ROLE_COLORS[r.role] || 'rgba(255,255,255,.50)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{r.role}</span>
+                              {late > 0 && (
+                                <span className="late-badge" style={{ fontSize: 10, padding: '2px 6px', borderRadius: 999, background: 'rgba(255,107,107,.15)', border: '1px solid rgba(255,107,107,.30)', color: '#ff6b6b', fontWeight: 700 }}>
+                                  +{late}min late
+                                </span>
+                              )}
+                            </div>
+                            {schedStart !== null && (
+                              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginTop: 1 }}>
+                                Scheduled: {Math.floor(schedStart / 60)}:{String(schedStart % 60).padStart(2, '0')} {schedStart < 720 ? 'AM' : 'PM'}
+                              </div>
+                            )}
+                          </div>
+                          {/* Times */}
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)' }}>
+                              {fmtTime(r.clock_in || undefined)} → {r.clock_out ? fmtTime(r.clock_out) : <span style={{ color: '#8ff0b1' }}>Still in</span>}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#8ff0b1', fontWeight: 700 }}>
+                              {r.duration_minutes ? fmtMins(r.duration_minutes) : (r.clock_in ? fmtMins(Math.round((Date.now() - new Date(r.clock_in).getTime()) / 60000)) : '—')}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Right — Summary */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Total hours card */}
+            <div style={card}>
+              <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 8, fontWeight: 900 }}>Period summary</div>
+              <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: '.02em', lineHeight: 1, marginBottom: 4 }}>
+                {fmtHours(summaryList.reduce((s, [, u]) => s + u.total_minutes, 0))}
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)' }}>
+                {summaryList.reduce((s, [, u]) => s + u.shifts, 0)} shifts · {summaryList.length} staff
+              </div>
+            </div>
+
+            {/* Per user breakdown */}
+            <div style={card}>
+              <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 10, fontWeight: 900 }}>By staff member</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {summaryList.map(([uid, u]) => (
+                  <div key={uid} style={{ padding: '8px 10px', borderRadius: 12, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: '#e9e9e9', flex: 1 }}>{u.name}</span>
+                      <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: ROLE_COLORS[u.role] || 'rgba(255,255,255,.50)', textTransform: 'uppercase' }}>{u.role}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
+                      <div>
+                        <span style={{ color: 'rgba(255,255,255,.40)' }}>Hours: </span>
+                        <span style={{ color: '#8ff0b1', fontWeight: 700 }}>{fmtHours(u.total_minutes)}</span>
+                      </div>
+                      <div>
+                        <span style={{ color: 'rgba(255,255,255,.40)' }}>Shifts: </span>
+                        <span style={{ color: '#d7ecff', fontWeight: 700 }}>{u.shifts}</span>
+                      </div>
+                      {u.late_count > 0 && (
+                        <div>
+                          <span style={{ color: 'rgba(255,255,255,.40)' }}>Late: </span>
+                          <span style={{ color: '#ff6b6b', fontWeight: 700 }}>{u.late_count}× (avg {Math.round(u.late_minutes / u.late_count)}m)</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Hours bar */}
+                    <div style={{ marginTop: 6, height: 4, borderRadius: 999, background: 'rgba(255,255,255,.06)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', borderRadius: 999, background: 'linear-gradient(90deg,rgba(10,132,255,.60),rgba(143,240,177,.60))', width: `${Math.min(100, (u.total_minutes / Math.max(1, summaryList[0]?.[1]?.total_minutes || 1)) * 100)}%`, transition: 'width .3s ease' }} />
+                    </div>
+                  </div>
+                ))}
+                {summaryList.length === 0 && !loading && (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.30)', textAlign: 'center', padding: 12 }}>No data</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Shell>
+  )
+}

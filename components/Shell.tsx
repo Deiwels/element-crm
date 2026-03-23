@@ -18,6 +18,7 @@ const NAV = [
   { id: 'waitlist',  href: '/waitlist',  label: 'Waitlist',   sub: 'Queue & notify',      ownerAdmin: true },
   { id: 'clients',   href: '/clients',   label: 'Clients',    sub: 'Search / notes',      ownerAdmin: true },
   { id: 'payments',  href: '/payments',  label: 'Payments',   sub: 'Square + Terminal',   ownerAdmin: true },
+  { id: 'attendance', href: '/attendance', label: 'Attendance', sub: 'Hours & clock',       ownerAdmin: true },
   { id: 'payroll',   href: '/payroll',   label: 'Payroll',    sub: 'Commission + tips',   ownerOnly: true },
   { id: 'settings',  href: '/settings',  label: 'Settings',   sub: 'Config & sync',       ownerAdmin: true },
 ] as const
@@ -65,6 +66,10 @@ function Icon({ id, color }: { id: string; color: string }) {
         <rect x="1" y="4" width="22" height="16" rx="2.5" {...s}/>
         <line x1="1" y1="10" x2="23" y2="10" {...s}/>
         <line x1="6" y1="16" x2="9" y2="16" {...s}/>
+      </svg>
+    case 'attendance':
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <circle cx="12" cy="12" r="10" {...s}/><polyline points="12 6 12 12 16 14" {...s}/>
       </svg>
     case 'payroll':
       return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
