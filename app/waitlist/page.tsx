@@ -62,17 +62,21 @@ export default function WaitlistPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [wl, bd, sv] = await Promise.all([
-        apiFetch('/api/waitlist'),
-        apiFetch('/api/barbers'),
+      // Load barbers and services independently — don't let waitlist error break them
+      const [bd, sv] = await Promise.all([
+        apiFetch('/api/barbers').catch(() => []),
         apiFetch('/api/services').catch(() => ({ services: [] })),
       ])
-      setEntries(wl?.waitlist || [])
       const list = (Array.isArray(bd) ? bd : bd?.barbers || []).map((b: any) => ({ id: b.id, name: b.name }))
       setBarbers(list)
       if (!newBarberId && list.length) setNewBarberId(list[0].id)
       const svcList = sv?.services || []
       setServices(svcList.map((s: any) => ({ id: s.id, name: s.name, duration_minutes: s.duration_minutes || 30, barber_ids: s.barber_ids || [] })))
+      // Waitlist may fail if index not ready
+      try {
+        const wl = await apiFetch('/api/waitlist')
+        setEntries(wl?.waitlist || [])
+      } catch { setEntries([]) }
     } catch (e: any) { console.warn('waitlist load:', e.message) }
     setLoading(false)
   }, [])
