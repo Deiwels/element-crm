@@ -1180,6 +1180,12 @@ export default function CalendarPage() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         .cal-event:hover { filter: brightness(1.12); }
         @keyframes slideUp { from { opacity:0; transform:translateX(-50%) translateY(12px) } to { opacity:1; transform:translateX(-50%) translateY(0) } }
+        @keyframes wlGhostPulse {
+          0%, 100% { box-shadow: 0 0 8px rgba(10,132,255,.15), inset 0 0 0 1px rgba(10,132,255,.12); border-color: rgba(10,132,255,.25); background: rgba(10,132,255,.05); }
+          50% { box-shadow: 0 0 22px rgba(10,132,255,.45), inset 0 0 0 1px rgba(10,132,255,.30); border-color: rgba(10,132,255,.55); background: rgba(10,132,255,.12); }
+        }
+        .wl-ghost-pulse { animation: wlGhostPulse 2.6s ease-in-out infinite; transition: filter .2s; }
+        .wl-ghost-pulse:hover { filter: brightness(1.25); }
         /* Desktop: hide mobile-only elements */
         .cal-search-icon{ display:none !important; }
         .cal-settings-icon{ display:none !important; }
@@ -1578,10 +1584,10 @@ export default function CalendarPage() {
                       const top = minToY(slotMin)
                       const height = Math.max(24, (dur / 5) * SLOT_H) - 2
                       return (
-                        <div key={`wl-${w.id}`} style={{ position: 'absolute', left: 8, right: 8, top, height, borderRadius: 14, border: '1px dashed rgba(255,207,63,.40)', background: 'rgba(255,207,63,.06)', opacity: 0.6, zIndex: 3, padding: '6px 10px', cursor: 'pointer', overflow: 'hidden' }}
+                        <div key={`wl-${w.id}`} className="wl-ghost-pulse" style={{ position: 'absolute', left: 8, right: 8, top, height, borderRadius: 14, border: '1px solid rgba(10,132,255,.35)', background: 'rgba(10,132,255,.08)', zIndex: 3, padding: '6px 10px', cursor: 'pointer', overflow: 'hidden', boxShadow: '0 0 12px rgba(10,132,255,.20), inset 0 0 0 1px rgba(10,132,255,.15)' }}
                           onClick={() => setWlConfirm({ w, barberId: barber.id, barberName: barber.name, slotMin, dur })}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#ffe9a3' }}>{w.client_name || 'Waitlist'}</div>
-                          <div style={{ fontSize: 9, color: 'rgba(255,207,63,.60)', marginTop: 1 }}>{minToHHMM(slotMin)} · {dur}min · {prefStart !== wh.startMin || prefEnd !== wh.endMin ? `${minToHHMM(prefStart)}-${minToHHMM(prefEnd)}` : 'WAITLIST'}</div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#bfe0ff' }}>{w.client_name || 'Waitlist'}</div>
+                          <div style={{ fontSize: 9, color: 'rgba(10,132,255,.70)', marginTop: 1 }}>{minToHHMM(slotMin)} · {dur}min · {prefStart !== wh.startMin || prefEnd !== wh.endMin ? `${minToHHMM(prefStart)}-${minToHHMM(prefEnd)}` : 'WAITLIST'}</div>
                         </div>
                       )
                     })}
@@ -1928,11 +1934,11 @@ export default function CalendarPage() {
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 16 }}
             onClick={e => { if (e.target === e.currentTarget && !wlConfirming) setWlConfirm(null) }}>
-            <div style={{ width: 'min(420px,92vw)', borderRadius: 22, border: '1px solid rgba(255,207,63,.20)', background: 'rgba(0,0,0,.70)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60), inset 0 0 0 0.5px rgba(255,255,255,.07)', padding: '24px 22px', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+            <div style={{ width: 'min(420px,92vw)', borderRadius: 22, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(0,0,0,.70)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60), inset 0 0 0 0.5px rgba(255,255,255,.07)', padding: '24px 22px', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
               {/* Icon */}
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <div style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(255,207,63,.10)', border: '1px solid rgba(255,207,63,.25)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffe9a3" strokeWidth="2" strokeLinecap="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><polyline points="9 14 11 16 15 12"/></svg>
+                <div style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(10,132,255,.10)', border: '1px solid rgba(10,132,255,.30)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7fbfff" strokeWidth="2" strokeLinecap="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><polyline points="9 14 11 16 15 12"/></svg>
                 </div>
               </div>
               {/* Title */}
@@ -1971,7 +1977,7 @@ export default function CalendarPage() {
                   Cancel
                 </button>
                 <button onClick={doConfirm} disabled={wlConfirming}
-                  style={{ flex: 2, height: 44, borderRadius: 999, border: '1px solid rgba(255,207,63,.55)', background: 'rgba(255,207,63,.12)', color: '#ffe9a3', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: wlConfirming ? .5 : 1 }}>
+                  style={{ flex: 2, height: 44, borderRadius: 999, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.12)', color: '#bfe0ff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: wlConfirming ? .5 : 1 }}>
                   {wlConfirming ? 'Creating…' : 'Confirm & Book'}
                 </button>
               </div>
