@@ -595,6 +595,8 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<CalEvent[]>([])
   const [studentUsers, setStudentUsers] = useState<{ id: string; name: string; mentorIds: string[] }[]>([])
   const [waitlistEntries, setWaitlistEntries] = useState<any[]>([])
+  const [wlConfirm, setWlConfirm] = useState<{ w: any; barberId: string; barberName: string; slotMin: number; dur: number } | null>(null)
+  const [wlConfirming, setWlConfirming] = useState(false)
   const [search, setSearch] = useState('')
   const [isMobile, setIsMobile] = useState(false) // mobile detection
   useEffect(() => {
@@ -1568,26 +1570,7 @@ export default function CalendarPage() {
                       const height = Math.max(24, (dur / 5) * SLOT_H) - 2
                       return (
                         <div key={`wl-${w.id}`} style={{ position: 'absolute', left: 8, right: 8, top, height, borderRadius: 14, border: '1px dashed rgba(255,207,63,.40)', background: 'rgba(255,207,63,.06)', opacity: 0.6, zIndex: 3, padding: '6px 10px', cursor: 'pointer', overflow: 'hidden' }}
-                          onClick={async () => { if (window.confirm(`Confirm ${w.client_name || 'client'} from waitlist?\nTime: ${minToHHMM(slotMin)}, Duration: ${dur}min\n\nThis will create an appointment.`)) {
-                            try {
-                              // 1. Create booking
-                              const startAt = new Date(todayStr + 'T' + minToHHMM(slotMin) + ':00')
-                              const endAt = new Date(startAt.getTime() + dur * 60000)
-                              const svcNames = Array.isArray(w.service_names) ? w.service_names : []
-                              const svcIds = Array.isArray(w.service_ids) ? w.service_ids : []
-                              await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({
-                                barber_id: barber.id, client_name: w.client_name || 'Waitlist client',
-                                client_phone: w.phone_raw || w.phone_norm || '',
-                                service_id: svcIds[0] || '', service_name: svcNames.join(', ') || 'Service',
-                                start_at: startAt.toISOString(), end_at: endAt.toISOString(),
-                                notes: 'From waitlist', source: 'waitlist',
-                              })})
-                              // 2. Mark waitlist as confirmed
-                              await apiFetch(`/api/waitlist/${encodeURIComponent(w.id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) })
-                              showToast(`${w.client_name || 'Client'} booked at ${minToHHMM(slotMin)}`)
-                              loadWaitlist(); reloadAll()
-                            } catch (e: any) { showToast('Error: ' + e.message) }
-                          }}}>
+                          onClick={() => setWlConfirm({ w, barberId: barber.id, barberName: barber.name, slotMin, dur })}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: '#ffe9a3' }}>{w.client_name || 'Waitlist'}</div>
                           <div style={{ fontSize: 9, color: 'rgba(255,207,63,.60)', marginTop: 1 }}>{minToHHMM(slotMin)} · {dur}min · {prefStart !== wh.startMin || prefEnd !== wh.endMin ? `${minToHHMM(prefStart)}-${minToHHMM(prefEnd)}` : 'WAITLIST'}</div>
                         </div>
@@ -1909,6 +1892,84 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* Waitlist confirm modal */}
+      {wlConfirm && (() => {
+        const { w, barberId, barberName, slotMin, dur } = wlConfirm
+        const svcNames = Array.isArray(w.service_names) ? w.service_names : []
+        async function doConfirm() {
+          setWlConfirming(true)
+          try {
+            const startAt = new Date(todayStr + 'T' + minToHHMM(slotMin) + ':00')
+            const endAt = new Date(startAt.getTime() + dur * 60000)
+            const svcIds = Array.isArray(w.service_ids) ? w.service_ids : []
+            await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({
+              barber_id: barberId, client_name: w.client_name || 'Waitlist client',
+              client_phone: w.phone_raw || w.phone_norm || '',
+              service_id: svcIds[0] || '', service_name: svcNames.join(', ') || 'Service',
+              start_at: startAt.toISOString(), end_at: endAt.toISOString(),
+              notes: 'From waitlist', source: 'waitlist',
+            })})
+            await apiFetch(`/api/waitlist/${encodeURIComponent(w.id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) })
+            showToast(`${w.client_name || 'Client'} booked at ${minToHHMM(slotMin)}`)
+            setWlConfirm(null); loadWaitlist(); reloadAll()
+          } catch (e: any) { showToast('Error: ' + e.message) }
+          setWlConfirming(false)
+        }
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 16 }}
+            onClick={e => { if (e.target === e.currentTarget && !wlConfirming) setWlConfirm(null) }}>
+            <div style={{ width: 'min(420px,92vw)', borderRadius: 22, border: '1px solid rgba(255,207,63,.20)', background: 'rgba(0,0,0,.70)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60), inset 0 0 0 0.5px rgba(255,255,255,.07)', padding: '24px 22px', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+              {/* Icon */}
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(255,207,63,.10)', border: '1px solid rgba(255,207,63,.25)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffe9a3" strokeWidth="2" strokeLinecap="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><polyline points="9 14 11 16 15 12"/></svg>
+                </div>
+              </div>
+              {/* Title */}
+              <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.14em', textTransform: 'uppercase', fontSize: 14, textAlign: 'center', marginBottom: 16 }}>Confirm from waitlist</div>
+              {/* Details */}
+              <div style={{ padding: '14px 16px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Client</span>
+                  <span style={{ fontSize: 14, fontWeight: 800 }}>{w.client_name || 'Client'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Barber</span>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{barberName}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Time</span>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{minToHHMM(slotMin)} — {minToHHMM(slotMin + dur)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: svcNames.length ? 8 : 0 }}>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Duration</span>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{dur} min</span>
+                </div>
+                {svcNames.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Service</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, textAlign: 'right', maxWidth: '60%' }}>{svcNames.join(', ')}</span>
+                  </div>
+                )}
+              </div>
+              {/* Note */}
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.40)', textAlign: 'center', marginBottom: 18 }}>This will create an appointment and remove from waitlist</div>
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setWlConfirm(null)} disabled={wlConfirming}
+                  style={{ flex: 1, height: 44, borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>
+                  Cancel
+                </button>
+                <button onClick={doConfirm} disabled={wlConfirming}
+                  style={{ flex: 2, height: 44, borderRadius: 999, border: '1px solid rgba(255,207,63,.55)', background: 'rgba(255,207,63,.12)', color: '#ffe9a3', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: wlConfirming ? .5 : 1 }}>
+                  {wlConfirming ? 'Creating…' : 'Confirm & Book'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Toast notification */}
       {toast && (
