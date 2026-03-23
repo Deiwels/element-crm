@@ -673,20 +673,27 @@ export default function CalendarPage() {
     setWorkHours(next as any)
   }, [barbers, anchor, _isStudent, studentSchedule])
 
-  // Scroll to current time — runs after barbers load so DOM is ready
+  // Scroll to current time or work start — runs after barbers load
   useEffect(() => {
     if (!barbers.length) return
     const container = scrollContainerRef.current
     if (!container) return
     const now = new Date()
+    const today = isoDate(now)
     const currentMin = now.getHours() * 60 + now.getMinutes()
-    const y = ((currentMin - START_HOUR * 60) / 5) * SLOT_H
+    // Find earliest work start across visible barbers
+    let earliestWorkStart = 8 * 60 // fallback
+    for (const b of barbers) {
+      const wh = (workHours as any)[b.id]
+      if (wh && !wh.dayOff && wh.startMin < earliestWorkStart) earliestWorkStart = wh.startMin
+    }
+    // If today → scroll to current time (30% from top)
+    // If another day → scroll to work start
+    const scrollMin = todayStr === today ? currentMin : earliestWorkStart
+    const y = ((scrollMin - START_HOUR * 60) / 5) * SLOT_H
     const offset = Math.max(0, y - container.clientHeight * 0.3)
-    // Use requestAnimationFrame to ensure layout is complete
-    requestAnimationFrame(() => {
-      container.scrollTop = offset
-    })
-  }, [barbers])
+    requestAnimationFrame(() => { container.scrollTop = offset })
+  }, [barbers, todayStr, workHours])
 
   // Off-block resize handlers
   useEffect(() => {
@@ -1038,7 +1045,8 @@ export default function CalendarPage() {
   const totalH = (END_HOUR - START_HOUR) * 12 * SLOT_H
   const minToY = (min: number) => ((min - START_HOUR * 60) / 5) * SLOT_H
   const nowY = minToY(nowMin)
-  const showNow = nowMin >= START_HOUR * 60 && nowMin <= END_HOUR * 60
+  const isToday = (() => { const t = new Date(); return todayStr === isoDate(t) })()
+  const showNow = isToday && nowMin >= START_HOUR * 60 && nowMin <= END_HOUR * 60
 
   const todayEvents = events.filter(e => {
     if (e.date !== todayStr) return false
