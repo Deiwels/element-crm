@@ -75,6 +75,9 @@ export default function DashboardPage() {
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusMsg, setStatusMsg] = useState('')
 
+  // Phone access log
+  const [phoneAccessLog, setPhoneAccessLog] = useState<any[]>([])
+
   // Attendance
   const [clockedIn, setClockedIn] = useState(false)
   const [clockInTime, setClockInTime] = useState<string | null>(null)
@@ -199,6 +202,14 @@ export default function DashboardPage() {
         // Currently clocked in = clock_out is null
         setStaffOnClock(records.filter((r: any) => !r.clock_out))
       } catch { setStaffOnClock([]) }
+    }
+    // Owner: load phone access log
+    if (role === 'owner') {
+      try {
+        const palRes = await fetch(`${API}/api/admin/phone-access-log?limit=20`, { credentials: 'include', headers })
+        const palData = await palRes.json()
+        setPhoneAccessLog(palData?.logs || [])
+      } catch { setPhoneAccessLog([]) }
     }
     setLoading(false)
   }, [isBarber, myBarberId])
@@ -815,6 +826,28 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
+
+      {/* Phone access log — owner only */}
+      {role === 'owner' && phoneAccessLog.length > 0 && (
+        <div style={{ borderRadius: 18, border: '1px solid rgba(168,107,255,.20)', background: 'linear-gradient(180deg,rgba(168,107,255,.06),rgba(168,107,255,.01))', boxShadow: '0 10px 40px rgba(0,0,0,.35)', padding: 16, marginTop: 14 }}>
+          <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: '#d4b8ff', marginBottom: 10, fontWeight: 900 }}>
+            Phone access log
+          </div>
+          <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+            {phoneAccessLog.map((l: any) => (
+              <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,.06)', fontSize: 12 }}>
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: l.result === 'granted' ? '#8ff0b1' : '#ff6b6b', flexShrink: 0 }} />
+                <span style={{ fontWeight: 700, color: '#e9e9e9', minWidth: 70 }}>{l.admin_name}</span>
+                <span style={{ color: 'rgba(255,255,255,.55)', flex: 1 }}>→ {l.client_name || l.client_id?.slice(0,8)}</span>
+                <span style={{ color: 'rgba(255,255,255,.30)', fontSize: 10 }}>{l.reason || ''}</span>
+                <span style={{ color: 'rgba(255,255,255,.30)', fontSize: 10, minWidth: 60, textAlign: 'right' as const }}>
+                  {l.timestamp ? new Date(l.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       </div>
     </Shell>

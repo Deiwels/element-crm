@@ -110,10 +110,36 @@ function ClientProfile({ clientId, clients, onUpdate }: { clientId: string; clie
   const [tagInput, setTagInput] = useState('')
   const [notesSaving, setNotesSaving] = useState(false)
   const [notes, setNotes] = useState('')
-  const [revealedPhones, setRevealedPhones] = useState<Set<string>>(new Set())
-  const [isOwnerOrAdmin] = useState(() => {
-    try { const u = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); return u.role === 'owner' || u.role === 'admin' } catch { return false }
+  const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({})
+  const [phoneLoading, setPhoneLoading] = useState<string | null>(null)
+  const [phoneError, setPhoneError] = useState('')
+  const [userRole] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}').role || '' } catch { return '' }
   })
+  const isOwner = userRole === 'owner'
+  const isAdmin = userRole === 'admin'
+  const isOwnerOrAdmin = isOwner || isAdmin
+
+  function revealPhone(cid: string, phone: string) {
+    setRevealedPhones(prev => ({ ...prev, [cid]: phone }))
+    if (isAdmin) { setTimeout(() => { setRevealedPhones(prev => { const n = { ...prev }; delete n[cid]; return n }) }, 15000) }
+  }
+  async function requestPhone(cid: string) {
+    setPhoneLoading(cid); setPhoneError('')
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
+      })
+      await new Promise(r => setTimeout(r, 3000))
+      const { latitude: lat, longitude: lng } = pos.coords
+      const data = await apiFetch('/api/clients/request-phone', { method: 'POST', body: JSON.stringify({ client_id: cid, lat, lng }) })
+      if (data.phone) { revealPhone(cid, data.phone) }
+    } catch (err: any) {
+      if (err?.code === 1) setPhoneError('Дозвольте GPS в налаштуваннях.')
+      else setPhoneError(err?.message || 'Помилка')
+    }
+    setPhoneLoading(null)
+  }
 
   useEffect(() => {
     const cached = clients.find(c => c.id === clientId)
@@ -194,12 +220,21 @@ function ClientProfile({ clientId, clients, onUpdate }: { clientId: string; clie
       {/* Info */}
       <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
         {c.phone && row('Phone',
-          isOwnerOrAdmin
-            ? (revealedPhones.has(c.id)
-              ? <a href={`tel:${c.phone}`} style={{ color:'#d7ecff', textDecoration:'none' }}>{c.phone}</a>
-              : <span onClick={() => setRevealedPhones(p => new Set([...p, c.id]))} style={{ color:'rgba(10,132,255,.8)', cursor:'pointer', fontSize:12 }}>{maskPhone(c.phone)} · tap to reveal</span>)
-            : <span style={{ color:'rgba(255,255,255,.55)' }}>{maskPhone(c.phone)}</span>
+          isOwner
+            ? (revealedPhones[c.id]
+              ? <a href={`tel:${revealedPhones[c.id]}`} style={{ color:'#d7ecff', textDecoration:'none' }}>{revealedPhones[c.id]}</a>
+              : <span onClick={() => revealPhone(c.id, c.phone!)} style={{ color:'rgba(10,132,255,.8)', cursor:'pointer', fontSize:12 }}>{maskPhone(c.phone)} · tap to reveal</span>)
+            : isAdmin
+              ? (revealedPhones[c.id]
+                ? <span style={{ color:'#8ff0b1' }}>{revealedPhones[c.id]} <span style={{ fontSize:9, color:'rgba(255,255,255,.30)' }}>auto-hide 15s</span></span>
+                : phoneLoading === c.id
+                  ? <span style={{ color:'rgba(255,255,255,.40)', fontSize:11 }}>Verifying location...</span>
+                  : <button onClick={() => requestPhone(c.id)} style={{ height:28, padding:'0 10px', borderRadius:999, border:'1px solid rgba(10,132,255,.45)', background:'rgba(10,132,255,.12)', color:'#d7ecff', cursor:'pointer', fontWeight:700, fontSize:10, fontFamily:'inherit' }}>
+                      {maskPhone(c.phone)} · Request phone
+                    </button>)
+              : <span style={{ color:'rgba(255,255,255,.55)' }}>{maskPhone(c.phone)}</span>
         )}
+        {phoneError && <div style={{ fontSize:11, color:'#ff6b6b', padding:'4px 0' }}>{phoneError}</div>}
         {c.email && row('Email', <a href={`mailto:${c.email}`} style={{ color:'#d7ecff', textDecoration:'none', overflow:'hidden', textOverflow:'ellipsis', maxWidth:160, display:'block' }}>{c.email}</a>)}
         {lastVisit && row('Last visit', fmtDate(lastVisit))}
       </div>
@@ -283,10 +318,47 @@ export default function ClientsPage() {
   const [q, setQ] = useState('')
   const [filterBarber, setFilterBarber] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
-  const [revealedPhones, setRevealedPhones] = useState<Set<string>>(new Set())
-  const [isOwnerOrAdmin] = useState(() => {
-    try { const u = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); return u.role === 'owner' || u.role === 'admin' } catch { return false }
+  const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({})
+  const [phoneLoading, setPhoneLoading] = useState<string | null>(null)
+  const [phoneError, setPhoneError] = useState('')
+  const [userRole] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}').role || '' } catch { return '' }
   })
+  const isOwner = userRole === 'owner'
+  const isAdmin = userRole === 'admin'
+  const isOwnerOrAdmin = isOwner || isAdmin
+
+  // Auto-hide revealed phones after 15 seconds (admin only)
+  function revealPhone(clientId: string, phone: string) {
+    setRevealedPhones(prev => ({ ...prev, [clientId]: phone }))
+    if (isAdmin) {
+      setTimeout(() => { setRevealedPhones(prev => { const n = { ...prev }; delete n[clientId]; return n }) }, 15000)
+    }
+  }
+
+  // Admin: request phone via GPS
+  async function requestPhone(clientId: string) {
+    setPhoneLoading(clientId)
+    setPhoneError('')
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
+      })
+      // 3-5 sec delay for security
+      await new Promise(r => setTimeout(r, 3000))
+      const { latitude: lat, longitude: lng } = pos.coords
+      const data = await apiFetch('/api/clients/request-phone', { method: 'POST', body: JSON.stringify({ client_id: clientId, lat, lng }) })
+      if (data.phone) {
+        revealPhone(clientId, data.phone)
+        setPhoneError('')
+      }
+    } catch (err: any) {
+      if (err?.code === 1) setPhoneError('Дозвольте GPS в налаштуваннях браузера.')
+      else if (err?.code === 2 || err?.code === 3) setPhoneError('Не вдалось визначити локацію.')
+      else setPhoneError(err?.message || 'Помилка доступу')
+    }
+    setPhoneLoading(null)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -405,11 +477,17 @@ export default function ClientsPage() {
                             <div style={{ minWidth:0 }}>
                               <div style={{ fontWeight:900, fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.name}</div>
                               <div style={{ fontSize:11, color:'rgba(255,255,255,.45)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:1 }}>
-                                {isOwnerOrAdmin
-                                  ? (revealedPhones.has(c.id)
-                                    ? <span onClick={() => setRevealedPhones(p => { const n=new Set(p); n.delete(c.id); return n })} style={{ cursor:'pointer' }}>{c.phone||'—'}</span>
-                                    : <span onClick={() => setRevealedPhones(p => new Set([...p, c.id]))} style={{ cursor:'pointer', color:'rgba(10,132,255,.8)' }}>{maskPhone(c.phone||'')}</span>)
-                                  : maskPhone(c.phone||'')}
+                                {isOwner
+                                  ? (revealedPhones[c.id]
+                                    ? <span onClick={() => setRevealedPhones(p => { const n={...p}; delete n[c.id]; return n })} style={{ cursor:'pointer' }}>{revealedPhones[c.id]}</span>
+                                    : <span onClick={() => revealPhone(c.id, c.phone||'')} style={{ cursor:'pointer', color:'rgba(10,132,255,.8)' }}>{maskPhone(c.phone||'')}</span>)
+                                  : isAdmin
+                                    ? (revealedPhones[c.id]
+                                      ? <span style={{ color:'#8ff0b1' }}>{revealedPhones[c.id]}</span>
+                                      : phoneLoading === c.id
+                                        ? <span style={{ color:'rgba(255,255,255,.40)', fontSize:10 }}>Verifying...</span>
+                                        : <span onClick={() => requestPhone(c.id)} style={{ cursor:'pointer', color:'rgba(10,132,255,.8)', fontSize:10 }}>{maskPhone(c.phone||'')} · request</span>)
+                                    : maskPhone(c.phone||'')}
                               </div>
                             </div>
                           </div>
