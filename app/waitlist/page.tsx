@@ -47,8 +47,11 @@ export default function WaitlistPage() {
   const [newBarberId, setNewBarberId] = useState('')
   const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [newDuration, setNewDuration] = useState(30)
-  const [prefStartMin, setPrefStartMin] = useState(8 * 60) // 8:00 AM
-  const [prefEndMin, setPrefEndMin] = useState(20 * 60)     // 8:00 PM
+  const [prefStartMin, setPrefStartMin] = useState(8 * 60)
+  const [prefEndMin, setPrefEndMin] = useState(20 * 60)
+  const [calOpen, setCalOpen] = useState(false)
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear())
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth())
   const [saving, setSaving] = useState(false)
   const [phoneSearching, setPhoneSearching] = useState(false)
   const [foundClients, setFoundClients] = useState<any[]>([])
@@ -299,9 +302,64 @@ export default function WaitlistPage() {
                   {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
-              <div>
+              <div style={{ position: 'relative' }}>
                 <label style={lbl}>Date</label>
-                <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} style={inp} />
+                <button type="button" onClick={() => { setCalOpen(!calOpen); if (!calOpen) { const d = newDate ? new Date(newDate + 'T00:00:00') : new Date(); setCalYear(d.getFullYear()); setCalMonth(d.getMonth()) } }}
+                  style={{ ...inp, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>{newDate ? new Date(newDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Select date'}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.40)" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                </button>
+                {calOpen && (() => {
+                  const today = new Date(); today.setHours(0,0,0,0)
+                  const first = new Date(calYear, calMonth, 1)
+                  const startDow = first.getDay()
+                  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate()
+                  const monthLabel = new Date(calYear, calMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                  const selectedDate = newDate ? new Date(newDate + 'T00:00:00') : null
+                  const cells: { day: number; date: Date; inMonth: boolean }[] = []
+                  for (let i = 0; i < 42; i++) {
+                    const dayNum = i - startDow + 1
+                    if (dayNum < 1) { cells.push({ day: new Date(calYear, calMonth, dayNum).getDate(), date: new Date(calYear, calMonth, dayNum), inMonth: false }) }
+                    else if (dayNum > daysInMonth) { cells.push({ day: dayNum - daysInMonth, date: new Date(calYear, calMonth, dayNum), inMonth: false }) }
+                    else { cells.push({ day: dayNum, date: new Date(calYear, calMonth, dayNum), inMonth: true }) }
+                  }
+                  return (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, marginTop: 4, borderRadius: 18, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.90)', backdropFilter: 'saturate(180%) blur(30px)', WebkitBackdropFilter: 'saturate(180%) blur(30px)', boxShadow: '0 16px 50px rgba(0,0,0,.60)', padding: 12 }}>
+                      {/* Header */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <button type="button" onClick={() => { let m = calMonth - 1, y = calYear; if (m < 0) { m = 11; y-- } setCalMonth(m); setCalYear(y) }}
+                          style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 900 }}>‹</button>
+                        <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase' }}>{monthLabel}</span>
+                        <button type="button" onClick={() => { let m = calMonth + 1, y = calYear; if (m > 11) { m = 0; y++ } setCalMonth(m); setCalYear(y) }}
+                          style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 900 }}>›</button>
+                      </div>
+                      {/* DOW */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginBottom: 4 }}>
+                        {['S','M','T','W','T','F','S'].map((d,i) => <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'rgba(255,255,255,.40)', fontWeight: 700, letterSpacing: '.12em', padding: '4px 0' }}>{d}</div>)}
+                      </div>
+                      {/* Days */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+                        {cells.map((c, i) => {
+                          const isPast = c.date < today
+                          const isToday = c.date.getTime() === today.getTime()
+                          const isSel = selectedDate && c.date.getFullYear() === selectedDate.getFullYear() && c.date.getMonth() === selectedDate.getMonth() && c.date.getDate() === selectedDate.getDate()
+                          const disabled = !c.inMonth || isPast
+                          return (
+                            <button key={i} type="button" disabled={disabled}
+                              onClick={() => { if (disabled) return; const y = c.date.getFullYear(), m = c.date.getMonth(), d = c.date.getDate(); setNewDate(`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`); setCalOpen(false) }}
+                              style={{ height: 36, borderRadius: 999, border: 'none', cursor: disabled ? 'default' : 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                                background: isSel ? 'rgba(10,132,255,.22)' : 'transparent',
+                                color: disabled ? 'rgba(255,255,255,.18)' : isSel ? '#fff' : c.inMonth ? '#e9e9e9' : 'rgba(255,255,255,.18)',
+                                boxShadow: isSel ? '0 0 0 2px rgba(10,132,255,.75) inset, 0 0 14px rgba(10,132,255,.30)' : isToday && c.inMonth ? '0 0 0 1px rgba(255,255,255,.20) inset' : 'none',
+                              }}>
+                              {c.day}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
 
