@@ -58,6 +58,16 @@ export default function DashboardPage() {
   const [filterBarber, setFilterBarber] = useState('')
   const [barbers, setBarbers] = useState<any[]>([])
 
+  // Reviews
+  const [reviews, setReviews] = useState<any[]>([])
+  const [reviewFilter, setReviewFilter] = useState('')
+  const [addingReview, setAddingReview] = useState(false)
+  const [rvBarber, setRvBarber] = useState('')
+  const [rvName, setRvName] = useState('')
+  const [rvRating, setRvRating] = useState(5)
+  const [rvText, setRvText] = useState('')
+  const [rvSaving, setRvSaving] = useState(false)
+
   // Shop status & banner — owner/admin only
   const [shopStatus, setShopStatus] = useState<'auto'|'open'|'closed'>('auto')
   const [bannerEnabled, setBannerEnabled] = useState(false)
@@ -152,6 +162,12 @@ export default function DashboardPage() {
         } catch { setMyPayroll(null) }
       }
     } catch {}
+    // Load reviews
+    try {
+      const rvRes = await fetch(`${API}/api/reviews`, { headers })
+      const rvData = await rvRes.json()
+      setReviews(rvData?.reviews || [])
+    } catch { setReviews([]) }
     setLoading(false)
   }, [isBarber, myBarberId])
 
@@ -442,6 +458,111 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {/* ─── Reviews ─── */}
+          {isOwnerOrAdmin && (
+            <div style={{ marginTop: 28 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)', fontWeight: 900 }}>
+                  Reviews ({reviews.length})
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => setAddingReview(!addingReview)}
+                    style={{ height: 30, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,207,63,.45)', background: 'rgba(255,207,63,.08)', color: '#ffe9a3', cursor: 'pointer', fontWeight: 700, fontSize: 11, fontFamily: 'inherit' }}>
+                    {addingReview ? 'Cancel' : '+ Add review'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Add review form */}
+              {addingReview && (
+                <div style={{ padding: 14, borderRadius: 16, border: '1px solid rgba(255,207,63,.20)', background: 'rgba(255,207,63,.04)', marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', marginBottom: 4 }}>Barber</div>
+                      <select value={rvBarber} onChange={e => setRvBarber(e.target.value)}
+                        style={{ width: '100%', height: 40, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}>
+                        <option value="">Select barber</option>
+                        {barbers.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', marginBottom: 4 }}>Client name</div>
+                      <input value={rvName} onChange={e => setRvName(e.target.value)} placeholder="Client name"
+                        style={{ width: '100%', height: 40, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', marginBottom: 4 }}>Rating</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {[1,2,3,4,5].map(n => (
+                        <button key={n} onClick={() => setRvRating(n)} type="button"
+                          style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${n <= rvRating ? 'rgba(255,207,63,.55)' : 'rgba(255,255,255,.10)'}`, background: n <= rvRating ? 'rgba(255,207,63,.14)' : 'rgba(255,255,255,.04)', color: n <= rvRating ? '#ffe9a3' : 'rgba(255,255,255,.30)', cursor: 'pointer', fontSize: 16, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', marginBottom: 4 }}>Review text</div>
+                    <textarea value={rvText} onChange={e => setRvText(e.target.value)} placeholder="Great experience…" rows={3}
+                      style={{ width: '100%', borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '10px', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical' as const }} />
+                  </div>
+                  <button onClick={async () => {
+                    if (!rvBarber || !rvName.trim()) return
+                    setRvSaving(true)
+                    try {
+                      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+                      const barber = barbers.find((b: any) => b.id === rvBarber)
+                      await fetch(`${API}/api/reviews`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }, body: JSON.stringify({ barber_id: rvBarber, barber_name: barber?.name || '', name: rvName.trim(), rating: rvRating, text: rvText.trim(), source: 'crm' }) })
+                      setRvName(''); setRvText(''); setRvRating(5); setAddingReview(false); loadAll()
+                    } catch {}
+                    setRvSaving(false)
+                  }} disabled={rvSaving || !rvBarber || !rvName.trim()}
+                    style={{ height: 40, borderRadius: 10, border: '1px solid rgba(255,207,63,.55)', background: 'rgba(255,207,63,.12)', color: '#ffe9a3', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: rvSaving ? .5 : 1 }}>
+                    {rvSaving ? 'Saving…' : 'Add review'}
+                  </button>
+                </div>
+              )}
+
+              {/* Filter */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                <button onClick={() => setReviewFilter('')}
+                  style={{ height: 28, padding: '0 10px', borderRadius: 999, border: `1px solid ${!reviewFilter ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.08)'}`, background: !reviewFilter ? 'rgba(255,255,255,.06)' : 'transparent', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
+                  All ({reviews.length})
+                </button>
+                {barbers.map((b: any) => {
+                  const cnt = reviews.filter(r => r.barber_id === b.id).length
+                  return (
+                    <button key={b.id} onClick={() => setReviewFilter(b.id)}
+                      style={{ height: 28, padding: '0 10px', borderRadius: 999, border: `1px solid ${reviewFilter === b.id ? 'rgba(10,132,255,.45)' : 'rgba(255,255,255,.08)'}`, background: reviewFilter === b.id ? 'rgba(10,132,255,.10)' : 'transparent', color: reviewFilter === b.id ? '#d7ecff' : 'rgba(255,255,255,.55)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
+                      {b.name} ({cnt})
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Reviews list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 400, overflowY: 'auto' }}>
+                {(reviewFilter ? reviews.filter(r => r.barber_id === reviewFilter) : reviews).slice(0, 50).map((r: any) => (
+                  <div key={r.id} style={{ padding: '10px 12px', borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ color: '#ffcf3f', fontSize: 13 }}>{'★'.repeat(r.rating || 5)}{'☆'.repeat(5 - (r.rating || 5))}</span>
+                        <span style={{ fontWeight: 700, fontSize: 13 }}>{r.name || 'Anonymous'}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {r.barber_name && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(10,132,255,.06)', color: 'rgba(10,132,255,.80)', letterSpacing: '.06em', textTransform: 'uppercase' }}>{r.barber_name}</span>}
+                        {r.source === 'google' && <span style={{ fontSize: 9, color: 'rgba(255,255,255,.25)' }}>Google</span>}
+                      </div>
+                    </div>
+                    {r.text && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginTop: 4, lineHeight: 1.4 }}>{String(r.text).slice(0, 200)}{String(r.text).length > 200 ? '…' : ''}</div>}
+                  </div>
+                ))}
+                {reviews.length === 0 && <div style={{ color: 'rgba(255,255,255,.25)', fontSize: 12, textAlign: 'center', padding: 20 }}>No reviews yet</div>}
+              </div>
             </div>
           )}
 
