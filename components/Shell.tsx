@@ -15,6 +15,7 @@ const NAV = [
   { id: 'dashboard', href: '/dashboard', label: 'Dashboard',  sub: 'Today overview' },
   { id: 'calendar',  href: '/calendar',  label: 'Calendar',   sub: 'Bookings grid' },
   { id: 'messages',  href: '/messages',  label: 'Messages',   sub: 'Team chat' },
+  { id: 'waitlist',  href: '/waitlist',  label: 'Waitlist',   sub: 'Queue & notify',      ownerAdmin: true },
   { id: 'clients',   href: '/clients',   label: 'Clients',    sub: 'Search / notes',      ownerAdmin: true },
   { id: 'payments',  href: '/payments',  label: 'Payments',   sub: 'Square + Terminal',   ownerAdmin: true },
   { id: 'payroll',   href: '/payroll',   label: 'Payroll',    sub: 'Commission + tips',   ownerOnly: true },
@@ -45,6 +46,12 @@ function Icon({ id, color }: { id: string; color: string }) {
     case 'messages':
       return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" {...s}/>
+      </svg>
+    case 'waitlist':
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" {...s}/>
+        <rect x="8" y="2" width="8" height="4" rx="1" ry="1" {...s}/>
+        <line x1="9" y1="12" x2="15" y2="12" {...s}/><line x1="9" y1="16" x2="13" y2="16" {...s}/>
       </svg>
     case 'clients':
       return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>

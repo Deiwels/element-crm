@@ -594,6 +594,7 @@ export default function CalendarPage() {
   const [services, setServices] = useState<Service[]>([])
   const [events, setEvents] = useState<CalEvent[]>([])
   const [studentUsers, setStudentUsers] = useState<{ id: string; name: string; mentorIds: string[] }[]>([])
+  const [waitlistEntries, setWaitlistEntries] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [isMobile, setIsMobile] = useState(false) // mobile detection
   useEffect(() => {
@@ -1001,21 +1002,30 @@ export default function CalendarPage() {
     } catch { /* ignore */ }
   }, [isOwnerOrAdmin])
 
+  const loadWaitlist = useCallback(async () => {
+    if (!isOwnerOrAdmin) return
+    try {
+      const data = await apiFetch(`/api/waitlist?date=${todayStr}`)
+      setWaitlistEntries(data?.waitlist || [])
+    } catch { /* ignore */ }
+  }, [isOwnerOrAdmin, todayStr])
+
   const reloadAll = useCallback(async () => {
     try {
       const [b, s] = await Promise.all([loadBarbers(), loadServices()])
       setBarbers(b); setServices(s)
       setEvents(await loadBookings(b, s))
       loadStudents()
+      loadWaitlist()
     } catch(e) { console.warn(e) }
-  }, [loadBarbers, loadServices, loadBookings, loadStudents])
+  }, [loadBarbers, loadServices, loadBookings, loadStudents, loadWaitlist])
 
   useEffect(() => {
     setLoading(true)
     Promise.all([loadBarbers(), loadServices()]).then(async ([b, s]) => {
       setBarbers(b); setServices(s)
       setEvents(await loadBookings(b, s)); setLoading(false)
-      loadStudents()
+      loadStudents(); loadWaitlist()
     }).catch(e => { console.warn(e); setLoading(false) })
   }, [todayStr])
 
@@ -1531,6 +1541,36 @@ export default function CalendarPage() {
                             </div>
                           </div>
                           {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToHHMM(ev.startMin)} · {ev.serviceName}</div>}
+                        </div>
+                      )
+                    })}
+                    {/* Waitlist ghost entries */}
+                    {!isStudent && waitlistEntries.filter(w => w.barber_id === barber.id).map((w, wi) => {
+                      // Place at first available slot for this barber
+                      const dur = w.duration_minutes || 30
+                      // Find a free slot in working hours
+                      const wh = (workHours as any)[barber.id]
+                      if (!wh || wh.dayOff) return null
+                      const startSearch = Math.max(wh.startMin, nowMin)
+                      let slotMin = -1
+                      for (let m = startSearch; m <= wh.endMin - dur; m += 5) {
+                        const hasConflict = colEvents.some(e => {
+                          const eEnd = e.startMin + e.durMin
+                          return m < eEnd && (m + dur) > e.startMin
+                        })
+                        if (!hasConflict) { slotMin = m; break }
+                      }
+                      if (slotMin < 0) return null
+                      const top = minToY(slotMin)
+                      const height = Math.max(24, (dur / 5) * SLOT_H) - 2
+                      return (
+                        <div key={`wl-${w.id}`} style={{ position: 'absolute', left: 8, right: 8, top, height, borderRadius: 14, border: '1px dashed rgba(255,207,63,.40)', background: 'rgba(255,207,63,.06)', opacity: 0.6, zIndex: 3, padding: '6px 10px', cursor: 'pointer', overflow: 'hidden' }}
+                          onClick={() => { if (window.confirm(`Confirm ${w.client_name || 'client'} from waitlist?\nTime: ${minToHHMM(slotMin)}, Duration: ${dur}min`)) {
+                            apiFetch(`/api/waitlist/${encodeURIComponent(w.id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) })
+                              .then(() => { showToast('Waitlist confirmed'); loadWaitlist() }).catch(e => showToast('Error: ' + e.message))
+                          }}}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#ffe9a3' }}>{w.client_name || 'Waitlist'}</div>
+                          <div style={{ fontSize: 9, color: 'rgba(255,207,63,.60)', marginTop: 1 }}>{minToHHMM(slotMin)} · {dur}min · WAITLIST</div>
                         </div>
                       )
                     })}
