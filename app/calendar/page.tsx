@@ -1568,9 +1568,25 @@ export default function CalendarPage() {
                       const height = Math.max(24, (dur / 5) * SLOT_H) - 2
                       return (
                         <div key={`wl-${w.id}`} style={{ position: 'absolute', left: 8, right: 8, top, height, borderRadius: 14, border: '1px dashed rgba(255,207,63,.40)', background: 'rgba(255,207,63,.06)', opacity: 0.6, zIndex: 3, padding: '6px 10px', cursor: 'pointer', overflow: 'hidden' }}
-                          onClick={() => { if (window.confirm(`Confirm ${w.client_name || 'client'} from waitlist?\nTime: ${minToHHMM(slotMin)}, Duration: ${dur}min`)) {
-                            apiFetch(`/api/waitlist/${encodeURIComponent(w.id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) })
-                              .then(() => { showToast('Waitlist confirmed'); loadWaitlist() }).catch(e => showToast('Error: ' + e.message))
+                          onClick={async () => { if (window.confirm(`Confirm ${w.client_name || 'client'} from waitlist?\nTime: ${minToHHMM(slotMin)}, Duration: ${dur}min\n\nThis will create an appointment.`)) {
+                            try {
+                              // 1. Create booking
+                              const startAt = new Date(todayStr + 'T' + minToHHMM(slotMin) + ':00')
+                              const endAt = new Date(startAt.getTime() + dur * 60000)
+                              const svcNames = Array.isArray(w.service_names) ? w.service_names : []
+                              const svcIds = Array.isArray(w.service_ids) ? w.service_ids : []
+                              await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({
+                                barber_id: barber.id, client_name: w.client_name || 'Waitlist client',
+                                client_phone: w.phone_raw || w.phone_norm || '',
+                                service_id: svcIds[0] || '', service_name: svcNames.join(', ') || 'Service',
+                                start_at: startAt.toISOString(), end_at: endAt.toISOString(),
+                                notes: 'From waitlist', source: 'waitlist',
+                              })})
+                              // 2. Mark waitlist as confirmed
+                              await apiFetch(`/api/waitlist/${encodeURIComponent(w.id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) })
+                              showToast(`${w.client_name || 'Client'} booked at ${minToHHMM(slotMin)}`)
+                              loadWaitlist(); reloadAll()
+                            } catch (e: any) { showToast('Error: ' + e.message) }
                           }}}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: '#ffe9a3' }}>{w.client_name || 'Waitlist'}</div>
                           <div style={{ fontSize: 9, color: 'rgba(255,207,63,.60)', marginTop: 1 }}>{minToHHMM(slotMin)} · {dur}min · {prefStart !== wh.startMin || prefEnd !== wh.endMin ? `${minToHHMM(prefStart)}-${minToHHMM(prefEnd)}` : 'WAITLIST'}</div>
