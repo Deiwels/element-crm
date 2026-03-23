@@ -325,7 +325,7 @@ export default function PayrollPage() {
   const [activeTab, setActiveTab] = useState<'summary'|'rules'>('summary')
   const [adminUsers, setAdminUsers] = useState<any[]>([])
   const [adminAttendance, setAdminAttendance] = useState<Record<string, number>>({})
-  const [adminWorkDays, setAdminWorkDays] = useState<Record<string, Set<number>>>({})
+  const [adminWorkDays, setAdminWorkDays] = useState<Record<string, number[]>>({})
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -340,7 +340,9 @@ export default function PayrollPage() {
       setTotals(payData?.totals || null)
       setRules(rulesData?.rules || {})
       // Admin users
-      const admins = (usersData?.users || []).filter((u: any) => u.role === 'admin' && u.active !== false)
+      const allUsers = usersData?.users || []
+      // Admin + owner users (anyone who could have hourly rate)
+      const admins = allUsers.filter((u: any) => (u.role === 'admin' || u.role === 'owner') && u.active !== false)
       setAdminUsers(admins)
       // Attendance hours per user
       const attHours: Record<string, number> = {}
@@ -360,17 +362,19 @@ export default function PayrollPage() {
       setAdminAttendance(attHours)
       // Also compute service fee days for admins
       // Store which days each user worked
-      const attDays: Record<string, Set<number>> = {}
+      const attDaysSet: Record<string, Set<number>> = {}
       attRecords.forEach((r: any) => {
         if (r.clock_in) {
           const d = new Date(r.clock_in)
           if (!isNaN(d.getTime())) {
-            if (!attDays[r.user_id]) attDays[r.user_id] = new Set()
-            attDays[r.user_id].add(d.getDay())
+            if (!attDaysSet[r.user_id]) attDaysSet[r.user_id] = new Set()
+            attDaysSet[r.user_id].add(d.getDay())
           }
         }
       })
-      setAdminWorkDays(attDays)
+      const attDaysArr: Record<string, number[]> = {}
+      Object.entries(attDaysSet).forEach(([uid, s]) => { attDaysArr[uid] = [...s] })
+      setAdminWorkDays(attDaysArr)
     } catch (e: any) { setError(e.message) }
     setLoading(false)
   }, [from, to])
@@ -631,8 +635,8 @@ export default function PayrollPage() {
                           const profitShare = ownerShare * ((r.owner_profit_pct || 0) / 100)
                           // Service fee: approximate from total services × fee rate, prorated by days worked
                           const feeDays = r.service_fee_days || [0,1,2,3,4,5,6]
-                          const worked = adminWorkDays[u.id] || new Set()
-                          const feeWorkDays = feeDays.filter(d => worked.has(d)).length
+                          const worked = adminWorkDays[u.id] || []
+                          const feeWorkDays = feeDays.filter(d => worked.includes(d)).length
                           const totalFeeDays = feeDays.length || 1
                           const serviceFeeTotal = totalServices * 0.03 // 3% service fee on all services
                           const feeShare = serviceFeeTotal * ((r.service_fee_pct || 0) / 100) * (feeWorkDays / totalFeeDays)
