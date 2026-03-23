@@ -7,7 +7,8 @@ const API_KEY = 'R1403ss81fxrx*rx1403'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Tier { type: 'revenue' | 'clients'; threshold: number; pct: number }
-interface Rule { base_pct: number; tips_pct: number; tiers: Tier[]; hourly_rate?: number; owner_profit_pct?: number; service_fee_pct?: number; service_fee_days?: number[] }
+interface CustomBonus { label: string; type: 'percent_revenue' | 'percent_owner' | 'fixed'; value: number }
+interface Rule { base_pct: number; tips_pct: number; tiers: Tier[]; hourly_rate?: number; owner_profit_pct?: number; service_fee_pct?: number; service_fee_days?: number[]; custom_bonuses?: CustomBonus[] }
 interface Booking { id: string; date: string; client: string; service: string; service_amount: number; tip: number; status: string; paid: boolean }
 interface BarberPayroll {
   barber_id: string; barber_name: string; barber_photo: string; barber_level: string
@@ -150,6 +151,7 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
   const [basePct, setBasePct] = useState(rule.base_pct)
   const [tipsPct, setTipsPct] = useState(rule.tips_pct)
   const [tiers, setTiers] = useState<Tier[]>(rule.tiers || [])
+  const [bonuses, setBonuses] = useState<CustomBonus[]>(rule.custom_bonuses || [])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -159,9 +161,9 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
     setSaving(true)
     try {
       await apiFetch(`/api/payroll/rules/${encodeURIComponent(barber.barber_id)}`, {
-        method: 'POST', body: JSON.stringify({ base_pct: basePct, tips_pct: tipsPct, tiers: tiers.filter(t => t.threshold > 0) })
+        method: 'POST', body: JSON.stringify({ base_pct: basePct, tips_pct: tipsPct, tiers: tiers.filter(t => t.threshold > 0), custom_bonuses: bonuses.filter(b => b.label && b.value > 0) })
       })
-      onSaved({ base_pct: basePct, tips_pct: tipsPct, tiers })
+      onSaved({ base_pct: basePct, tips_pct: tipsPct, tiers, custom_bonuses: bonuses })
       setSaved(true); setTimeout(() => setSaved(false), 2000)
     } catch (e: any) { alert('Error: ' + e.message) }
     setSaving(false)
@@ -178,7 +180,7 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
           <div style={{ fontWeight: 900, fontSize: 13 }}>{barber.barber_name}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)' }}>{rule.base_pct}% base · {rule.tips_pct}% tips</span>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)' }}>{rule.base_pct}% base · {rule.tips_pct}% tips{bonuses.length > 0 ? ` · ${bonuses.length} bonus` : ''}</span>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,.40)' }}>{open ? '▴' : '▾'}</span>
         </div>
       </div>
@@ -216,6 +218,25 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
           <button onClick={() => setTiers([...tiers, { type: 'revenue', threshold: 0, pct: 65 }])}
             style={{ height: 32, padding: '0 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.65)', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', marginBottom: 12 }}>
             + Add tier
+          </button>
+
+          {/* Custom bonuses */}
+          <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', marginBottom: 8 }}>Custom bonuses / deductions</div>
+          {bonuses.map((b, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
+              <input value={b.label} onChange={e => { const n=[...bonuses]; n[i]={...n[i],label:e.target.value}; setBonuses(n) }} style={{ ...inp, height: 34, fontSize: 12 }} placeholder="Label (e.g. Product bonus)" />
+              <select value={b.type} onChange={e => { const n=[...bonuses]; n[i]={...n[i],type:e.target.value as any}; setBonuses(n) }} style={{ ...inp, height: 34, fontSize: 12 }}>
+                <option value="percent_revenue">% of revenue</option>
+                <option value="percent_owner">% of owner share</option>
+                <option value="fixed">Fixed $</option>
+              </select>
+              <input type="number" min={0} step={0.5} value={b.value} onChange={e => { const n=[...bonuses]; n[i]={...n[i],value:Number(e.target.value)}; setBonuses(n) }} style={{ ...inp, height: 34, fontSize: 12 }} placeholder="Value" />
+              <button onClick={() => setBonuses(bonuses.filter((_,j) => j!==i))} style={{ height: 34, width: 34, borderRadius: 10, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ff6b6b', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            </div>
+          ))}
+          <button onClick={() => setBonuses([...bonuses, { label: '', type: 'percent_revenue', value: 0 }])}
+            style={{ height: 32, padding: '0 14px', borderRadius: 10, border: '1px solid rgba(168,107,255,.30)', background: 'rgba(168,107,255,.08)', color: '#d4b8ff', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', marginBottom: 12 }}>
+            + Add custom bonus
           </button>
 
           <button onClick={save} disabled={saving}
