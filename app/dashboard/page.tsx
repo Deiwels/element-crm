@@ -516,7 +516,7 @@ export default function DashboardPage() {
                     try {
                       const token = localStorage.getItem('ELEMENT_TOKEN') || ''
                       const barber = barbers.find((b: any) => b.id === rvBarber)
-                      await fetch(`${API}/api/reviews`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }, body: JSON.stringify({ barber_id: rvBarber, barber_name: barber?.name || '', name: rvName.trim(), rating: rvRating, text: rvText.trim(), source: 'crm' }) })
+                      await fetch(`${API}/api/reviews`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }, body: JSON.stringify({ barber_id: rvBarber, barber_name: barber?.name || '', name: rvName.trim(), rating: rvRating, text: rvText.trim(), source: 'crm', status: 'approved' }) })
                       setRvName(''); setRvText(''); setRvRating(5); setAddingReview(false); loadAll()
                     } catch {}
                     setRvSaving(false)
@@ -544,14 +544,64 @@ export default function DashboardPage() {
                 })}
               </div>
 
+              {/* Pending reviews first */}
+              {(() => {
+                const pending = reviews.filter(r => r.status === 'pending')
+                if (!pending.length) return null
+                return (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,207,63,.70)', marginBottom: 8, fontWeight: 700 }}>Pending approval ({pending.length})</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {pending.map((r: any) => (
+                        <div key={r.id} style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,207,63,.25)', background: 'rgba(255,207,63,.04)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ color: '#ffcf3f', fontSize: 13 }}>{'★'.repeat(r.rating || 5)}{'☆'.repeat(5 - (r.rating || 5))}</span>
+                              <span style={{ fontWeight: 700, fontSize: 13 }}>{r.name || 'Anonymous'}</span>
+                              <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 999, border: '1px solid rgba(255,207,63,.35)', background: 'rgba(255,207,63,.10)', color: '#ffe9a3', letterSpacing: '.06em', textTransform: 'uppercase' }}>PENDING</span>
+                            </div>
+                            {r.barber_name && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(10,132,255,.06)', color: 'rgba(10,132,255,.80)', letterSpacing: '.06em', textTransform: 'uppercase' }}>{r.barber_name}</span>}
+                          </div>
+                          {r.text && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', marginTop: 2, lineHeight: 1.4 }}>{String(r.text).slice(0, 300)}{String(r.text).length > 300 ? '…' : ''}</div>}
+                          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                            <button onClick={async () => {
+                              const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+                              await fetch(`${API}/api/reviews/${encodeURIComponent(r.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }, body: JSON.stringify({ status: 'approved' }) })
+                              loadAll()
+                            }} style={{ height: 28, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(143,240,177,.45)', background: 'rgba(143,240,177,.10)', color: '#c9ffe1', cursor: 'pointer', fontWeight: 700, fontSize: 11, fontFamily: 'inherit' }}>
+                              Approve
+                            </button>
+                            <button onClick={async () => {
+                              const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+                              await fetch(`${API}/api/reviews/${encodeURIComponent(r.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }, body: JSON.stringify({ status: 'rejected' }) })
+                              loadAll()
+                            }} style={{ height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 700, fontSize: 11, fontFamily: 'inherit' }}>
+                              Reject
+                            </button>
+                            <button onClick={async () => {
+                              const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+                              await fetch(`${API}/api/reviews/${encodeURIComponent(r.id)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
+                              loadAll()
+                            }} style={{ height: 28, padding: '0 8px', borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'transparent', color: 'rgba(255,255,255,.35)', cursor: 'pointer', fontWeight: 700, fontSize: 11, fontFamily: 'inherit' }}>
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
               {/* Reviews list */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 400, overflowY: 'auto' }}>
-                {(reviewFilter ? reviews.filter(r => r.barber_id === reviewFilter) : reviews).slice(0, 50).map((r: any) => (
-                  <div key={r.id} style={{ padding: '10px 12px', borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)' }}>
+                {(reviewFilter ? reviews.filter(r => r.barber_id === reviewFilter) : reviews).filter(r => r.status !== 'pending').slice(0, 50).map((r: any) => (
+                  <div key={r.id} style={{ padding: '10px 12px', borderRadius: 14, border: `1px solid ${r.status === 'rejected' ? 'rgba(255,107,107,.15)' : 'rgba(255,255,255,.06)'}`, background: r.status === 'rejected' ? 'rgba(255,107,107,.03)' : 'rgba(255,255,255,.02)', opacity: r.status === 'rejected' ? 0.5 : 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ color: '#ffcf3f', fontSize: 13 }}>{'★'.repeat(r.rating || 5)}{'☆'.repeat(5 - (r.rating || 5))}</span>
                         <span style={{ fontWeight: 700, fontSize: 13 }}>{r.name || 'Anonymous'}</span>
+                        {r.status === 'rejected' && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 999, border: '1px solid rgba(255,107,107,.30)', color: '#ffd0d0', letterSpacing: '.06em', textTransform: 'uppercase' }}>REJECTED</span>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         {r.barber_name && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(10,132,255,.06)', color: 'rgba(10,132,255,.80)', letterSpacing: '.06em', textTransform: 'uppercase' }}>{r.barber_name}</span>}
