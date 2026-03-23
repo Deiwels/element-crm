@@ -48,6 +48,12 @@ export default function WaitlistPage() {
   const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [newDuration, setNewDuration] = useState(30)
   const [saving, setSaving] = useState(false)
+  const [phoneSearching, setPhoneSearching] = useState(false)
+  const [foundClients, setFoundClients] = useState<any[]>([])
+  const [selectedClient, setSelectedClient] = useState<any>(null)
+  const [showNewForm, setShowNewForm] = useState(false)
+  const [services, setServices] = useState<any[]>([])
+  const [newServiceIds, setNewServiceIds] = useState<string[]>([])
 
   const [user] = useState(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}') } catch { return {} }
@@ -56,14 +62,17 @@ export default function WaitlistPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [wl, bd] = await Promise.all([
+      const [wl, bd, sv] = await Promise.all([
         apiFetch('/api/waitlist'),
         apiFetch('/api/barbers'),
+        apiFetch('/api/services').catch(() => ({ services: [] })),
       ])
       setEntries(wl?.waitlist || [])
       const list = (Array.isArray(bd) ? bd : bd?.barbers || []).map((b: any) => ({ id: b.id, name: b.name }))
       setBarbers(list)
       if (!newBarberId && list.length) setNewBarberId(list[0].id)
+      const svcList = sv?.services || []
+      setServices(svcList.map((s: any) => ({ id: s.id, name: s.name, duration_minutes: s.duration_minutes || 30, barber_ids: s.barber_ids || [] })))
     } catch (e: any) { console.warn('waitlist load:', e.message) }
     setLoading(false)
   }, [])
@@ -84,23 +93,72 @@ export default function WaitlistPage() {
     } catch (e: any) { alert(e.message) }
   }
 
+  // Phone formatting
+  function digits(s: string) { return s.replace(/\D/g, '') }
+  function formatPhoneDisplay(raw: string) {
+    const d = digits(raw).replace(/^1/, '').slice(0, 10)
+    if (d.length === 0) return ''
+    if (d.length <= 3)  return `+1 (${d}`
+    if (d.length <= 6)  return `+1 (${d.slice(0,3)}) ${d.slice(3)}`
+    return `+1 (${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`
+  }
+
+  async function searchByPhone(raw: string) {
+    const d = digits(raw).replace(/^1/, '')
+    if (d.length < 10) { setFoundClients([]); setShowNewForm(false); return }
+    setPhoneSearching(true)
+    try {
+      const data = await apiFetch(`/api/clients?q=${encodeURIComponent(d)}`)
+      const list = Array.isArray(data) ? data : Array.isArray(data?.clients) ? data.clients : []
+      if (list.length > 0) {
+        setFoundClients(list.slice(0, 5))
+        setShowNewForm(false)
+      } else {
+        setFoundClients([])
+        setShowNewForm(true)
+      }
+    } catch { setFoundClients([]); setShowNewForm(true) }
+    setPhoneSearching(false)
+  }
+
+  function selectClient(c: any) {
+    setSelectedClient(c)
+    setNewName(c.name || '')
+    setFoundClients([])
+    setShowNewForm(false)
+  }
+
+  function clearClient() {
+    setSelectedClient(null)
+    setNewName('')
+    setNewPhone('')
+    setFoundClients([])
+    setShowNewForm(false)
+  }
+
   async function addEntry() {
-    if (!newName.trim() || !newPhone.trim() || !newBarberId || !newDate) return
+    const name = selectedClient?.name || newName.trim()
+    const phone = newPhone.trim() || selectedClient?.phone || ''
+    if (!name || !newBarberId || !newDate) return
     setSaving(true)
     try {
       const barber = barbers.find(b => b.id === newBarberId)
+      const selSvcs = services.filter((s: any) => newServiceIds.includes(s.id))
+      const totalDur = selSvcs.reduce((sum: number, s: any) => sum + (s.duration_minutes || 30), 0) || newDuration
       await apiFetch('/api/waitlist', {
         method: 'POST',
         body: JSON.stringify({
-          client_name: newName.trim(),
-          phone: newPhone.trim(),
+          client_name: name,
+          phone: phone,
           barber_id: newBarberId,
           barber_name: barber?.name || '',
           date: newDate,
-          duration_minutes: newDuration,
+          duration_minutes: totalDur,
+          service_ids: newServiceIds,
+          service_names: selSvcs.map((s: any) => s.name),
         }),
       })
-      setNewName(''); setNewPhone(''); setAdding(false)
+      clearClient(); setAdding(false); setNewServiceIds([])
       load()
     } catch (e: any) { alert(e.message) }
     setSaving(false)
@@ -158,17 +216,75 @@ export default function WaitlistPage() {
 
         {/* Add form */}
         {adding && (
-          <div style={{ padding: 16, borderRadius: 18, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(10,132,255,.06)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ padding: 16, borderRadius: 18, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(10,132,255,.06)', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#d7ecff', letterSpacing: '.08em', textTransform: 'uppercase' }}>Add to waitlist</div>
+
+            {/* Selected client card */}
+            {selectedClient ? (
+              <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 14 }}>{selectedClient.name}</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', marginTop: 2 }}>{selectedClient.phone || newPhone}</div>
+                </div>
+                <button onClick={clearClient} style={{ height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.55)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>Change</button>
+              </div>
+            ) : (
+              <>
+                {/* Phone search */}
+                <div>
+                  <label style={lbl}>Phone number</label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <div style={{ position: 'absolute', left: 14, fontSize: 14, color: 'rgba(255,255,255,.55)', pointerEvents: 'none', fontWeight: 700, zIndex: 1 }}>+1</div>
+                    <input
+                      value={newPhone.replace(/^\+1\s?/, '')}
+                      onChange={e => {
+                        const formatted = formatPhoneDisplay(e.target.value)
+                        setNewPhone(formatted)
+                        searchByPhone(e.target.value)
+                      }}
+                      placeholder="(___) ___-____"
+                      style={{ ...inp, paddingLeft: 38 }}
+                      type="tel" autoComplete="off"
+                    />
+                    {phoneSearching && <div style={{ position: 'absolute', right: 14, width: 16, height: 16, border: '2px solid rgba(255,255,255,.20)', borderTop: '2px solid #0a84ff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+                  </div>
+                </div>
+
+                {/* Found clients dropdown */}
+                {foundClients.length > 0 && (
+                  <div style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', overflow: 'hidden' }}>
+                    {foundClients.map(c => (
+                      <div key={c.id} onClick={() => selectClient(c)}
+                        style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,.05)', display: 'flex', alignItems: 'center', gap: 10 }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(10,132,255,.10)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{c.name}</div>
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)' }}>{c.phone || ''}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* New client form */}
+                {showNewForm && (
+                  <div style={{ padding: '12px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)' }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginBottom: 8 }}>No client found — enter name:</div>
+                    <div>
+                      <label style={lbl}>Full name</label>
+                      <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Client name" style={inp} autoFocus />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Barber, date, services */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div>
-                <label style={lbl}>Client name</label>
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="John Doe" style={inp} />
-              </div>
-              <div>
-                <label style={lbl}>Phone</label>
-                <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="+1 (___) ___-____" type="tel" style={inp} />
-              </div>
               <div>
                 <label style={lbl}>Barber</label>
                 <select value={newBarberId} onChange={e => setNewBarberId(e.target.value)} style={inp}>
@@ -179,15 +295,35 @@ export default function WaitlistPage() {
                 <label style={lbl}>Date</label>
                 <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} style={inp} />
               </div>
+            </div>
+
+            {/* Services */}
+            {services.length > 0 && (
               <div>
-                <label style={lbl}>Duration (min)</label>
+                <label style={lbl}>Services</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {services.filter((s: any) => !s.barber_ids?.length || s.barber_ids.includes(newBarberId)).map((s: any) => (
+                    <button key={s.id} onClick={() => setNewServiceIds(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                      style={{ height: 32, padding: '0 12px', borderRadius: 999, border: `1px solid ${newServiceIds.includes(s.id) ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.12)'}`, background: newServiceIds.includes(s.id) ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.04)', color: newServiceIds.includes(s.id) ? '#d7ecff' : 'rgba(255,255,255,.60)', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}>
+                      {s.name} ({s.duration_minutes}min)
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Duration override if no services selected */}
+            {newServiceIds.length === 0 && (
+              <div>
+                <label style={lbl}>Duration</label>
                 <select value={newDuration} onChange={e => setNewDuration(Number(e.target.value))} style={inp}>
                   {[15, 20, 25, 30, 35, 40, 45, 60, 90].map(m => <option key={m} value={m}>{m} min</option>)}
                 </select>
               </div>
-            </div>
-            <button onClick={addEntry} disabled={saving || !newName.trim() || !newPhone.trim()}
-              style={{ height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
+            )}
+
+            <button onClick={addEntry} disabled={saving || (!(selectedClient?.name || newName.trim())) || !newBarberId}
+              style={{ height: 44, borderRadius: 12, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
               {saving ? 'Adding…' : 'Add to waitlist'}
             </button>
           </div>
