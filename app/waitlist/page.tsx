@@ -122,7 +122,7 @@ export default function WaitlistPage() {
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }
 
   return (
-    <Shell page="Waitlist" sub="Queue & notify" user={user}>
+    <Shell page="Waitlist">
       <div style={{ maxWidth: 700, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Header */}
