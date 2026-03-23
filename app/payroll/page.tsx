@@ -696,7 +696,6 @@ export default function PayrollPage() {
                           <div style={{ ...lbl, color: '#ffe9a3', marginBottom: 8 }}>Owner net profit</div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12, marginBottom: 8 }}>
                             <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Gross revenue: </span><span>{fmtMoney(totalServices)}</span></div>
-                            <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Service fee (3%): </span><span>{fmtMoney(serviceFeeGross)}</span></div>
                             <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Barbers payout: </span><span style={{ color: '#ff6b6b' }}>−{fmtMoney(barbersTotalPayout)}</span></div>
                             <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Owner share: </span><span style={{ color: '#ffe9a3' }}>{fmtMoney(ownerShare)}</span></div>
                             {adminUsers.length > 0 && <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Admin pay: </span><span style={{ color: '#ff6b6b' }}>−{fmtMoney(totalAdminPay)}</span></div>}
