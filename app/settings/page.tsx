@@ -472,6 +472,32 @@ export default function SettingsPage() {
                   </Field>
                 </SectionCard>
 
+                <SectionCard title="Homepage hero">
+                  <Field label="Hero media URL (video or image)">
+                    <input value={s.hero_media_url || ''} onChange={e => set('hero_media_url', e.target.value)} placeholder="https://res.cloudinary.com/..." style={inp} />
+                  </Field>
+                  <Field label="Media type">
+                    <select value={s.hero_media_type || 'video'} onChange={e => set('hero_media_type', e.target.value)} style={inp}>
+                      <option value="video">Video (.mp4, .mov, .webm)</option>
+                      <option value="image">Image (.jpg, .png, .webp)</option>
+                    </select>
+                  </Field>
+                  {s.hero_media_url && (
+                    <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,.10)', maxHeight: 200 }}>
+                      {(s.hero_media_type || 'video') === 'video' ? (
+                        <video src={s.hero_media_url} muted autoPlay loop playsInline style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+                      ) : (
+                        <img src={s.hero_media_url} alt="Hero" style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+                      )}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', lineHeight: 1.5 }}>This video/image shows on the main homepage (element-barbershop.com). Upload to Cloudinary or paste a direct URL.</div>
+                  <Field label="Banner text (top notification)">
+                    <input value={s.bannerText || ''} onChange={e => set('bannerText', e.target.value)} placeholder="Now accepting walk-ins!" style={inp} />
+                  </Field>
+                  <Toggle checked={!!s.bannerEnabled} onChange={v => set('bannerEnabled', v)} label="Show banner on homepage" sub="Yellow notification bar at top" />
+                </SectionCard>
+
                 <SectionCard title="Tax">
                   <Toggle checked={!!tax.enabled} onChange={v => setNested('tax','enabled',v)} label="Enable tax on services" sub="Added to invoice total" />
                   {tax.enabled && <>
