@@ -333,11 +333,11 @@ export default function DashboardPage() {
 
   return (
     <Shell page="dashboard">
-      <div style={{ padding: '18px 18px 40px', maxWidth: 1400, margin: '0 auto', overflowY: 'auto', height: '100vh', color: '#e9e9e9', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div className="dash-container" style={{ padding: '18px 18px 40px', maxWidth: 1400, margin: '0 auto', overflowY: 'auto', height: '100vh', color: '#e9e9e9', fontFamily: 'Inter, system-ui, sans-serif' }}>
 
         {/* Topbar */}
         <div style={{ position: 'sticky', top: 0, zIndex: 20, padding: '10px 0 12px', background: 'linear-gradient(to bottom,rgba(0,0,0,.88),rgba(0,0,0,.68),transparent)', backdropFilter: 'blur(14px)', marginBottom: 16 } as React.CSSProperties}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div className="dash-topbar-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
               <h2 className="page-title" style={{ margin: 0, fontFamily: '"Julius Sans One", sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 16 }}>
                 {isBarber ? `Hey, ${myBarberName.split(' ')[0]}` : 'Dashboard'}
@@ -347,7 +347,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)}
+              <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} className="dash-search"
                 style={{ height: 40, width: 'min(200px,38vw)', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13 }} />
               <button onClick={loadAll} style={{ height: 40, width: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16 }}>↻</button>
             </div>
@@ -363,6 +363,14 @@ export default function DashboardPage() {
           @keyframes clockDot {
             0%, 100% { opacity: .4; }
             50% { opacity: 1; }
+          }
+          @media (max-width: 768px) {
+            .dash-topbar-row { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; }
+            .dash-search { width: 100% !important; }
+            .dash-kpi-grid { grid-template-columns: 1fr !important; }
+            .dash-quick-grid { grid-template-columns: 1fr !important; }
+            .dash-review-form-grid { grid-template-columns: 1fr !important; }
+            .dash-container { padding: 12px 10px 40px !important; }
           }
         `}</style>
         <div style={{ borderRadius: 18, border: `1px solid ${clockedIn ? 'rgba(143,240,177,.25)' : 'rgba(255,255,255,.10)'}`, background: clockedIn ? 'linear-gradient(180deg,rgba(143,240,177,.06),rgba(143,240,177,.01))' : 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', boxShadow: '0 10px 40px rgba(0,0,0,.35)', padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -478,7 +486,7 @@ export default function DashboardPage() {
         )}
 
         {/* KPIs — barber sees their own earnings, owner sees totals */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
+        <div className="dash-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
           {isBarber ? <>
             <KpiCard title="My bookings today" value={loading ? '…' : String(total)} sub={`${upcoming} upcoming`} color="blue" />
             <KpiCard title="My earnings today" value={loading ? '…' : money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
@@ -501,7 +509,7 @@ export default function DashboardPage() {
             {/* Quick actions */}
             <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
               <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Quick actions</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="dash-quick-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {actions.map(item => (
                   <a key={item.href} href={item.href} style={{ padding: '13px 12px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.14)', cursor: 'pointer', display: 'block', textDecoration: 'none' }}>
                     <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 4, color: '#fff' }}>{item.label}</div>
@@ -690,7 +698,7 @@ export default function DashboardPage() {
               {/* Add review form */}
               {addingReview && (
                 <div style={{ padding: 14, borderRadius: 16, border: '1px solid rgba(255,207,63,.20)', background: 'rgba(255,207,63,.04)', marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div className="dash-review-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div>
                       <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', marginBottom: 4 }}>Barber</div>
                       <select value={rvBarber} onChange={e => setRvBarber(e.target.value)}

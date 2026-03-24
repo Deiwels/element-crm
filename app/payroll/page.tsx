@@ -187,7 +187,7 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
       </div>
       {open && (
         <div style={{ padding: '12px 14px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+          <div className="comm-editor-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
             <div>
               <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>Base commission %</label>
               <input type="number" min={0} max={100} value={basePct} onChange={e => setBasePct(Number(e.target.value))} style={inp} />
@@ -205,12 +205,12 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
           {/* Tiers */}
           <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', marginBottom: 8 }}>Bonus tiers</div>
           {tiers.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
+            <div className="tier-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
               {['Type','Threshold','Rate %',''].map(h => <div key={h} style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.30)' }}>{h}</div>)}
             </div>
           )}
           {tiers.map((t, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
+            <div key={i} className="tier-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
               <select value={t.type} onChange={e => { const n=[...tiers]; n[i]={...n[i],type:e.target.value as 'revenue'|'clients'}; setTiers(n) }} style={{ ...inp, height: 34, fontSize: 12 }}>
                 <option value="revenue">Revenue ≥</option>
                 <option value="clients">Clients ≥</option>
@@ -228,7 +228,7 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
           {/* Custom bonuses */}
           <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', marginBottom: 8 }}>Custom bonuses / deductions</div>
           {bonuses.map((b, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
+            <div key={i} className="bonus-row" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: 6, marginBottom: 6 }}>
               <input value={b.label} onChange={e => { const n=[...bonuses]; n[i]={...n[i],label:e.target.value}; setBonuses(n) }} style={{ ...inp, height: 34, fontSize: 12 }} placeholder="Label (e.g. Product bonus)" />
               <select value={b.type} onChange={e => { const n=[...bonuses]; n[i]={...n[i],type:e.target.value as any}; setBonuses(n) }} style={{ ...inp, height: 34, fontSize: 12 }}>
                 <option value="percent_revenue">% of revenue</option>
@@ -301,7 +301,7 @@ function AdminPayrollEditor({ userId, userName, rule, onSaved, extraDays }: { us
       </div>
       {open && (
         <div style={{ padding: '12px 14px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+          <div className="admin-editor-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
             <div>
               <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>Hourly rate ($)</label>
               <input type="number" min={0} step={0.5} value={hourly} onChange={e => setHourly(Number(e.target.value))} style={inp} />
@@ -318,7 +318,7 @@ function AdminPayrollEditor({ userId, userName, rule, onSaved, extraDays }: { us
           {/* Worked days (auto from attendance) */}
           <div style={{ marginBottom: 8 }}>
             <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 6 }}>Days worked (auto from clock-in)</label>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div className="day-pills" style={{ display: 'flex', gap: 6 }}>
               {DAY_LABELS.map((d, i) => (
                 <div key={i} style={{ height: 30, width: 40, borderRadius: 8, border: `1px solid ${workedDays.includes(i) ? 'rgba(143,240,177,.45)' : 'rgba(255,255,255,.06)'}`, background: workedDays.includes(i) ? 'rgba(143,240,177,.12)' : 'rgba(255,255,255,.02)', color: workedDays.includes(i) ? '#c9ffe1' : 'rgba(255,255,255,.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
                   {d}
@@ -330,7 +330,7 @@ function AdminPayrollEditor({ userId, userName, rule, onSaved, extraDays }: { us
           {/* Extra days override */}
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 6 }}>Add extra days (override)</label>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div className="day-pills" style={{ display: 'flex', gap: 6 }}>
               {DAY_LABELS.map((d, i) => (
                 <button key={i} onClick={() => toggleBonusDay(i)}
                   style={{ height: 30, width: 40, borderRadius: 8, border: `1px solid ${bonusDays.includes(i) ? 'rgba(10,132,255,.45)' : 'rgba(255,255,255,.10)'}`, background: bonusDays.includes(i) ? 'rgba(10,132,255,.12)' : 'rgba(255,255,255,.03)', color: bonusDays.includes(i) ? '#d7ecff' : 'rgba(255,255,255,.40)', cursor: 'pointer', fontSize: 10, fontWeight: 700, fontFamily: 'inherit' }}>
@@ -536,21 +536,40 @@ export default function PayrollPage() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
         select option{background:#111}
+        @media(max-width:768px){
+          .payroll-body{grid-template-columns:1fr!important}
+          .payroll-topbar-row{flex-direction:column!important;align-items:stretch!important;gap:10px!important}
+          .payroll-topbar-actions{flex-wrap:wrap!important;justify-content:stretch!important;gap:6px!important}
+          .payroll-topbar-actions>button,.payroll-topbar-actions>select{flex:1 1 auto!important;min-width:0!important}
+          .payroll-date-btn{width:100%!important;min-width:0!important}
+          .payroll-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+          .payroll-table-wrap table{min-width:700px}
+          .comm-editor-grid{grid-template-columns:1fr!important}
+          .admin-editor-grid{grid-template-columns:1fr!important}
+          .tier-row{grid-template-columns:1fr 1fr!important}
+          .bonus-row{grid-template-columns:1fr!important}
+          .summary-cards{grid-template-columns:1fr!important}
+          .owner-net-grid{grid-template-columns:1fr!important}
+          .admin-payroll-grid{grid-template-columns:1fr!important}
+          .day-pills{flex-wrap:wrap!important}
+          .topbar-pad{padding:12px 12px 10px!important}
+          .payroll-body{padding:12px!important;gap:12px!important}
+        }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif', overflowY: 'auto' }}>
 
         {/* Topbar */}
-        <div style={{ padding: '14px 20px 12px', background: 'rgba(0,0,0,.80)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', position: 'sticky', top: 0, zIndex: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div className="topbar-pad" style={{ padding: '14px 20px 12px', background: 'rgba(0,0,0,.80)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', position: 'sticky', top: 0, zIndex: 20 }}>
+          <div className="payroll-topbar-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
               <h2 className="page-title" style={{ margin: 0, fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 15 }}>Payroll</h2>
               <p style={{ margin: '3px 0 0', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.08em' }}>
                 Commission + tips · {barbers.length} barbers · {barbers.reduce((s,b)=>s+b.bookings_count,0)} bookings
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="payroll-topbar-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               {/* Date range */}
-              <button onClick={() => setShowDatePicker(true)}
+              <button className="payroll-date-btn" onClick={() => setShowDatePicker(true)}
                 style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', minWidth: 200 }}>
                 {fmtDate(from)} → {fmtDate(to)}
               </button>
@@ -571,7 +590,7 @@ export default function PayrollPage() {
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, padding: '18px 20px', display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, alignItems: 'start' }}>
+        <div className="payroll-body" style={{ flex: 1, padding: '18px 20px', display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, alignItems: 'start' }}>
 
           {/* Left — table */}
           <div style={card}>
@@ -590,7 +609,7 @@ export default function PayrollPage() {
             ) : visible.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,.40)', fontSize: 13, letterSpacing: '.08em' }}>No data for selected period</div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="payroll-table-wrap" style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
@@ -703,7 +722,7 @@ export default function PayrollPage() {
 
               {activeTab === 'summary' && (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '12px 14px' }}>
+                  <div className="summary-cards" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '12px 14px' }}>
                     {[
                       { label: 'Services gross', value: fmtMoney(totals?.service_total||0), wide: true },
                       { label: 'Barbers total', value: fmtMoney(totals?.barber_service_share||0) },
@@ -758,7 +777,7 @@ export default function PayrollPage() {
                         {/* Owner net profit */}
                         <div style={{ margin: '0 14px 14px', borderRadius: 14, border: '1px solid rgba(255,207,63,.20)', background: 'rgba(255,207,63,.04)', padding: '14px' }}>
                           <div style={{ ...lbl, color: '#ffe9a3', marginBottom: 8 }}>Owner net profit</div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12, marginBottom: 8 }}>
+                          <div className="owner-net-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12, marginBottom: 8 }}>
                             <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Gross revenue: </span><span>{fmtMoney(totalServices)}</span></div>
                             <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Barbers payout: </span><span style={{ color: '#ff6b6b' }}>−{fmtMoney(barbersTotalPayout)}</span></div>
                             <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Owner share: </span><span style={{ color: '#ffe9a3' }}>{fmtMoney(ownerShare)}</span></div>
@@ -776,7 +795,7 @@ export default function PayrollPage() {
                             {adminCalcs.map(({ u, r, hours, basePay, profitShare, feeShare, total, allFeeDays }) => (
                               <div key={u.id} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
                                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: '#e9e9e9' }}>{u.name || u.username}</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
+                                <div className="admin-payroll-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
                                   <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Hours: </span><span style={{ color: '#d7ecff' }}>{hours.toFixed(1)}h</span></div>
                                   <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Base pay (${r.hourly_rate || 0}/hr): </span><span style={{ color: '#8ff0b1' }}>{fmtMoney(basePay)}</span></div>
                                   <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Profit {r.owner_profit_pct || 0}%: </span><span style={{ color: '#ffe9a3' }}>{fmtMoney(profitShare)}</span></div>

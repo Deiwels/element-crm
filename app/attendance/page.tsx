@@ -140,6 +140,19 @@ export default function AttendancePage() {
         <style>{`
           @keyframes latePulse { 0%,100%{opacity:.7} 50%{opacity:1} }
           .late-badge { animation: latePulse 2s ease-in-out infinite; }
+          .att-grid { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 14px; }
+          .att-topbar-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+          .att-topbar-controls input[type="date"],
+          .att-topbar-controls select { min-width: 0; }
+          .att-log-col { display: flex; flex-direction: column; gap: 14px; max-height: none; overflow-y: visible; }
+          @media (max-width: 768px) {
+            .att-grid { grid-template-columns: 1fr !important; }
+            .att-topbar-controls { flex-direction: column; align-items: stretch; }
+            .att-topbar-controls input[type="date"],
+            .att-topbar-controls select,
+            .att-topbar-controls button { width: 100%; box-sizing: border-box; }
+            .att-log-col { max-height: 60vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+          }
         `}</style>
 
         {/* Topbar */}
@@ -149,7 +162,7 @@ export default function AttendancePage() {
               <h2 style={{ margin: 0, fontFamily: '"Julius Sans One", sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 16 }}>Attendance</h2>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>Hours & clock history</div>
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="att-topbar-controls">
               <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={inp} />
               <span style={{ color: 'rgba(255,255,255,.30)', fontSize: 12 }}>→</span>
               <input type="date" value={to} onChange={e => setTo(e.target.value)} style={inp} />
@@ -165,10 +178,10 @@ export default function AttendancePage() {
         </div>
 
         {/* Main grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 14 }}>
+        <div className="att-grid">
 
           {/* Left — Attendance Log */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="att-log-col">
             {loading && <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,.40)' }}>Loading attendance records…</div>}
             {!loading && sortedDates.length === 0 && <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,.40)' }}>No attendance records for this period.</div>}
 

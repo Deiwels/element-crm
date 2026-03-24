@@ -192,10 +192,27 @@ export default function WaitlistPage() {
 
   return (
     <Shell page="Waitlist">
+      <style>{`
+        @media (max-width: 768px) {
+          .wl-form-grid { grid-template-columns: 1fr !important; }
+          .wl-time-row { flex-direction: column !important; }
+          .wl-time-row select { width: 100% !important; flex: unset !important; }
+          .wl-header-row { flex-direction: column !important; align-items: stretch !important; }
+          .wl-header-row > div:last-child { justify-content: flex-end !important; }
+          .wl-filter-pills { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 4px; }
+          .wl-filter-pills::-webkit-scrollbar { display: none; }
+          .wl-filter-pills button { flex-shrink: 0 !important; }
+          .wl-entry-card { flex-direction: column !important; align-items: stretch !important; }
+          .wl-entry-actions { justify-content: flex-end !important; }
+          .wl-cal-popup { left: -12px !important; right: -12px !important; min-width: 280px !important; }
+          .wl-services-wrap { gap: 8px !important; }
+          .wl-services-wrap button { flex: 1 1 auto !important; min-width: 0 !important; text-align: center !important; }
+        }
+      `}</style>
       <div style={{ maxWidth: 700, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div className="wl-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#e9e9e9', fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.12em', textTransform: 'uppercase' }}>Waitlist</h2>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>{filtered.length} waiting</div>
@@ -212,7 +229,7 @@ export default function WaitlistPage() {
         </div>
 
         {/* Filter by barber */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className="wl-filter-pills" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button onClick={() => setFilter('')}
             style={{ height: 32, padding: '0 12px', borderRadius: 999, border: `1px solid ${!filter ? 'rgba(255,255,255,.30)' : 'rgba(255,255,255,.10)'}`, background: !filter ? 'rgba(255,255,255,.08)' : 'transparent', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}>
             All
@@ -295,7 +312,7 @@ export default function WaitlistPage() {
             )}
 
             {/* Barber, date, services */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="wl-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <label style={lbl}>Barber</label>
                 <select value={newBarberId} onChange={e => setNewBarberId(e.target.value)} style={inp}>
@@ -324,7 +341,7 @@ export default function WaitlistPage() {
                     else { cells.push({ day: dayNum, date: new Date(calYear, calMonth, dayNum), inMonth: true }) }
                   }
                   return (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, marginTop: 4, borderRadius: 18, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.90)', backdropFilter: 'saturate(180%) blur(30px)', WebkitBackdropFilter: 'saturate(180%) blur(30px)', boxShadow: '0 16px 50px rgba(0,0,0,.60)', padding: 12 }}>
+                    <div className="wl-cal-popup" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, marginTop: 4, borderRadius: 18, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.90)', backdropFilter: 'saturate(180%) blur(30px)', WebkitBackdropFilter: 'saturate(180%) blur(30px)', boxShadow: '0 16px 50px rgba(0,0,0,.60)', padding: 12 }}>
                       {/* Header */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                         <button type="button" onClick={() => { let m = calMonth - 1, y = calYear; if (m < 0) { m = 11; y-- } setCalMonth(m); setCalYear(y) }}
@@ -367,7 +384,7 @@ export default function WaitlistPage() {
             {services.length > 0 && (
               <div>
                 <label style={lbl}>Services</label>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <div className="wl-services-wrap" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {services.filter((s: any) => !s.barber_ids?.length || s.barber_ids.includes(newBarberId)).map((s: any) => (
                     <button key={s.id} onClick={() => setNewServiceIds(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])}
                       style={{ height: 32, padding: '0 12px', borderRadius: 999, border: `1px solid ${newServiceIds.includes(s.id) ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.12)'}`, background: newServiceIds.includes(s.id) ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.04)', color: newServiceIds.includes(s.id) ? '#d7ecff' : 'rgba(255,255,255,.60)', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}>
@@ -381,7 +398,7 @@ export default function WaitlistPage() {
             {/* Preferred time range */}
             <div>
               <label style={lbl}>Preferred time range</label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div className="wl-time-row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <select value={prefStartMin} onChange={e => setPrefStartMin(Number(e.target.value))} style={{ ...inp, flex: 1 }}>
                   {Array.from({ length: 28 }, (_, i) => {
                     const m = (7 * 60) + i * 30 // 7:00 AM to 20:30
@@ -439,7 +456,7 @@ export default function WaitlistPage() {
             {filtered.map(entry => {
               const barber = barbers.find(b => b.id === entry.barber_id)
               return (
-                <div key={entry.id} style={{ padding: '14px 16px', borderRadius: 16, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div key={entry.id} className="wl-entry-card" style={{ padding: '14px 16px', borderRadius: 16, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontWeight: 800, fontSize: 14 }}>{entry.client_name || 'Unknown'}</span>
@@ -460,7 +477,7 @@ export default function WaitlistPage() {
                       <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 4 }}>{entry.service_names.join(', ')}</div>
                     ) : null}
                   </div>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <div className="wl-entry-actions" style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                     <button onClick={() => confirm(entry.id)}
                       style={{ height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(143,240,177,.40)', background: 'rgba(143,240,177,.10)', color: '#c9ffe1', cursor: 'pointer', fontWeight: 700, fontSize: 11, fontFamily: 'inherit' }}>
                       Confirm
