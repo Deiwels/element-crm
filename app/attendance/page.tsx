@@ -17,6 +17,7 @@ interface AttRecord {
   id: string; user_id: string; user_name: string; role: string; barber_id?: string
   clock_in: string | null; clock_out: string | null; duration_minutes: number | null; date: string
   auto_closed?: boolean; auto_close_reason?: string
+  at_shop?: boolean; capped_to_schedule?: boolean; distance_meters?: number
 }
 interface Barber {
   id: string; name: string; schedule?: any; work_schedule?: any
@@ -209,7 +210,7 @@ export default function AttendancePage() {
                           {/* Times */}
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)' }}>
-                              {fmtTime(r.clock_in || undefined)} → {r.clock_out ? (<>{fmtTime(r.clock_out)}{r.auto_closed && <span style={{ fontSize: 9, color: '#ffb000', marginLeft: 4 }}>AUTO</span>}</>) : <span style={{ color: '#8ff0b1' }}>Still in</span>}
+                              {fmtTime(r.clock_in || undefined)} → {r.clock_out ? (<>{fmtTime(r.clock_out)}{r.auto_closed && <span style={{ fontSize: 9, color: '#ffb000', marginLeft: 4 }} title="Auto-closed: forgot to clock out">AUTO</span>}{r.capped_to_schedule && <span style={{ fontSize: 9, color: '#ff6b6b', marginLeft: 4 }} title={`Capped to schedule end (was ${r.distance_meters}m away)`}>CAPPED</span>}{r.at_shop === false && !r.auto_closed && !r.capped_to_schedule && <span style={{ fontSize: 9, color: 'rgba(255,255,255,.35)', marginLeft: 4 }}>OUT</span>}</>) : <span style={{ color: '#8ff0b1' }}>Still in</span>}
                             </div>
                             <div style={{ fontSize: 11, color: '#8ff0b1', fontWeight: 700 }}>
                               {r.duration_minutes ? fmtMins(r.duration_minutes) : (r.clock_in ? fmtMins(Math.round((Date.now() - new Date(r.clock_in).getTime()) / 60000)) : '—')}
