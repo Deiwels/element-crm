@@ -67,7 +67,7 @@ function SmBtn({ onClick, children, danger, disabled }: { onClick: () => void; c
 }
 
 // ─── Hero Media Upload (Firebase Storage via backend) ─────────────────────────
-function HeroMediaCard({ settings: s, onUpdate }: { settings: any; onUpdate: (key: string, val: any) => void }) {
+function HeroMediaCard({ settings: s, onUpdate, onSave }: { settings: any; onUpdate: (key: string, val: any) => void; onSave: () => void }) {
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState('')
 
@@ -105,7 +105,9 @@ function HeroMediaCard({ settings: s, onUpdate }: { settings: any; onUpdate: (ke
       if (res.url) {
         onUpdate('hero_media_url', res.url)
         onUpdate('hero_media_type', isVideo ? 'video' : 'image')
-        setUploadMsg('Uploaded! Click Save to apply.')
+        // Auto-save after short delay so state updates
+        setTimeout(() => onSave(), 500)
+        setUploadMsg('Uploaded & saved!')
       } else {
         setUploadMsg('Upload failed: ' + (res.error || 'unknown'))
       }
@@ -572,7 +574,7 @@ export default function SettingsPage() {
                   </Field>
                 </SectionCard>
 
-                <HeroMediaCard settings={s} onUpdate={(key: string, val: any) => set(key, val)} />
+                <HeroMediaCard settings={s} onUpdate={(key: string, val: any) => set(key, val)} onSave={save} />
 
                 <SectionCard title="Tax">
                   <Toggle checked={!!tax.enabled} onChange={v => setNested('tax','enabled',v)} label="Enable tax on services" sub="Added to invoice total" />
