@@ -278,6 +278,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   const [status, setStatus] = useState<'loading' | 'ok' | 'noauth'>('loading')
   const [showProfile, setShowProfile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [unreadChat, setUnreadChat] = useState<string | null>(null) // color of latest unread chat type
   const pathname = usePathname()
 
   useEffect(() => {
@@ -315,6 +316,49 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   }, [])
 
   useEffect(() => { if (status === 'noauth') window.location.href = '/signin' }, [status])
+
+  // Poll for unread messages — check latest message per chat type
+  useEffect(() => {
+    if (status !== 'ok' || !user) return
+    const CHAT_COLORS: Record<string, string> = { general: '#d7ecff', barbers: '#d7ecff', admins: '#c9ffe1', students: '#d4b8ff', requests: '#ffe9a3', applications: '#ffb7d5' }
+    const chatTypes = ['general', 'barbers', 'admins', 'students']
+    const lastSeenKey = 'ELEMENT_MSG_LAST_SEEN'
+
+    async function checkUnread() {
+      if (pathname === '/messages') { setUnreadChat(null); return }
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      if (!token) return
+      const lastSeen = localStorage.getItem(lastSeenKey) || ''
+      try {
+        for (const ct of chatTypes) {
+          const res = await fetch(`${API}/api/messages?chatType=${ct}&limit=1`, {
+            credentials: 'include',
+            headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' }
+          })
+          if (!res.ok) continue
+          const data = await res.json()
+          const msgs = data?.messages || []
+          if (msgs.length && msgs[msgs.length - 1]?.createdAt > lastSeen && msgs[msgs.length - 1]?.senderId !== user.uid) {
+            setUnreadChat(CHAT_COLORS[ct] || '#d7ecff')
+            return
+          }
+        }
+        setUnreadChat(null)
+      } catch { /* ignore */ }
+    }
+
+    checkUnread()
+    const interval = setInterval(checkUnread, 15000)
+    return () => clearInterval(interval)
+  }, [status, user, pathname])
+
+  // Mark messages as seen when visiting Messages page
+  useEffect(() => {
+    if (pathname === '/messages') {
+      setUnreadChat(null)
+      localStorage.setItem('ELEMENT_MSG_LAST_SEEN', new Date().toISOString())
+    }
+  }, [pathname])
 
   if (status === 'loading' || status === 'noauth') {
     return <div style={{ background: '#000', minHeight: '100vh' }} />
@@ -408,6 +452,16 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         .nav-t{font-weight:600;font-size:13px;color:rgba(255,255,255,.85);display:block;letter-spacing:.01em;}
         .nav-s{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.28);display:block;margin-top:1px;}
         .nav-item.active .nav-t{color:#fff;}
+
+        @keyframes msgPulse {
+          0%, 100% { box-shadow: 0 0 0 rgba(var(--pulse-rgb), 0); }
+          50% { box-shadow: 0 0 14px rgba(var(--pulse-rgb), .75); }
+        }
+        .nav-ico.has-unread {
+          animation: msgPulse 2.4s ease-in-out infinite;
+          border-color: var(--pulse-color) !important;
+          background: var(--pulse-bg) !important;
+        }
 
         /* User bar */
         .user-bar{
@@ -587,6 +641,9 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
           <nav className="nav">
             {visibleNav.map(item => {
               const active = pathname === item.href
+              const hasUnread = item.id === 'messages' && !!unreadChat && !active
+              const pc = unreadChat || '#d7ecff'
+              const r = parseInt(pc.slice(1,3),16)||215, g = parseInt(pc.slice(3,5),16)||236, b = parseInt(pc.slice(5,7),16)||255
               return (
                 <Link
                   key={item.id}
@@ -594,11 +651,14 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
                   onClick={() => setSidebarOpen(false)}
                   className={`nav-item${active ? ' active' : ''}`}
                 >
-                  <div className="nav-ico">
-                    <Icon id={item.id} color={active ? 'rgba(255,255,255,.90)' : 'rgba(255,255,255,.45)'} />
+                  <div
+                    className={`nav-ico${hasUnread ? ' has-unread' : ''}`}
+                    style={hasUnread ? { '--pulse-rgb': `${r},${g},${b}`, '--pulse-color': `rgba(${r},${g},${b},.55)`, '--pulse-bg': `rgba(${r},${g},${b},.12)` } as React.CSSProperties : undefined}
+                  >
+                    <Icon id={item.id} color={hasUnread ? pc : active ? 'rgba(255,255,255,.90)' : 'rgba(255,255,255,.45)'} />
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <span className="nav-t">{item.label}</span>
+                    <span className="nav-t" style={hasUnread ? { color: pc } : undefined}>{item.label}</span>
                     <span className="nav-s">{item.sub}</span>
                   </div>
                 </Link>
