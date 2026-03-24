@@ -66,14 +66,37 @@ function SmBtn({ onClick, children, danger, disabled }: { onClick: () => void; c
   )
 }
 
-// ─── Hero Media Upload (Firebase Storage via backend) ─────────────────────────
+// ─── Hero Media Upload (resize + compress on client, then upload) ──────────────
 function HeroMediaCard({ settings: s, onUpdate, onSave }: { settings: any; onUpdate: (key: string, val: any) => void; onSave: () => void }) {
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState('')
+  const [progress, setProgress] = useState(0)
+
+  // Resize image on client before upload (max 1920px, JPEG 85%)
+  function resizeImage(file: File): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 1920
+        let w = img.width, h = img.height
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX }
+          else { w = Math.round(w * MAX / h); h = MAX }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, w, h)
+        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Compress failed')), 'image/jpeg', 0.85)
+      }
+      img.onerror = reject
+      img.src = URL.createObjectURL(file)
+    })
+  }
 
   async function handleFileUpload(file: File | null) {
     if (!file) return
-    const maxSize = 50 * 1024 * 1024 // 50MB for video
+    const maxSize = 50 * 1024 * 1024
     if (file.size > maxSize) { setUploadMsg('File too large (max 50MB)'); return }
 
     const isVideo = file.type.startsWith('video/')
@@ -81,32 +104,49 @@ function HeroMediaCard({ settings: s, onUpdate, onSave }: { settings: any; onUpd
     if (!isVideo && !isImage) { setUploadMsg('Only image or video files'); return }
 
     setUploading(true)
-    setUploadMsg('Uploading…')
+    setProgress(0)
 
     try {
-      // Convert to base64 data URL
+      let uploadFile: Blob = file
+
+      // Resize images on client (saves upload time dramatically)
+      if (isImage) {
+        setUploadMsg('Compressing…')
+        uploadFile = await resizeImage(file)
+        setUploadMsg(`Compressed: ${(file.size/1024/1024).toFixed(1)}MB → ${(uploadFile.size/1024/1024).toFixed(1)}MB`)
+      } else {
+        setUploadMsg('Uploading video…')
+      }
+
+      // Convert to base64
+      setUploadMsg(prev => prev + ' — uploading…')
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
+        reader.onprogress = (e) => { if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 50)) }
+        reader.onload = () => { setProgress(50); resolve(reader.result as string) }
         reader.onerror = reject
-        reader.readAsDataURL(file)
+        reader.readAsDataURL(uploadFile)
       })
 
-      // Upload via backend
+      setUploadMsg('Saving to server…')
+      setProgress(60)
+
       const res = await apiFetch('/api/settings/upload-hero', {
         method: 'POST',
         body: JSON.stringify({
           data_url: dataUrl,
           file_name: file.name,
-          content_type: file.type,
+          content_type: isImage ? 'image/jpeg' : file.type,
         })
       })
+
+      setProgress(90)
 
       if (res.url) {
         onUpdate('hero_media_url', res.url)
         onUpdate('hero_media_type', isVideo ? 'video' : 'image')
-        // Auto-save after short delay so state updates
         setTimeout(() => onSave(), 500)
+        setProgress(100)
         setUploadMsg('Uploaded & saved!')
       } else {
         setUploadMsg('Upload failed: ' + (res.error || 'unknown'))
@@ -130,6 +170,11 @@ function HeroMediaCard({ settings: s, onUpdate, onSave }: { settings: any; onUpd
           </label>
         </Field>
 
+        {uploading && progress > 0 && (
+          <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,.08)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${progress}%`, background: 'rgba(10,132,255,.65)', borderRadius: 2, transition: 'width .3s' }} />
+          </div>
+        )}
         {uploadMsg && <div style={{ fontSize: 11, color: uploadMsg.includes('error') || uploadMsg.includes('failed') || uploadMsg.includes('large') ? '#ffb7b7' : '#c9ffe1' }}>{uploadMsg}</div>}
 
         {/* Or paste URL */}
