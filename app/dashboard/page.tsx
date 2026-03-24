@@ -346,11 +346,7 @@ export default function DashboardPage() {
                 {fmtDateLong()} · ELEMENT BARBERSHOP
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} className="dash-search"
-                style={{ height: 40, width: 'min(200px,38vw)', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13 }} />
-              <button onClick={loadAll} style={{ height: 40, width: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16 }}>↻</button>
-            </div>
+            <button onClick={loadAll} style={{ height: 40, width: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>↻</button>
           </div>
         </div>
 
