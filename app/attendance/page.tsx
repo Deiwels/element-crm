@@ -195,13 +195,13 @@ export default function AttendancePage() {
                               <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: ROLE_COLORS[r.role] || 'rgba(255,255,255,.50)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{r.role}</span>
                               {late > 0 && (
                                 <span className="late-badge" style={{ fontSize: 10, padding: '2px 6px', borderRadius: 999, background: 'rgba(255,107,107,.15)', border: '1px solid rgba(255,107,107,.30)', color: '#ff6b6b', fontWeight: 700 }}>
-                                  +{late}min late
+                                  +{fmtMins(late)} late
                                 </span>
                               )}
                             </div>
                             {schedStart !== null && (
                               <div style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginTop: 1 }}>
-                                Scheduled: {Math.floor(schedStart / 60)}:{String(schedStart % 60).padStart(2, '0')} {schedStart < 720 ? 'AM' : 'PM'}
+                                Scheduled: {schedStart < 780 ? Math.floor(schedStart / 60) : Math.floor(schedStart / 60) - 12}:{String(schedStart % 60).padStart(2, '0')} {schedStart < 720 ? 'AM' : 'PM'}
                               </div>
                             )}
                           </div>
@@ -258,7 +258,7 @@ export default function AttendancePage() {
                       {u.late_count > 0 && (
                         <div>
                           <span style={{ color: 'rgba(255,255,255,.40)' }}>Late: </span>
-                          <span style={{ color: '#ff6b6b', fontWeight: 700 }}>{u.late_count}× (avg {Math.round(u.late_minutes / u.late_count)}m)</span>
+                          <span style={{ color: '#ff6b6b', fontWeight: 700 }}>{u.late_count}× (avg {fmtMins(Math.round(u.late_minutes / u.late_count))})</span>
                         </div>
                       )}
                     </div>
