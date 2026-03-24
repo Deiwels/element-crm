@@ -8,7 +8,7 @@ const API_KEY = 'R1403ss81fxrx*rx1403'
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Tier { type: 'revenue' | 'clients'; threshold: number; pct: number }
 interface CustomBonus { label: string; type: 'percent_revenue' | 'percent_owner' | 'fixed'; value: number }
-interface Rule { base_pct: number; tips_pct: number; tiers: Tier[]; hourly_rate?: number; owner_profit_pct?: number; service_fee_pct?: number; service_fee_days?: number[]; custom_bonuses?: CustomBonus[] }
+interface Rule { base_pct: number; tips_pct: number; tiers: Tier[]; hourly_rate?: number; owner_profit_pct?: number; service_fee_pct?: number; service_fee_days?: number[]; custom_bonuses?: CustomBonus[]; late_penalty_per_min?: number }
 interface Booking { id: string; date: string; client: string; service: string; service_amount: number; tip: number; status: string; paid: boolean }
 interface BarberPayroll {
   barber_id: string; barber_name: string; barber_photo: string; barber_level: string
@@ -152,6 +152,7 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
   const [tipsPct, setTipsPct] = useState(rule.tips_pct)
   const [tiers, setTiers] = useState<Tier[]>(rule.tiers || [])
   const [bonuses, setBonuses] = useState<CustomBonus[]>(rule.custom_bonuses || [])
+  const [latePenalty, setLatePenalty] = useState(rule.late_penalty_per_min ?? 1)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -161,9 +162,9 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
     setSaving(true)
     try {
       await apiFetch(`/api/payroll/rules/${encodeURIComponent(barber.barber_id)}`, {
-        method: 'POST', body: JSON.stringify({ base_pct: basePct, tips_pct: tipsPct, tiers: tiers.filter(t => t.threshold > 0), custom_bonuses: bonuses.filter(b => b.label && b.value > 0) })
+        method: 'POST', body: JSON.stringify({ base_pct: basePct, tips_pct: tipsPct, tiers: tiers.filter(t => t.threshold > 0), custom_bonuses: bonuses.filter(b => b.label && b.value > 0), late_penalty_per_min: latePenalty })
       })
-      onSaved({ base_pct: basePct, tips_pct: tipsPct, tiers, custom_bonuses: bonuses })
+      onSaved({ base_pct: basePct, tips_pct: tipsPct, tiers, custom_bonuses: bonuses, late_penalty_per_min: latePenalty })
       setSaved(true); setTimeout(() => setSaved(false), 2000)
     } catch (e: any) { alert('Error: ' + e.message) }
     setSaving(false)
@@ -186,14 +187,18 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
       </div>
       {open && (
         <div style={{ padding: '12px 14px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
             <div>
               <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>Base commission %</label>
               <input type="number" min={0} max={100} value={basePct} onChange={e => setBasePct(Number(e.target.value))} style={inp} />
             </div>
             <div>
-              <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>Tips % (100 = barber keeps all)</label>
+              <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>Tips %</label>
               <input type="number" min={0} max={100} value={tipsPct} onChange={e => setTipsPct(Number(e.target.value))} style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>Late penalty $/min</label>
+              <input type="number" min={0} step={0.25} value={latePenalty} onChange={e => setLatePenalty(Number(e.target.value))} style={{ ...inp, borderColor: 'rgba(255,107,107,.25)' }} />
             </div>
           </div>
 
@@ -368,6 +373,7 @@ export default function PayrollPage() {
   const [adminAttendance, setAdminAttendance] = useState<Record<string, number>>({})
   const [adminWorkDays, setAdminWorkDays] = useState<Record<string, number[]>>({})
   const [allAttendance, setAllAttendance] = useState<any[]>([])
+  const [lateMinutes, setLateMinutes] = useState<Record<string, number>>({})
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -420,6 +426,44 @@ export default function PayrollPage() {
       const attDaysArr: Record<string, number[]> = {}
       Object.entries(attDaysSet).forEach(([uid, s]) => { attDaysArr[uid] = [...s] })
       setAdminWorkDays(attDaysArr)
+
+      // Calculate late minutes per barber/user
+      // Compare clock_in time vs scheduled start from barbers data
+      const barbersData = payData?.barbers || []
+      const barbersMap: Record<string, any> = {}
+      barbersData.forEach((b: any) => { barbersMap[b.barber_id] = b })
+      // Also need barber schedule — fetch from /api/barbers
+      let barberSchedules: Record<string, any> = {}
+      try {
+        const barbersResp = await apiFetch('/api/barbers')
+        const barbersList = Array.isArray(barbersResp) ? barbersResp : (barbersResp?.barbers || [])
+        barbersList.forEach((b: any) => { barberSchedules[b.id] = b.schedule || b.work_schedule || null })
+      } catch (_) {}
+
+      const lateMins: Record<string, number> = {}
+      attRecords.forEach((r: any) => {
+        if (!r.clock_in || !r.barber_id) return
+        const sched = barberSchedules[r.barber_id]
+        if (!sched) return
+        const clockIn = new Date(r.clock_in)
+        if (isNaN(clockIn.getTime())) return
+        const dow = clockIn.getDay()
+        // Check if this day is in schedule
+        const days = Array.isArray(sched.days) ? sched.days : []
+        if (!days.includes(dow)) return
+        const schedStartMin = Number(sched.startMin ?? sched.start_min ?? 480)
+        // Get clock_in in Chicago time
+        const chicagoTime = new Date(clockIn.toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+        const clockInMin = chicagoTime.getHours() * 60 + chicagoTime.getMinutes()
+        const late = clockInMin - schedStartMin
+        if (late > 0) {
+          const key = r.barber_id
+          lateMins[key] = (lateMins[key] || 0) + late
+          // Also by user_id
+          lateMins[r.user_id] = (lateMins[r.user_id] || 0) + late
+        }
+      })
+      setLateMinutes(lateMins)
     } catch (e: any) { setError(e.message) }
     setLoading(false)
   }, [from, to])
@@ -559,6 +603,11 @@ export default function PayrollPage() {
                     {visible.map(b => {
                       const isBoosted = b.effective_pct !== b.base_pct
                       const isOpen = expanded.has(b.barber_id)
+                      const bRule = rules[b.barber_id] || {}
+                      const penaltyRate = bRule.late_penalty_per_min ?? 1
+                      const bLateMins = lateMinutes[b.barber_id] || 0
+                      const latePenalty = bLateMins * penaltyRate
+                      const adjustedTotal = b.barber_total - latePenalty
                       return <>
                         <tr key={b.barber_id} style={{ background: isOpen ? 'rgba(10,132,255,.04)' : 'transparent' }}
                           onMouseEnter={e => (e.currentTarget.style.background='rgba(255,255,255,.025)')}
@@ -587,7 +636,14 @@ export default function PayrollPage() {
                           <td style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', color: '#d7ecff' }}>{fmtMoney(b.barber_service_share)}</td>
                           <td style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', color: 'rgba(255,255,255,.45)' }}>{fmtMoney(b.owner_service_share)}</td>
                           <td style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', color: '#8ff0b1' }}>{fmtMoney(b.tips_total)}</td>
-                          <td style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', fontWeight: 900, fontSize: 14 }}>{fmtMoney(b.barber_total)}</td>
+                          <td style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.06)', fontWeight: 900, fontSize: 14 }}>
+                            {latePenalty > 0 ? (
+                              <div>
+                                <span>{fmtMoney(adjustedTotal)}</span>
+                                <div style={{ fontSize: 10, color: '#ff6b6b', fontWeight: 600, marginTop: 2 }}>−{fmtMoney(latePenalty)} late ({bLateMins}min × ${penaltyRate})</div>
+                              </div>
+                            ) : fmtMoney(b.barber_total)}
+                          </td>
                           <td style={{ padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
                             <button onClick={() => toggleExpand(b.barber_id)}
                               style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '2px 6px', borderRadius: 8 }}>
