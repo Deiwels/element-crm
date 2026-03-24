@@ -323,6 +323,10 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
     const CHAT_COLORS: Record<string, string> = { general: '#d7ecff', barbers: '#d7ecff', admins: '#c9ffe1', students: '#d4b8ff', requests: '#ffe9a3', applications: '#ffb7d5' }
     const chatTypes = ['general', 'barbers', 'admins', 'students']
     const lastSeenKey = 'ELEMENT_MSG_LAST_SEEN'
+    const lastSeenAppsKey = 'ELEMENT_APPS_LAST_SEEN'
+    const lastSeenReqKey = 'ELEMENT_REQ_LAST_SEEN'
+    const isOwnerAdmin = user.role === 'owner' || user.role === 'admin'
+    const hdrs = { Authorization: `Bearer ${localStorage.getItem('ELEMENT_TOKEN') || ''}`, 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' }
 
     async function checkUnread() {
       if (pathname === '/messages') { setUnreadChat(null); return }
@@ -330,11 +334,9 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
       if (!token) return
       const lastSeen = localStorage.getItem(lastSeenKey) || ''
       try {
+        // Check chat messages
         for (const ct of chatTypes) {
-          const res = await fetch(`${API}/api/messages?chatType=${ct}&limit=1`, {
-            credentials: 'include',
-            headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' }
-          })
+          const res = await fetch(`${API}/api/messages?chatType=${ct}&limit=1`, { credentials: 'include', headers: hdrs })
           if (!res.ok) continue
           const data = await res.json()
           const msgs = data?.messages || []
@@ -343,12 +345,38 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
             return
           }
         }
+        // Check new applications (owner/admin only)
+        if (isOwnerAdmin) {
+          const lastSeenApps = localStorage.getItem(lastSeenAppsKey) || ''
+          const appsRes = await fetch(`${API}/api/applications?status=new&limit=1`, { credentials: 'include', headers: hdrs })
+          if (appsRes.ok) {
+            const appsData = await appsRes.json()
+            const apps = appsData?.applications || []
+            if (apps.length && apps[0]?.created_at > lastSeenApps) {
+              setUnreadChat(CHAT_COLORS.applications)
+              return
+            }
+          }
+        }
+        // Check pending requests
+        if (isOwnerAdmin) {
+          const lastSeenReq = localStorage.getItem(lastSeenReqKey) || ''
+          const reqRes = await fetch(`${API}/api/requests`, { credentials: 'include', headers: hdrs })
+          if (reqRes.ok) {
+            const reqData = await reqRes.json()
+            const pending = (reqData?.requests || []).filter((r: any) => r.status === 'pending')
+            if (pending.length && pending[0]?.createdAt > lastSeenReq) {
+              setUnreadChat(CHAT_COLORS.requests)
+              return
+            }
+          }
+        }
         setUnreadChat(null)
       } catch { /* ignore */ }
     }
 
     checkUnread()
-    const interval = setInterval(checkUnread, 15000)
+    const interval = setInterval(checkUnread, 8000)
     return () => clearInterval(interval)
   }, [status, user, pathname])
 
@@ -356,7 +384,10 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   useEffect(() => {
     if (pathname === '/messages') {
       setUnreadChat(null)
-      localStorage.setItem('ELEMENT_MSG_LAST_SEEN', new Date().toISOString())
+      const now = new Date().toISOString()
+      localStorage.setItem('ELEMENT_MSG_LAST_SEEN', now)
+      localStorage.setItem('ELEMENT_APPS_LAST_SEEN', now)
+      localStorage.setItem('ELEMENT_REQ_LAST_SEEN', now)
     }
   }, [pathname])
 
