@@ -66,6 +66,63 @@ function SmBtn({ onClick, children, danger, disabled }: { onClick: () => void; c
   )
 }
 
+// ─── Schedule Editor for Admin users ──────────────────────────────────────────
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const DEFAULT_ADMIN_SCHEDULE = DAY_NAMES.map((_,i) => ({ enabled: i >= 1 && i <= 6, startMin: 540, endMin: 1230 })) // Mon-Sat 9:00-20:30
+
+function ScheduleEditor({ userId, userName, currentSchedule, onSaved }: { userId: string; userName: string; currentSchedule: any[] | null; onSaved: () => void }) {
+  const [sched, setSched] = useState(
+    Array.isArray(currentSchedule) && currentSchedule.length === 7
+      ? currentSchedule.map(d => ({ enabled: !!d?.enabled, startMin: Number(d?.startMin || 540), endMin: Number(d?.endMin || 1230) }))
+      : DEFAULT_ADMIN_SCHEDULE.map(d => ({ ...d }))
+  )
+  const [saving, setSaving] = useState(false)
+
+  function minToTime(m: number) { return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}` }
+  function timeToMin(t: string) { const [h,m] = t.split(':').map(Number); return h*60+m }
+
+  async function save() {
+    setSaving(true)
+    try {
+      await apiFetch(`/api/users/${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ schedule: sched })
+      })
+      onSaved()
+    } catch (e: any) { alert(e.message) }
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ marginTop: 8, padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(10,132,255,.06)' }}>
+      <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(10,132,255,.70)', marginBottom: 8, fontWeight: 900 }}>Schedule — {userName}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+        {DAY_NAMES.map((day, i) => (
+          <div key={i} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,.50)', marginBottom: 4, fontWeight: 900 }}>{day}</div>
+            <button onClick={() => { const n = [...sched]; n[i] = { ...n[i], enabled: !n[i].enabled }; setSched(n) }}
+              style={{ width: '100%', height: 24, borderRadius: 6, border: `1px solid ${sched[i].enabled ? 'rgba(10,132,255,.50)' : 'rgba(255,255,255,.12)'}`, background: sched[i].enabled ? 'rgba(10,132,255,.15)' : 'rgba(255,255,255,.04)', color: sched[i].enabled ? '#d7ecff' : 'rgba(255,255,255,.35)', cursor: 'pointer', fontSize: 9, fontWeight: 900, fontFamily: 'inherit' }}>
+              {sched[i].enabled ? 'ON' : 'OFF'}
+            </button>
+            {sched[i].enabled && (
+              <>
+                <input type="time" value={minToTime(sched[i].startMin)} onChange={e => { const n = [...sched]; n[i] = { ...n[i], startMin: timeToMin(e.target.value) }; setSched(n) }}
+                  style={{ width: '100%', height: 22, borderRadius: 4, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', color: '#fff', fontSize: 9, padding: '0 2px', marginTop: 3, colorScheme: 'dark' as any }} />
+                <input type="time" value={minToTime(sched[i].endMin)} onChange={e => { const n = [...sched]; n[i] = { ...n[i], endMin: timeToMin(e.target.value) }; setSched(n) }}
+                  style={{ width: '100%', height: 22, borderRadius: 4, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', color: '#fff', fontSize: 9, padding: '0 2px', marginTop: 2, colorScheme: 'dark' as any }} />
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+      <button onClick={save} disabled={saving}
+        style={{ marginTop: 8, width: '100%', height: 34, borderRadius: 10, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
+        {saving ? 'Saving…' : 'Save schedule'}
+      </button>
+    </div>
+  )
+}
+
 // ─── Users Tab ────────────────────────────────────────────────────────────────
 function UsersTab() {
   const [users, setUsers] = useState<UserAccount[]>([])
@@ -80,6 +137,7 @@ function UsersTab() {
   const [mentorBarberIds, setMentorBarberIds] = useState<string[]>([])
   const [phone, setPhone] = useState('')
   const [creating, setCreating] = useState(false)
+  const [editScheduleId, setEditScheduleId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -200,20 +258,26 @@ function UsersTab() {
             const rc = roleColors[u.role] || roleColors.barber
             const linked = barbers.find(b => b.id === u.barber_id)
             return (
-              <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.14)', opacity: u.active ? 1 : 0.55 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 900, fontSize: 14 }}>{u.name || u.username}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
-                    @{u.username}{(u as any).phone ? ` · ${(u as any).phone}` : ''}{linked ? ` · 💈 ${linked.name}` : ''}{u.role === 'student' && (u as any).mentor_barber_ids?.length ? ` · ${(u as any).mentor_barber_ids.map((id: string) => barbers.find(b => b.id === id)?.name || id).join(', ')}` : ''}{u.last_login ? ` · ${u.last_login.slice(0,10)}` : ''}
-                    {!u.active && <span style={{ color: '#ff6b6b', marginLeft: 8 }}>disabled</span>}
+              <div key={u.id} style={{ display: 'flex', flexDirection: 'column', gap: 0, borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.14)', opacity: u.active ? 1 : 0.55, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 900, fontSize: 14 }}>{u.name || u.username}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
+                      @{u.username}{(u as any).phone ? ` · ${(u as any).phone}` : ''}{linked ? ` · 💈 ${linked.name}` : ''}{u.role === 'student' && (u as any).mentor_barber_ids?.length ? ` · ${(u as any).mentor_barber_ids.map((id: string) => barbers.find(b => b.id === id)?.name || id).join(', ')}` : ''}{u.last_login ? ` · ${u.last_login.slice(0,10)}` : ''}
+                      {!u.active && <span style={{ color: '#ff6b6b', marginLeft: 8 }}>disabled</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', padding: '3px 9px', borderRadius: 999, border: `1px solid ${rc.border}`, background: 'rgba(0,0,0,.14)', color: rc.color }}>{u.role}</span>
+                    <SmBtn onClick={() => editPhone(u.id, (u as any).phone)}>Phone</SmBtn>
+                    {u.role === 'admin' && <SmBtn onClick={() => setEditScheduleId(editScheduleId === u.id ? null : u.id)}>Schedule</SmBtn>}
+                    <SmBtn onClick={() => resetPw(u.id)}>Reset PW</SmBtn>
+                    <SmBtn danger onClick={() => toggleActive(u.id, !u.active)}>{u.active ? 'Disable' : 'Enable'}</SmBtn>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  <span style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', padding: '3px 9px', borderRadius: 999, border: `1px solid ${rc.border}`, background: 'rgba(0,0,0,.14)', color: rc.color }}>{u.role}</span>
-                  <SmBtn onClick={() => editPhone(u.id, (u as any).phone)}>Phone</SmBtn>
-                  <SmBtn onClick={() => resetPw(u.id)}>Reset PW</SmBtn>
-                  <SmBtn danger onClick={() => toggleActive(u.id, !u.active)}>{u.active ? 'Disable' : 'Enable'}</SmBtn>
-                </div>
+                {editScheduleId === u.id && u.role === 'admin' && (
+                  <ScheduleEditor userId={u.id} userName={u.name || u.username} currentSchedule={(u as any).schedule} onSaved={() => { setEditScheduleId(null); load() }} />
+                )}
               </div>
             )
           })
