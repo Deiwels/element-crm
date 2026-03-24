@@ -603,7 +603,7 @@ export default function PayrollPage() {
                     {visible.map(b => {
                       const isBoosted = b.effective_pct !== b.base_pct
                       const isOpen = expanded.has(b.barber_id)
-                      const bRule = rules[b.barber_id] || {}
+                      const bRule: Rule = rules[b.barber_id] || { base_pct: 60, tips_pct: 100, tiers: [] }
                       const penaltyRate = bRule.late_penalty_per_min ?? 1
                       const bLateMins = lateMinutes[b.barber_id] || 0
                       const latePenalty = bLateMins * penaltyRate
