@@ -215,7 +215,7 @@ export default function DashboardPage() {
   }, [isBarber, myBarberId])
 
   useEffect(() => { loadAll() }, [loadAll])
-  useEffect(() => { const t = setInterval(loadAll, 120000); return () => clearInterval(t) }, [loadAll])
+  useEffect(() => { const t = setInterval(loadAll, 30000); return () => clearInterval(t) }, [loadAll])
 
   // For owner/admin: all barbers. For barber: only themselves
   const allBarberNames = [...new Set(bookings.map(b => b.barber_name || b.barber).filter(Boolean))] as string[]
@@ -346,7 +346,6 @@ export default function DashboardPage() {
                 {fmtDateLong()} · ELEMENT BARBERSHOP
               </p>
             </div>
-            <button onClick={loadAll} style={{ height: 40, width: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>↻</button>
           </div>
         </div>
 

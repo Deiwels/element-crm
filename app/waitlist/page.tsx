@@ -86,7 +86,7 @@ export default function WaitlistPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); const interval = setInterval(load, 30000); return () => clearInterval(interval) }, [load])
 
   async function confirm(id: string) {
     try {
@@ -224,7 +224,6 @@ export default function WaitlistPage() {
             <button onClick={() => setAdding(!adding)} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit' }}>
               {adding ? 'Cancel' : '+ Add'}
             </button>
-            <button onClick={load} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>↻</button>
           </div>
         </div>
 

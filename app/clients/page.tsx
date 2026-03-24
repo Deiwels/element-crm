@@ -374,7 +374,7 @@ export default function ClientsPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); const interval = setInterval(load, 30000); return () => clearInterval(interval) }, [load])
 
   const ql = q.toLowerCase()
   const visible = clients.filter(c => {
@@ -425,7 +425,6 @@ export default function ClientsPage() {
               </p>
             </div>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap' as const, alignItems:'center' }}>
-              <button onClick={load} style={{ height:40, width:40, borderRadius:999, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.05)', color:'#fff', cursor:'pointer', fontSize:16 }}>↻</button>
               <button onClick={() => setShowAdd(true)}
                 style={{ height:40, padding:'0 16px', borderRadius:999, border:'1px solid rgba(10,132,255,.75)', background:'rgba(0,0,0,.75)', color:'#d7ecff', cursor:'pointer', fontWeight:900, fontSize:13, fontFamily:'inherit', boxShadow:'0 0 18px rgba(10,132,255,.25)' }}>
                 + Add client

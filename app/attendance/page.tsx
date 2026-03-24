@@ -91,7 +91,7 @@ export default function AttendancePage() {
     setLoading(false)
   }, [from, to])
 
-  useEffect(() => { loadAll() }, [loadAll])
+  useEffect(() => { loadAll(); const interval = setInterval(loadAll, 30000); return () => clearInterval(interval) }, [loadAll])
 
   // Build barber map (barber_id → Barber) and user→barber map
   const barberMap: Record<string, Barber> = {}
@@ -170,9 +170,6 @@ export default function AttendancePage() {
                 <option value="">All staff</option>
                 {uniqueUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
-              <button onClick={loadAll} disabled={loading} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(10,132,255,.45)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', opacity: loading ? .5 : 1 }}>
-                {loading ? 'Loading…' : '↻ Refresh'}
-              </button>
             </div>
           </div>
         </div>
