@@ -66,6 +66,106 @@ function SmBtn({ onClick, children, danger, disabled }: { onClick: () => void; c
   )
 }
 
+// ─── Hero Media Upload (Firebase Storage via backend) ─────────────────────────
+function HeroMediaCard({ settings: s, onUpdate }: { settings: any; onUpdate: (key: string, val: any) => void }) {
+  const [uploading, setUploading] = useState(false)
+  const [uploadMsg, setUploadMsg] = useState('')
+
+  async function handleFileUpload(file: File | null) {
+    if (!file) return
+    const maxSize = 50 * 1024 * 1024 // 50MB for video
+    if (file.size > maxSize) { setUploadMsg('File too large (max 50MB)'); return }
+
+    const isVideo = file.type.startsWith('video/')
+    const isImage = file.type.startsWith('image/')
+    if (!isVideo && !isImage) { setUploadMsg('Only image or video files'); return }
+
+    setUploading(true)
+    setUploadMsg('Uploading…')
+
+    try {
+      // Convert to base64 data URL
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+
+      // Upload via backend
+      const res = await apiFetch('/api/settings/upload-hero', {
+        method: 'POST',
+        body: JSON.stringify({
+          data_url: dataUrl,
+          file_name: file.name,
+          content_type: file.type,
+        })
+      })
+
+      if (res.url) {
+        onUpdate('hero_media_url', res.url)
+        onUpdate('hero_media_type', isVideo ? 'video' : 'image')
+        setUploadMsg('Uploaded! Click Save to apply.')
+      } else {
+        setUploadMsg('Upload failed: ' + (res.error || 'unknown'))
+      }
+    } catch (e: any) {
+      setUploadMsg('Upload error: ' + e.message)
+    }
+    setUploading(false)
+  }
+
+  return (
+    <SectionCard title="Homepage hero">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* File upload */}
+        <Field label="Upload photo or video">
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 14, border: '2px dashed rgba(255,255,255,.18)', background: 'rgba(255,255,255,.04)', cursor: uploading ? 'wait' : 'pointer', color: 'rgba(255,255,255,.55)', fontSize: 13, fontWeight: 700, transition: 'all .2s' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            {uploading ? 'Uploading…' : 'Choose file (photo or video)'}
+            <input type="file" accept="image/*,video/*" style={{ display: 'none' }} disabled={uploading}
+              onChange={e => handleFileUpload(e.target.files?.[0] || null)} />
+          </label>
+        </Field>
+
+        {uploadMsg && <div style={{ fontSize: 11, color: uploadMsg.includes('error') || uploadMsg.includes('failed') || uploadMsg.includes('large') ? '#ffb7b7' : '#c9ffe1' }}>{uploadMsg}</div>}
+
+        {/* Or paste URL */}
+        <Field label="Or paste URL directly">
+          <input value={s.hero_media_url || ''} onChange={e => onUpdate('hero_media_url', e.target.value)} placeholder="https://..." style={inp} />
+        </Field>
+
+        <Field label="Media type">
+          <select value={s.hero_media_type || 'video'} onChange={e => onUpdate('hero_media_type', e.target.value)} style={inp}>
+            <option value="video">Video</option>
+            <option value="image">Image</option>
+          </select>
+        </Field>
+
+        {/* Preview */}
+        {s.hero_media_url && (
+          <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,.10)', maxHeight: 200 }}>
+            {(s.hero_media_type || 'video') === 'video' ? (
+              <video src={s.hero_media_url} muted autoPlay loop playsInline style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+            ) : (
+              <img src={s.hero_media_url} alt="Hero" style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+            )}
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', lineHeight: 1.5 }}>
+          Upload from your computer or paste a URL. This shows on the main homepage.
+        </div>
+
+        <Field label="Banner text (top notification)">
+          <input value={s.bannerText || ''} onChange={e => onUpdate('bannerText', e.target.value)} placeholder="Now accepting walk-ins!" style={inp} />
+        </Field>
+        <Toggle checked={!!s.bannerEnabled} onChange={v => onUpdate('bannerEnabled', v)} label="Show banner on homepage" sub="Yellow notification bar at top" />
+      </div>
+    </SectionCard>
+  )
+}
+
 // ─── Schedule Editor for Admin users ──────────────────────────────────────────
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 const DEFAULT_ADMIN_SCHEDULE = DAY_NAMES.map((_,i) => ({ enabled: i >= 1 && i <= 6, startMin: 540, endMin: 1230 })) // Mon-Sat 9:00-20:30
@@ -472,31 +572,7 @@ export default function SettingsPage() {
                   </Field>
                 </SectionCard>
 
-                <SectionCard title="Homepage hero">
-                  <Field label="Hero media URL (video or image)">
-                    <input value={s.hero_media_url || ''} onChange={e => set('hero_media_url', e.target.value)} placeholder="https://res.cloudinary.com/..." style={inp} />
-                  </Field>
-                  <Field label="Media type">
-                    <select value={s.hero_media_type || 'video'} onChange={e => set('hero_media_type', e.target.value)} style={inp}>
-                      <option value="video">Video (.mp4, .mov, .webm)</option>
-                      <option value="image">Image (.jpg, .png, .webp)</option>
-                    </select>
-                  </Field>
-                  {s.hero_media_url && (
-                    <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,.10)', maxHeight: 200 }}>
-                      {(s.hero_media_type || 'video') === 'video' ? (
-                        <video src={s.hero_media_url} muted autoPlay loop playsInline style={{ width: '100%', height: 200, objectFit: 'cover' }} />
-                      ) : (
-                        <img src={s.hero_media_url} alt="Hero" style={{ width: '100%', height: 200, objectFit: 'cover' }} />
-                      )}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', lineHeight: 1.5 }}>This video/image shows on the main homepage (element-barbershop.com). Upload to Cloudinary or paste a direct URL.</div>
-                  <Field label="Banner text (top notification)">
-                    <input value={s.bannerText || ''} onChange={e => set('bannerText', e.target.value)} placeholder="Now accepting walk-ins!" style={inp} />
-                  </Field>
-                  <Toggle checked={!!s.bannerEnabled} onChange={v => set('bannerEnabled', v)} label="Show banner on homepage" sub="Yellow notification bar at top" />
-                </SectionCard>
+                <HeroMediaCard settings={s} onUpdate={(key: string, val: any) => set(key, val)} />
 
                 <SectionCard title="Tax">
                   <Toggle checked={!!tax.enabled} onChange={v => setNested('tax','enabled',v)} label="Enable tax on services" sub="Added to invoice total" />
