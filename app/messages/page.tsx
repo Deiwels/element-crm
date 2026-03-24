@@ -500,7 +500,69 @@ export default function MessagesPage() {
         </div>
 
         {/* Content */}
-        {activeTab !== 'requests' && activeTab !== 'applications' ? (
+        {activeTab === 'applications' ? (
+          /* Applications tab */
+          <div className="msg-list" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+            {loading && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
+            {!loading && applications.length === 0 && (
+              <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.20)' }}>
+                <div style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="1.5" strokeLinecap="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div>
+                <div style={{ fontSize: 13 }}>No applications yet</div>
+              </div>
+            )}
+            {applications.map(app => {
+              const roleType = String(app.role || app.type || '').toLowerCase()
+              const isBarber = roleType.includes('barber') && !roleType.includes('academy')
+              const isAcademy = roleType.includes('academy')
+              const statusColors: Record<string,{bg:string;border:string;color:string}> = {
+                new:       { bg: 'rgba(10,132,255,.08)', border: 'rgba(10,132,255,.35)', color: '#d7ecff' },
+                reviewed:  { bg: 'rgba(255,207,63,.08)', border: 'rgba(255,207,63,.35)', color: '#ffe9a3' },
+                interview: { bg: 'rgba(168,107,255,.08)', border: 'rgba(168,107,255,.35)', color: '#d4b8ff' },
+                hired:     { bg: 'rgba(143,240,177,.08)', border: 'rgba(143,240,177,.35)', color: '#c9ffe1' },
+                rejected:  { bg: 'rgba(255,107,107,.08)', border: 'rgba(255,107,107,.35)', color: '#ffd0d0' },
+              }
+              const sc = statusColors[app.status] || statusColors.new
+              const roleBadge = isAcademy ? { bg: 'rgba(168,107,255,.12)', border: 'rgba(168,107,255,.40)', color: '#d4b8ff', label: 'ACADEMY' } : isBarber ? { bg: 'rgba(10,132,255,.12)', border: 'rgba(10,132,255,.40)', color: '#d7ecff', label: 'BARBER' } : { bg: 'rgba(143,240,177,.12)', border: 'rgba(143,240,177,.40)', color: '#c9ffe1', label: 'ADMIN' }
+              return (
+                <div key={app.id} style={{ padding: '14px 16px', borderRadius: 16, border: `1px solid ${sc.border}`, background: sc.bg, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 900, fontSize: 15 }}>{app.name}</span>
+                      <span style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: 999, border: `1px solid ${roleBadge.border}`, background: roleBadge.bg, color: roleBadge.color, fontWeight: 900 }}>{roleBadge.label}</span>
+                      <span style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: 999, border: `1px solid ${sc.border}`, color: sc.color, fontWeight: 700 }}>{app.status}</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,.30)' }}>{app.created_at?.slice(0, 10)}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.60)', lineHeight: 1.6, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '4px 16px' }}>
+                    {app.phone && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Phone:</b> {app.phone}</div>}
+                    {app.email && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Email:</b> {app.email}</div>}
+                    {app.instagram && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>IG:</b> {app.instagram}</div>}
+                    {app.experience && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Experience:</b> {app.experience}</div>}
+                    {app.english && app.english !== 'N/A' && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>English:</b> {app.english}</div>}
+                    {app.fulltime && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Availability:</b> {app.fulltime}</div>}
+                    {isBarber && app.license && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>License:</b> {app.license}</div>}
+                    {isBarber && app.fade_level && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Fade:</b> {app.fade_level}</div>}
+                    {isBarber && app.beard && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Beard:</b> {app.beard}</div>}
+                    {!isBarber && !isAcademy && app.admin_experience && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Clients:</b> {app.admin_experience}</div>}
+                    {!isBarber && !isAcademy && app.multitask && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Multitask:</b> {app.multitask}</div>}
+                    {isAcademy && app.schedule && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Schedule:</b> {app.schedule}</div>}
+                  </div>
+                  {(app.motivation || app.message || app.barber_notes || app.admin_notes) && (
+                    <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,.50)', fontStyle: 'italic' }}>{app.motivation || app.message || app.barber_notes || app.admin_notes}</div>
+                  )}
+                  {isOwnerOrAdmin && app.status === 'new' && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                      {['reviewed', 'interview', 'hired', 'rejected'].map(s => (
+                        <button key={s} onClick={async () => { try { await apiFetch(`/api/applications/${app.id}`, { method: 'PATCH', body: JSON.stringify({ status: s }) }); loadApplications() } catch (e: any) { alert(e.message) } }}
+                          style={{ height: 28, padding: '0 10px', borderRadius: 8, border: `1px solid ${(statusColors[s] || statusColors.new).border}`, background: (statusColors[s] || statusColors.new).bg, color: (statusColors[s] || statusColors.new).color, cursor: 'pointer', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em', fontFamily: 'inherit' }}>{s}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : activeTab === 'requests' ? (
           <>
             {/* Message list */}
             <div ref={listRef} className="msg-list" onScroll={onScroll}
@@ -568,75 +630,6 @@ export default function MessagesPage() {
             {requests.map(req => (
               <RequestCard key={req.id} req={req} isOwnerOrAdmin={isOwnerOrAdmin} onReview={reviewRequest} />
             ))}
-          </div>
-        ) : activeTab === 'applications' ? (
-          /* Applications tab */
-          <div className="msg-list" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-            {loading && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
-            {!loading && applications.length === 0 && (
-              <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.20)' }}>
-                <div style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="1.5" strokeLinecap="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div>
-                <div style={{ fontSize: 13 }}>No applications yet</div>
-              </div>
-            )}
-            {applications.map(app => {
-              const roleType = String(app.role || app.type || '').toLowerCase()
-              const isBarber = roleType.includes('barber') && !roleType.includes('academy')
-              const isAcademy = roleType.includes('academy')
-              const statusColors: Record<string,{bg:string;border:string;color:string}> = {
-                new:       { bg: 'rgba(10,132,255,.08)', border: 'rgba(10,132,255,.35)', color: '#d7ecff' },
-                reviewed:  { bg: 'rgba(255,207,63,.08)', border: 'rgba(255,207,63,.35)', color: '#ffe9a3' },
-                interview: { bg: 'rgba(168,107,255,.08)', border: 'rgba(168,107,255,.35)', color: '#d4b8ff' },
-                hired:     { bg: 'rgba(143,240,177,.08)', border: 'rgba(143,240,177,.35)', color: '#c9ffe1' },
-                rejected:  { bg: 'rgba(255,107,107,.08)', border: 'rgba(255,107,107,.35)', color: '#ffd0d0' },
-              }
-              const sc = statusColors[app.status] || statusColors.new
-              const roleBadge = isAcademy ? { bg: 'rgba(168,107,255,.12)', border: 'rgba(168,107,255,.40)', color: '#d4b8ff', label: 'ACADEMY' } : isBarber ? { bg: 'rgba(10,132,255,.12)', border: 'rgba(10,132,255,.40)', color: '#d7ecff', label: 'BARBER' } : { bg: 'rgba(143,240,177,.12)', border: 'rgba(143,240,177,.40)', color: '#c9ffe1', label: 'ADMIN' }
-              return (
-                <div key={app.id} style={{ padding: '14px 16px', borderRadius: 16, border: `1px solid ${sc.border}`, background: sc.bg, marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontWeight: 900, fontSize: 15 }}>{app.name}</span>
-                      <span style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: 999, border: `1px solid ${roleBadge.border}`, background: roleBadge.bg, color: roleBadge.color, fontWeight: 900 }}>{roleBadge.label}</span>
-                      <span style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: 999, border: `1px solid ${sc.border}`, color: sc.color, fontWeight: 700 }}>{app.status}</span>
-                    </div>
-                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,.30)' }}>{app.created_at?.slice(0, 10)}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.60)', lineHeight: 1.6, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '4px 16px' }}>
-                    {app.phone && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Phone:</b> {app.phone}</div>}
-                    {app.email && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Email:</b> {app.email}</div>}
-                    {app.instagram && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>IG:</b> {app.instagram}</div>}
-                    {app.experience && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Experience:</b> {app.experience}</div>}
-                    {app.english && app.english !== 'N/A' && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>English:</b> {app.english}</div>}
-                    {app.fulltime && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Availability:</b> {app.fulltime}</div>}
-                    {isBarber && app.license && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>License:</b> {app.license}</div>}
-                    {isBarber && app.fade_level && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Fade:</b> {app.fade_level}</div>}
-                    {isBarber && app.beard && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Beard:</b> {app.beard}</div>}
-                    {!isBarber && !isAcademy && app.admin_experience && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Clients:</b> {app.admin_experience}</div>}
-                    {!isBarber && !isAcademy && app.multitask && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Multitask:</b> {app.multitask}</div>}
-                    {isAcademy && app.schedule && <div><b style={{ color: 'rgba(255,255,255,.40)' }}>Schedule:</b> {app.schedule}</div>}
-                  </div>
-                  {(app.motivation || app.message || app.barber_notes || app.admin_notes) && (
-                    <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(255,255,255,.50)', fontStyle: 'italic' }}>
-                      {app.motivation || app.message || app.barber_notes || app.admin_notes}
-                    </div>
-                  )}
-                  {app.notes && <div style={{ marginTop: 4, fontSize: 11, color: 'rgba(255,207,63,.70)' }}>Note: {app.notes}</div>}
-                  {isOwnerOrAdmin && app.status === 'new' && (
-                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                      {['reviewed', 'interview', 'hired', 'rejected'].map(s => (
-                        <button key={s} onClick={async () => {
-                          try { await apiFetch(`/api/applications/${app.id}`, { method: 'PATCH', body: JSON.stringify({ status: s }) }); loadApplications() } catch (e: any) { alert(e.message) }
-                        }}
-                          style={{ height: 28, padding: '0 10px', borderRadius: 8, border: `1px solid ${(statusColors[s] || statusColors.new).border}`, background: (statusColors[s] || statusColors.new).bg, color: (statusColors[s] || statusColors.new).color, cursor: 'pointer', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em', fontFamily: 'inherit' }}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
           </div>
         ) : null}
       </div>
