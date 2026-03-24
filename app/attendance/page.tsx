@@ -16,6 +16,7 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 interface AttRecord {
   id: string; user_id: string; user_name: string; role: string; barber_id?: string
   clock_in: string | null; clock_out: string | null; duration_minutes: number | null; date: string
+  auto_closed?: boolean; auto_close_reason?: string
 }
 interface Barber {
   id: string; name: string; schedule?: any; work_schedule?: any
@@ -208,7 +209,7 @@ export default function AttendancePage() {
                           {/* Times */}
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)' }}>
-                              {fmtTime(r.clock_in || undefined)} → {r.clock_out ? fmtTime(r.clock_out) : <span style={{ color: '#8ff0b1' }}>Still in</span>}
+                              {fmtTime(r.clock_in || undefined)} → {r.clock_out ? (<>{fmtTime(r.clock_out)}{r.auto_closed && <span style={{ fontSize: 9, color: '#ffb000', marginLeft: 4 }}>AUTO</span>}</>) : <span style={{ color: '#8ff0b1' }}>Still in</span>}
                             </div>
                             <div style={{ fontSize: 11, color: '#8ff0b1', fontWeight: 700 }}>
                               {r.duration_minutes ? fmtMins(r.duration_minutes) : (r.clock_in ? fmtMins(Math.round((Date.now() - new Date(r.clock_in).getTime()) / 60000)) : '—')}
