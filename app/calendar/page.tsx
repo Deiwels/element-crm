@@ -1012,13 +1012,21 @@ export default function CalendarPage() {
       const isModelOrTraining = b.booking_type === 'model' || b.booking_type === 'training'
       const svc = servicesArg.find(s => s.id === String(b.service_id || ''))
       const barber = barbersArg.find(br => br.id === String(b.barber_id || ''))
-      // For blocks and model/training: use end_at - start_at; for regular bookings: use service duration
-      const durMin = (isBlock || isModelOrTraining) ? (b.end_at && startAt ? Math.max(5, Math.round((new Date(b.end_at).getTime() - startAt.getTime()) / 60000)) : 90) : (svc?.durationMin || 30)
+      // Duration: prefer end_at - start_at (handles multi-service), fallback to duration_minutes, then service duration
+      const endAtTime = b.end_at ? new Date(b.end_at).getTime() : 0
+      const startAtTime = startAt ? startAt.getTime() : 0
+      const calcFromEndAt = (endAtTime && startAtTime && endAtTime > startAtTime) ? Math.round((endAtTime - startAtTime) / 60000) : 0
+      const durMin = (isBlock || isModelOrTraining)
+        ? (calcFromEndAt || 90)
+        : (calcFromEndAt || Number(b.duration_minutes || 0) || svc?.durationMin || 30)
+      // Service name: handle multi-service (comma-separated in service_name or service_id)
+      const multiSvcName = String(b.service_name || '').trim()
+      const displayServiceName = multiSvcName || svc?.name || String(b.notes || 'Service')
       return {
         id: String(b.id || uid()), type: isBlock ? 'block' as const : 'booking' as const,
         barberId: String(b.barber_id || ''), barberName: barber?.name || String(b.barber_name || ''),
         clientName: String(b.client_name || 'Client'), clientPhone: String(b.client_phone || ''),
-        serviceId: String(b.service_id || ''), serviceName: svc?.name || String(b.service_name || b.notes || ''),
+        serviceId: String(b.service_id || ''), serviceName: displayServiceName,
         date: localDate,
         startMin: clamp(startMin), durMin: Math.max(5, durMin),
         status: String(b.status || 'booked'), paid: !!(b.paid || b.is_paid),
