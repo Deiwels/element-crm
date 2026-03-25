@@ -3,6 +3,14 @@ import { useEffect, useState, useCallback } from 'react'
 import Shell from '@/components/Shell'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
+
+// Decode HTML entities like &#x27; → '
+function decHtml(s: string) {
+  if (!s || !s.includes('&')) return s
+  const el = typeof document !== 'undefined' ? document.createElement('textarea') : null
+  if (!el) return s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#x27;/g,"'").replace(/&#39;/g,"'")
+  el.innerHTML = s; return el.value
+}
 const API_KEY = 'R1403ss81fxrx*rx1403'
 
 interface Booking {
@@ -560,7 +568,7 @@ export default function DashboardPage() {
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
                     <span style={{ width: 8, height: 8, borderRadius: 999, background: dc, flexShrink: 0, marginTop: 5, display: 'inline-block' }} />
                     <span style={{ fontSize: 12, lineHeight: 1.4, flex: 1 }}>
-                      <strong>{b.client_name || 'Client'}</strong> — {b.service_name || 'service'}
+                      <strong>{decHtml(b.client_name || 'Client')}</strong> — {decHtml(b.service_name || 'service')}
                       {!isBarber && <> · <em style={{ color: 'rgba(255,255,255,.40)' }}>{b.barber_name || b.barber}</em></>}
                     </span>
                     <span style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', whiteSpace: 'nowrap' }}>{fmtTime(b.start_at)}</span>

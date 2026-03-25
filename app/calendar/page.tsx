@@ -1234,13 +1234,13 @@ export default function CalendarPage() {
           .cal-settings-icon{ display:flex !important; }
           /* Hide Calendar title + date on mobile */
           .cal-topbar-left{ display:none !important; }
-          /* Compact topbar on mobile */
-          .cal-topbar-wrap{ padding:6px 8px 8px !important; }
+          /* Compact topbar on mobile — safe area for status bar */
+          .cal-topbar-wrap{ padding:calc(env(safe-area-inset-top, 0px) + 6px) 8px 8px !important; }
         }
         select option { background: #111; }
         input[type=date],input[type=time] { color-scheme: dark; }
       `}</style>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
 
         {/* Topbar */}
         <div className="cal-topbar-wrap" style={{ padding: '10px 18px 12px', background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', flexShrink: 0 }}>
