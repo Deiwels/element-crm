@@ -1269,6 +1269,11 @@ export default function CalendarPage() {
         }
         .wl-ghost-pulse { animation: wlGhostPulse 2.6s ease-in-out infinite; transition: filter .2s; }
         .wl-ghost-pulse:hover { filter: brightness(1.25); }
+        @keyframes blockPendingPulse {
+          0%, 100% { box-shadow: 0 0 6px rgba(255,107,107,.10); border-color: rgba(255,107,107,.25); background: rgba(255,107,107,.04); }
+          50% { box-shadow: 0 0 18px rgba(255,107,107,.40); border-color: rgba(255,107,107,.55); background: rgba(255,107,107,.10); }
+        }
+        .block-pending-pulse { animation: blockPendingPulse 2.4s ease-in-out infinite; }
         /* Desktop: hide mobile-only elements */
         .cal-search-icon{ display:none !important; }
         .cal-settings-icon{ display:none !important; }
@@ -1623,50 +1628,70 @@ export default function CalendarPage() {
                       const isBlock = ev.type === 'block' || ev.status === 'block'
                       const canDrag = isStudent ? false : (isBlock ? isOwnerOrAdmin : (!isBarber || ev.barberId === myBarberId))
 
+                      const isPending = !!(ev as any)._pendingResize
                       if (isBlock) return (
                         <div key={ev.id}
-                          style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, background: 'repeating-linear-gradient(45deg,rgba(255,107,107,.10) 0px,rgba(255,107,107,.10) 6px,rgba(255,107,107,.04) 6px,rgba(255,107,107,.04) 12px)', border: `1px solid ${drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.28)'}`, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'hidden', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'grab') : 'default', opacity: drag?.eventId===ev.id ? 0.5 : 1, userSelect: 'none' }}
+                          className={isPending ? 'block-pending-pulse' : ''}
+                          style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, background: isPending ? 'rgba(255,107,107,.08)' : 'repeating-linear-gradient(45deg,rgba(255,107,107,.10) 0px,rgba(255,107,107,.10) 6px,rgba(255,107,107,.04) 6px,rgba(255,107,107,.04) 12px)', border: `1px solid ${isPending ? 'rgba(255,107,107,.45)' : drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.28)'}`, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'hidden', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'grab') : 'default', opacity: drag?.eventId===ev.id ? 0.5 : 1, userSelect: 'none' }}
                           onMouseDown={e => { if (!isOwnerOrAdmin || e.button!==0) return; e.stopPropagation(); startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); startDrag(e, ev, bi) }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                              <span style={{ fontSize: 10, textTransform: 'uppercase', color: 'rgba(255,107,107,.80)', fontWeight: 900 }}>Blocked {minToHHMM(ev.startMin)}–{minToHHMM(ev.startMin+ev.durMin)}</span>
+                              <span style={{ fontSize: 10, textTransform: 'uppercase', color: isPending ? 'rgba(255,107,107,.90)' : 'rgba(255,107,107,.80)', fontWeight: 900 }}>{isPending ? 'Pending review' : 'Blocked'} {minToHHMM(ev.startMin)}–{minToHHMM(ev.startMin+ev.durMin)}</span>
                             </div>
                             {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setEvents(prev => prev.filter(x => x.id!==ev.id)); if (ev._raw?.id) apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'DELETE'}).catch(console.warn) }} style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: 'rgba(255,107,107,.90)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontFamily: 'inherit' }}>✕</button>}
                           </div>
                           {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && <div onMouseDown={e => {
                             e.stopPropagation(); e.preventDefault()
-                            const startY = e.clientY, startDur = ev.durMin
-                            const onMove = (me: MouseEvent) => { setEvents(prev => prev.map(x => x.id===ev.id ? {...x, durMin: Math.max(5, startDur + Math.round((me.clientY-startY)/slotH)*5)} : x)) }
+                            const startY = e.clientY, startDur = ev.durMin, evId = ev.id
+                            const onMove = (me: MouseEvent) => { me.preventDefault(); setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: Math.max(5, startDur + Math.round((me.clientY-startY)/slotH)*5)} : x)) }
                             const onUp = () => {
                               window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp)
-                              const u = events.find(x=>x.id===ev.id); if (!u?._raw?.id) return
-                              const sa=new Date(u.date+'T'+minToHHMM(u.startMin)+':00')
+                              const u = events.find(x=>x.id===evId); if (!u?._raw?.id) return
+                              const newDur = u.durMin
+                              if (newDur === startDur) return // no change
+                              // Revert visual immediately
+                              setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: startDur} : x))
+                              const sa = new Date(u.date+'T'+minToHHMM(u.startMin)+':00')
                               if (isBarber && !isOwnerOrAdmin) {
-                                // Barber sends resize as request for owner approval
-                                apiFetch('/api/requests',{method:'POST',body:JSON.stringify({type:'block_time',data:{barberId:currentUser?.barber_id,startAt:sa.toISOString(),endAt:new Date(sa.getTime()+u.durMin*60000).toISOString(),bookingId:String(u._raw.id)}})}).catch(console.warn)
+                                if (confirm(`Send block request? ${minToHHMM(u.startMin)}–${minToHHMM(u.startMin+newDur)} (${newDur}min)`)) {
+                                  setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: newDur, _pendingResize: true} : x))
+                                  apiFetch('/api/requests',{method:'POST',body:JSON.stringify({type:'block_time',data:{barberId:currentUser?.barber_id,startAt:sa.toISOString(),endAt:new Date(sa.getTime()+newDur*60000).toISOString(),bookingId:String(u._raw.id)}})}).catch(console.warn)
+                                }
                               } else {
-                                apiFetch('/api/bookings/'+encodeURIComponent(String(u._raw.id)),{method:'PATCH',body:JSON.stringify({end_at:new Date(sa.getTime()+u.durMin*60000).toISOString()})}).catch(console.warn)
+                                if (confirm(`Resize block to ${minToHHMM(u.startMin)}–${minToHHMM(u.startMin+newDur)} (${newDur}min)?`)) {
+                                  setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: newDur} : x))
+                                  apiFetch('/api/bookings/'+encodeURIComponent(String(u._raw.id)),{method:'PATCH',body:JSON.stringify({end_at:new Date(sa.getTime()+newDur*60000).toISOString()})}).catch(console.warn)
+                                }
                               }
                             }
                             window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp)
                           }} onTouchStart={e => {
                             e.stopPropagation()
-                            const startY = e.touches[0].clientY, startDur = ev.durMin
-                            const onMove = (te: TouchEvent) => { const dy = te.touches[0].clientY - startY; setEvents(prev => prev.map(x => x.id===ev.id ? {...x, durMin: Math.max(5, startDur + Math.round(dy/slotH)*5)} : x)) }
+                            const startY = e.touches[0].clientY, startDur = ev.durMin, evId = ev.id
+                            const onMove = (te: TouchEvent) => { te.preventDefault(); const dy = te.touches[0].clientY - startY; setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: Math.max(5, startDur + Math.round(dy/slotH)*5)} : x)) }
                             const onEnd = () => {
                               window.removeEventListener('touchmove',onMove); window.removeEventListener('touchend',onEnd)
-                              const u = events.find(x=>x.id===ev.id); if (!u?._raw?.id) return
-                              const sa=new Date(u.date+'T'+minToHHMM(u.startMin)+':00')
+                              const u = events.find(x=>x.id===evId); if (!u?._raw?.id) return
+                              const newDur = u.durMin
+                              if (newDur === startDur) return
+                              setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: startDur} : x))
+                              const sa = new Date(u.date+'T'+minToHHMM(u.startMin)+':00')
                               if (isBarber && !isOwnerOrAdmin) {
-                                apiFetch('/api/requests',{method:'POST',body:JSON.stringify({type:'block_time',data:{barberId:currentUser?.barber_id,startAt:sa.toISOString(),endAt:new Date(sa.getTime()+u.durMin*60000).toISOString(),bookingId:String(u._raw.id)}})}).catch(console.warn)
+                                if (confirm(`Send block request? ${minToHHMM(u.startMin)}–${minToHHMM(u.startMin+newDur)} (${newDur}min)`)) {
+                                  setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: newDur, _pendingResize: true} : x))
+                                  apiFetch('/api/requests',{method:'POST',body:JSON.stringify({type:'block_time',data:{barberId:currentUser?.barber_id,startAt:sa.toISOString(),endAt:new Date(sa.getTime()+newDur*60000).toISOString(),bookingId:String(u._raw.id)}})}).catch(console.warn)
+                                }
                               } else {
-                                apiFetch('/api/bookings/'+encodeURIComponent(String(u._raw.id)),{method:'PATCH',body:JSON.stringify({end_at:new Date(sa.getTime()+u.durMin*60000).toISOString()})}).catch(console.warn)
+                                if (confirm(`Resize block to ${minToHHMM(u.startMin)}–${minToHHMM(u.startMin+newDur)} (${newDur}min)?`)) {
+                                  setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: newDur} : x))
+                                  apiFetch('/api/bookings/'+encodeURIComponent(String(u._raw.id)),{method:'PATCH',body:JSON.stringify({end_at:new Date(sa.getTime()+newDur*60000).toISOString()})}).catch(console.warn)
+                                }
                               }
                             }
                             window.addEventListener('touchmove',onMove,{passive:false}); window.addEventListener('touchend',onEnd)
-                          }} style={{ position: 'absolute', left: 10, right: 10, bottom: 4, height: 12, borderRadius: 999, background: 'rgba(255,107,107,.35)', cursor: 'ns-resize' }} />}
+                          }} style={{ position: 'absolute', left: 10, right: 10, bottom: 4, height: 12, borderRadius: 999, background: 'rgba(255,107,107,.35)', cursor: 'ns-resize', touchAction: 'none' }} />}
                         </div>
                       )
 
