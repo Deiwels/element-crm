@@ -262,6 +262,29 @@ function ProfileModal({ user, onClose, onUpdated }: {
             <button onClick={savePassword} disabled={saving} style={{ height: 42, borderRadius: 12, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.10)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
               {saving ? 'Saving…' : 'Update password'}
             </button>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,.06)', paddingTop: 14, marginTop: 6 }}>
+              <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,107,107,.55)', marginBottom: 8 }}>Danger zone</div>
+              <button onClick={async () => {
+                if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) return
+                if (!confirm('This will permanently delete your account and all data. Type your password to confirm.')) return
+                try {
+                  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+                  const res = await fetch(`${API}/api/auth/delete-account`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY },
+                    body: JSON.stringify({ password: currentPw })
+                  })
+                  const data = await res.json()
+                  if (!res.ok) throw new Error(data.error || 'Failed to delete account')
+                  localStorage.removeItem('ELEMENT_TOKEN')
+                  localStorage.removeItem('ELEMENT_USER')
+                  window.location.href = '/signin'
+                } catch (e: any) { setErr(e.message) }
+              }} style={{ height: 38, padding: '0 16px', borderRadius: 10, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit' }}>
+                Delete my account
+              </button>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginTop: 6 }}>Enter your current password above, then click delete. This cannot be undone.</div>
+            </div>
           </>}
 
           {msg && <div style={{ fontSize: 12, color: '#c9ffe1', padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(143,240,177,.22)', background: 'rgba(143,240,177,.06)' }}>{msg}</div>}
