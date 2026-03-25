@@ -621,7 +621,7 @@ export default function CalendarPage() {
   const [trainingModal, setTrainingModal] = useState<{ barberId: string; barberName: string; min: number } | null>(null)
   const [toast, setToast] = useState('')
   // Block modals
-  const [blockModal, setBlockModal] = useState<{ type: 'create' | 'resize'; barberId: string; startMin: number; currentDur: number; originalDur: number; evId?: string; rawId?: string } | null>(null)
+  const [blockModal, setBlockModal] = useState<{ type: 'create' | 'resize_confirm' | 'owner_resize'; barberId: string; startMin: number; currentDur: number; originalDur: number; evId?: string; rawId?: string } | null>(null)
   const [blockDurInput, setBlockDurInput] = useState('30')
   // Pending block requests (loaded from /api/requests)
   const [pendingBlockRequests, setPendingBlockRequests] = useState<any[]>([])
@@ -1689,12 +1689,9 @@ export default function CalendarPage() {
                                 setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: startDur } : x))
                                 const sa = new Date(dateStr + 'T' + minToHHMM(startMin) + ':00')
                                 if (isBarber && !isOwnerOrAdmin) {
-                                  setBlockModal({ type: 'resize', barberId: currentUser?.barber_id || '', startMin, currentDur, originalDur: startDur, evId, rawId: String(rawObj?.id || '') })
+                                  setBlockModal({ type: 'resize_confirm', barberId: currentUser?.barber_id || '', startMin, currentDur, originalDur: startDur, evId, rawId: String(rawObj?.id || '') })
                                 } else {
-                                  if (confirm(`Resize block to ${minToHHMM(startMin)}–${minToHHMM(startMin + currentDur)} (${currentDur}min)?`)) {
-                                    setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: currentDur } : x))
-                                    apiFetch('/api/bookings/' + encodeURIComponent(String(rawObj?.id)), { method: 'PATCH', body: JSON.stringify({ end_at: new Date(sa.getTime() + currentDur * 60000).toISOString() }) }).catch(console.warn)
-                                  }
+                                  setBlockModal({ type: 'owner_resize', barberId: '', startMin, currentDur, originalDur: startDur, evId, rawId: String(rawObj?.id || '') })
                                 }
                               }
                               addMove(onMove); addEnd(onEnd)
@@ -2120,53 +2117,75 @@ export default function CalendarPage() {
 
       {/* Block duration / resize modal */}
       {blockModal && (() => {
-        const isCreate = blockModal.type === 'create'
+        const bm = blockModal
+        const isCreate = bm.type === 'create'
+        const isResizeConfirm = bm.type === 'resize_confirm'
+        const isOwnerResize = bm.type === 'owner_resize'
         const submitBlock = () => {
-          const dur = Math.max(5, Math.round(Number(blockDurInput) / 5) * 5) || 30
           if (isCreate) {
-            const startAt = new Date(todayStr + 'T' + minToHHMM(blockModal.startMin) + ':00')
-            const barber = barbers.find(b => b.id === blockModal.barberId)
+            const dur = Math.max(5, Math.round(Number(blockDurInput) / 5) * 5) || 30
+            const startAt = new Date(todayStr + 'T' + minToHHMM(bm.startMin) + ':00')
+            const barber = barbers.find(b => b.id === bm.barberId)
             apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
               type: 'block_time',
-              data: { barberId: blockModal.barberId, barberName: barber?.name || '', date: todayStr, startMin: blockModal.startMin, duration: dur, startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + dur * 60000).toISOString() }
+              data: { barberId: bm.barberId, barberName: barber?.name || '', date: todayStr, startMin: bm.startMin, duration: dur, startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + dur * 60000).toISOString() }
             })}).then(() => { showToast('Block request sent'); loadPendingBlocks() }).catch(e => showToast('Error: ' + e.message))
-          } else {
-            // Resize
-            const sa = new Date(todayStr + 'T' + minToHHMM(blockModal.startMin) + ':00')
-            if (blockModal.evId) {
-              setEvents(prev => prev.map(x => x.id === blockModal.evId ? { ...x, durMin: dur, _pendingResize: true, _approvedDur: blockModal.originalDur } as any : x))
-            }
-            apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'block_time', data: { barberId: blockModal.barberId, date: todayStr, startMin: blockModal.startMin, duration: dur, startAt: sa.toISOString(), endAt: new Date(sa.getTime() + dur * 60000).toISOString(), bookingId: blockModal.rawId, originalDur: blockModal.originalDur } }) }).then(() => { showToast('Resize request sent'); loadPendingBlocks() }).catch(console.warn)
+          } else if (isResizeConfirm) {
+            const sa = new Date(todayStr + 'T' + minToHHMM(bm.startMin) + ':00')
+            if (bm.evId) setEvents(prev => prev.map(x => x.id === bm.evId ? { ...x, durMin: bm.currentDur, _pendingResize: true, _approvedDur: bm.originalDur } as any : x))
+            apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'block_time', data: { barberId: bm.barberId, date: todayStr, startMin: bm.startMin, duration: bm.currentDur, startAt: sa.toISOString(), endAt: new Date(sa.getTime() + bm.currentDur * 60000).toISOString(), bookingId: bm.rawId, originalDur: bm.originalDur } }) }).then(() => { showToast('Resize request sent'); loadPendingBlocks() }).catch(console.warn)
+          } else if (isOwnerResize) {
+            const sa = new Date(todayStr + 'T' + minToHHMM(bm.startMin) + ':00')
+            if (bm.evId) setEvents(prev => prev.map(x => x.id === bm.evId ? { ...x, durMin: bm.currentDur } : x))
+            apiFetch('/api/bookings/' + encodeURIComponent(String(bm.rawId)), { method: 'PATCH', body: JSON.stringify({ end_at: new Date(sa.getTime() + bm.currentDur * 60000).toISOString() }) }).catch(console.warn)
           }
           setBlockModal(null)
         }
+        const accentColor = isResizeConfirm ? 'rgba(255,107,107,' : (isOwnerResize ? 'rgba(255,255,255,' : 'rgba(255,107,107,')
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 16 }}
-            onClick={e => { if (e.target === e.currentTarget) setBlockModal(null) }}>
-            <div style={{ width: 'min(380px,92vw)', borderRadius: 22, border: '1px solid rgba(255,107,107,.25)', background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60)', padding: '24px 22px', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+            onClick={e => { if (e.target === e.currentTarget) { if (bm.evId && (isResizeConfirm || isOwnerResize)) setEvents(prev => prev.map(x => x.id === bm.evId ? { ...x, durMin: bm.originalDur } : x)); setBlockModal(null) } }}>
+            <div style={{ width: 'min(380px,92vw)', borderRadius: 22, border: `1px solid ${accentColor}.25)`, background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60)', padding: '24px 22px', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+              {/* Icon */}
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <div style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(255,107,107,.10)', border: '1px solid rgba(255,107,107,.30)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6b6b" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                <div style={{ width: 52, height: 52, borderRadius: 16, background: `${accentColor}.10)`, border: `1px solid ${accentColor}.30)`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={isOwnerResize ? '#fff' : '#ff6b6b'} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
                 </div>
               </div>
-              <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.14em', textTransform: 'uppercase', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>{isCreate ? 'Block Time' : 'Resize Block'}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', textAlign: 'center', marginBottom: 16 }}>
-                {isCreate ? `Starting at ${minToHHMM(blockModal.startMin)}` : `${minToHHMM(blockModal.startMin)} — currently ${blockModal.originalDur}min`}
+              {/* Title */}
+              <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.14em', textTransform: 'uppercase', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
+                {isCreate ? 'Block Time' : 'Resize Block'}
               </div>
-              <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 6 }}>Duration (minutes)</div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
-                  {[15, 30, 45, 60, 90, 120].map(d => (
-                    <button key={d} onClick={() => setBlockDurInput(String(d))} style={{ height: 36, minWidth: 48, borderRadius: 10, border: `1px solid ${String(d) === blockDurInput ? 'rgba(255,107,107,.65)' : 'rgba(255,255,255,.14)'}`, background: String(d) === blockDurInput ? 'rgba(255,107,107,.15)' : 'rgba(255,255,255,.04)', color: String(d) === blockDurInput ? '#ffd0d0' : '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>{d}</button>
-                  ))}
+
+              {isCreate ? (<>
+                {/* Create: duration picker */}
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', textAlign: 'center', marginBottom: 16 }}>Starting at {minToHHMM(bm.startMin)}</div>
+                <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 6 }}>Duration (minutes)</div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+                    {[15, 30, 45, 60, 90, 120].map(d => (
+                      <button key={d} onClick={() => setBlockDurInput(String(d))} style={{ height: 36, minWidth: 48, borderRadius: 10, border: `1px solid ${String(d) === blockDurInput ? 'rgba(255,107,107,.65)' : 'rgba(255,255,255,.14)'}`, background: String(d) === blockDurInput ? 'rgba(255,107,107,.15)' : 'rgba(255,255,255,.04)', color: String(d) === blockDurInput ? '#ffd0d0' : '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>{d}</button>
+                    ))}
+                  </div>
+                  <input type="number" value={blockDurInput} onChange={e => setBlockDurInput(e.target.value)} min={5} max={480} step={5} style={{ width: 80, height: 40, borderRadius: 10, border: '1px solid rgba(255,255,255,.18)', background: 'rgba(255,255,255,.06)', color: '#fff', textAlign: 'center', fontSize: 18, fontWeight: 900, outline: 'none', fontFamily: 'inherit' }} />
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 4 }}>{minToHHMM(bm.startMin)} — {minToHHMM(bm.startMin + (Number(blockDurInput) || 30))}</div>
                 </div>
-                <input type="number" value={blockDurInput} onChange={e => setBlockDurInput(e.target.value)} min={5} max={480} step={5} style={{ width: 80, height: 40, borderRadius: 10, border: '1px solid rgba(255,255,255,.18)', background: 'rgba(255,255,255,.06)', color: '#fff', textAlign: 'center', fontSize: 18, fontWeight: 900, outline: 'none', fontFamily: 'inherit' }} />
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 4 }}>{minToHHMM(blockModal.startMin)} — {minToHHMM(blockModal.startMin + (Number(blockDurInput) || 30))}</div>
-              </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,107,107,.60)', textAlign: 'center', marginBottom: 16 }}>This will be sent for owner/admin approval</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,107,107,.60)', textAlign: 'center', marginBottom: 16 }}>This will be sent for owner/admin approval</div>
+              </>) : (<>
+                {/* Resize confirm: show old → new */}
+                <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{minToHHMM(bm.startMin)} — {minToHHMM(bm.startMin + bm.currentDur)}</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,.50)' }}>{bm.originalDur}min → <span style={{ color: '#ffd0d0', fontWeight: 700 }}>{bm.currentDur}min</span></div>
+                </div>
+                {isResizeConfirm && <div style={{ fontSize: 11, color: 'rgba(255,107,107,.60)', textAlign: 'center', marginBottom: 16 }}>Extended time will be sent for approval</div>}
+              </>)}
+
+              {/* Buttons */}
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                <button onClick={() => setBlockModal(null)} style={{ flex: 1, height: 44, borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Cancel</button>
-                <button onClick={submitBlock} style={{ flex: 2, height: 44, borderRadius: 999, border: '1px solid rgba(255,107,107,.55)', background: 'rgba(255,107,107,.12)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>{isCreate ? 'Request Block' : 'Request Resize'}</button>
+                <button onClick={() => { if (bm.evId && (isResizeConfirm || isOwnerResize)) setEvents(prev => prev.map(x => x.id === bm.evId ? { ...x, durMin: bm.originalDur } : x)); setBlockModal(null) }} style={{ flex: 1, height: 44, borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Cancel</button>
+                <button onClick={submitBlock} style={{ flex: 2, height: 44, borderRadius: 999, border: `1px solid ${accentColor}.55)`, background: `${accentColor}.12)`, color: isOwnerResize ? '#fff' : '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>
+                  {isCreate ? 'Request Block' : isResizeConfirm ? 'Send for Approval' : 'Confirm Resize'}
+                </button>
               </div>
             </div>
           </div>
