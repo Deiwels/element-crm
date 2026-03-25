@@ -212,12 +212,15 @@ export default function WaitlistPage() {
       <div style={{ maxWidth: 700, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Header */}
-        <div className="wl-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div>
+        <div className="wl-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', position: 'relative' }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#e9e9e9', fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.12em', textTransform: 'uppercase' }}>Waitlist</h2>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>{filtered.length} waiting</div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ visibility: 'hidden', pointerEvents: 'none' }}>
+            <div style={{ height: 36 }}>placeholder</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, position: 'relative', zIndex: 1 }}>
             <button onClick={checkWaitlist} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(143,240,177,.35)', background: 'rgba(143,240,177,.08)', color: '#c9ffe1', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit' }}>
               Check & notify
             </button>
