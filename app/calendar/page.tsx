@@ -1208,16 +1208,23 @@ export default function CalendarPage() {
 
   // ── Create / Block ─────────────────────────────────────────────────────────
   function openCreateBlock(barberId: string, startMin: number, durMin?: number) {
-    const duration = durMin || 30
-    // Barber sends block as request for approval
+    // Barber sends block as request for approval — ask for duration first
     if (isBarber && !isOwnerOrAdmin && barberId === myBarberId) {
+      const durationStr = prompt('How many minutes do you want to block?', String(durMin || 30))
+      if (!durationStr) return
+      const duration = Math.max(5, Math.round(Number(durationStr) / 5) * 5) || 30
       const startAt = new Date(todayStr + 'T' + minToHHMM(clamp(startMin)) + ':00')
+      // Show pending block immediately (with pending flag)
+      const pendingId = 'pending_block_' + Date.now()
+      const barber = barbers.find(b => b.id === barberId)
+      setEvents(prev => [...prev, { id: pendingId, type: 'block' as const, barberId, barberName: barber?.name || '', clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Pending approval', date: todayStr, startMin: clamp(startMin), durMin: duration, status: 'block_pending', paid: false, notes: 'Pending approval', _raw: null }])
       apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
         type: 'block_time',
-        data: { barberId, barberName: barbers.find(b => b.id === barberId)?.name || '', date: todayStr, startMin: clamp(startMin), startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + duration*60000).toISOString() }
-      })}).then(() => showToast('Block request sent for approval')).catch(e => showToast('Error: ' + e.message))
+        data: { barberId, barberName: barber?.name || '', date: todayStr, startMin: clamp(startMin), duration, startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + duration*60000).toISOString() }
+      })}).then(() => showToast('Block request sent for approval')).catch(e => { showToast('Error: ' + e.message); setEvents(prev => prev.filter(x => x.id !== pendingId)) })
       return
     }
+    const duration = durMin || 30
     const id = 'block_' + Date.now()
     const barber = barbers.find(b => b.id === barberId)
     setEvents(prev => [...prev, { id, type: 'block', barberId, barberName: barber?.name || '', clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Blocked', date: todayStr, startMin: clamp(startMin), durMin: duration, status: 'block', paid: false, notes: '', _raw: null }])
@@ -1277,6 +1284,11 @@ export default function CalendarPage() {
         }
         .wl-ghost-pulse { animation: wlGhostPulse 2.6s ease-in-out infinite; transition: filter .2s; }
         .wl-ghost-pulse:hover { filter: brightness(1.25); }
+        @keyframes blockPendingPulse {
+          0%, 100% { box-shadow: 0 0 6px rgba(255,107,107,.15), inset 0 0 0 1px rgba(255,107,107,.12); border-color: rgba(255,107,107,.25); background: rgba(255,107,107,.04); }
+          50% { box-shadow: 0 0 18px rgba(255,107,107,.45), inset 0 0 0 1px rgba(255,107,107,.30); border-color: rgba(255,107,107,.55); background: rgba(255,107,107,.10); }
+        }
+        .block-pending-pulse { animation: blockPendingPulse 2.6s ease-in-out infinite; }
         @keyframes blockPendingPulse {
           0%, 100% { box-shadow: 0 0 6px rgba(255,107,107,.10); border-color: rgba(255,107,107,.25); background: rgba(255,107,107,.04); }
           50% { box-shadow: 0 0 18px rgba(255,107,107,.40); border-color: rgba(255,107,107,.55); background: rgba(255,107,107,.10); }
@@ -1636,17 +1648,22 @@ export default function CalendarPage() {
                       const isBlock = ev.type === 'block' || ev.status === 'block'
                       const canDrag = isStudent ? false : (isBlock ? isOwnerOrAdmin : (!isBarber || ev.barberId === myBarberId))
 
-                      const isPending = !!(ev as any)._pendingResize
+                      const isPending = ev.status === 'block_pending' || !!(ev as any)._pendingResize
+                      const approvedDur = (ev as any)._approvedDur || (isPending ? 0 : ev.durMin)
+                      const hasPendingExtension = !isPending && (ev as any)._pendingResize && approvedDur > 0 && ev.durMin > approvedDur
                       if (isBlock) return (
-                        <div key={ev.id}
-                          className={isPending ? 'block-pending-pulse' : ''}
-                          style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, background: isPending ? 'rgba(255,107,107,.08)' : 'repeating-linear-gradient(45deg,rgba(255,107,107,.10) 0px,rgba(255,107,107,.10) 6px,rgba(255,107,107,.04) 6px,rgba(255,107,107,.04) 12px)', border: `1px solid ${isPending ? 'rgba(255,107,107,.45)' : drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.28)'}`, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'hidden', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'grab') : 'default', opacity: drag?.eventId===ev.id ? 0.5 : 1, userSelect: 'none' }}
+                        <div key={ev.id} style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'visible', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'grab') : 'default', opacity: drag?.eventId===ev.id ? 0.5 : 1, userSelect: 'none' }}
                           onMouseDown={e => { if (!isOwnerOrAdmin || e.button!==0) return; e.stopPropagation(); startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); startDrag(e, ev, bi) }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px' }}>
+                          {/* Approved part (solid) */}
+                          {!isPending && <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: hasPendingExtension ? (approvedDur / ev.durMin * 100) + '%' : '100%', borderRadius: hasPendingExtension ? '10px 10px 0 0' : 10, background: 'repeating-linear-gradient(45deg,rgba(255,107,107,.10) 0px,rgba(255,107,107,.10) 6px,rgba(255,107,107,.04) 6px,rgba(255,107,107,.04) 12px)', border: `1px solid ${drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.28)'}` }} />}
+                          {/* Pending part (breathing red) */}
+                          {(isPending || hasPendingExtension) && <div className="block-pending-pulse" style={{ position: 'absolute', left: 0, right: 0, top: hasPendingExtension ? (approvedDur / ev.durMin * 100) + '%' : 0, bottom: 0, borderRadius: hasPendingExtension ? '0 0 10px 10px' : 10, border: '1px solid rgba(255,107,107,.45)' }} />}
+                          {/* Content */}
+                          <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                              <span style={{ fontSize: 10, textTransform: 'uppercase', color: isPending ? 'rgba(255,107,107,.90)' : 'rgba(255,107,107,.80)', fontWeight: 900 }}>{isPending ? 'Pending review' : 'Blocked'} {minToHHMM(ev.startMin)}–{minToHHMM(ev.startMin+ev.durMin)}</span>
+                              <span style={{ fontSize: 10, textTransform: 'uppercase', color: isPending ? 'rgba(255,107,107,.90)' : 'rgba(255,107,107,.80)', fontWeight: 900 }}>{isPending ? 'Pending approval' : hasPendingExtension ? 'Blocked + Pending' : 'Blocked'} {minToHHMM(ev.startMin)}–{minToHHMM(ev.startMin+ev.durMin)}</span>
                             </div>
                             {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setEvents(prev => prev.filter(x => x.id!==ev.id)); if (ev._raw?.id) apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'DELETE'}).catch(console.warn) }} style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: 'rgba(255,107,107,.90)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontFamily: 'inherit' }}>✕</button>}
                           </div>
@@ -1666,9 +1683,9 @@ export default function CalendarPage() {
                                 setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: startDur } : x))
                                 const sa = new Date(dateStr + 'T' + minToHHMM(startMin) + ':00')
                                 if (isBarber && !isOwnerOrAdmin) {
-                                  if (confirm(`Send block request? ${minToHHMM(startMin)}–${minToHHMM(startMin + currentDur)} (${currentDur}min)`)) {
-                                    setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: currentDur, _pendingResize: true } : x))
-                                    apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'block_time', data: { barberId: currentUser?.barber_id, startAt: sa.toISOString(), endAt: new Date(sa.getTime() + currentDur * 60000).toISOString(), bookingId: String(rawObj?.id) } }) }).catch(console.warn)
+                                  if (confirm(`Send resize request? ${minToHHMM(startMin)}–${minToHHMM(startMin + currentDur)} (${currentDur}min)`)) {
+                                    setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: currentDur, _pendingResize: true, _approvedDur: startDur } as any : x))
+                                    apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'block_time', data: { barberId: currentUser?.barber_id, startAt: sa.toISOString(), endAt: new Date(sa.getTime() + currentDur * 60000).toISOString(), bookingId: String(rawObj?.id), originalDur: startDur } }) }).catch(console.warn)
                                   }
                                 } else {
                                   if (confirm(`Resize block to ${minToHHMM(startMin)}–${minToHHMM(startMin + currentDur)} (${currentDur}min)?`)) {
