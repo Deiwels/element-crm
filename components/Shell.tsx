@@ -15,7 +15,7 @@ const NAV = [
   { id: 'dashboard', href: '/dashboard', label: 'Dashboard',  sub: 'Today overview' },
   { id: 'calendar',  href: '/calendar',  label: 'Calendar',   sub: 'Bookings grid' },
   { id: 'messages',  href: '/messages',  label: 'Messages',   sub: 'Team chat' },
-  { id: 'waitlist',  href: '/waitlist',  label: 'Waitlist',   sub: 'Queue & notify',      ownerAdmin: true },
+  { id: 'waitlist',  href: '/waitlist',  label: 'Waitlist',   sub: 'Queue & notify' },
   { id: 'clients',   href: '/clients',   label: 'Clients',    sub: 'Search / notes',      ownerAdmin: true },
   { id: 'payments',  href: '/payments',  label: 'Payments',   sub: 'Square + Terminal',   ownerAdmin: true },
   { id: 'attendance', href: '/attendance', label: 'Attendance', sub: 'Hours & clock',       ownerAdmin: true },
