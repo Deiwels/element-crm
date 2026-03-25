@@ -1735,7 +1735,7 @@ export default function CalendarPage() {
 
         {/* Mobile page dots — sticky at bottom */}
         {isMobile && !isStudent && !isBarber && visibleBarbers.length > BARBERS_PER_PAGE && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '6px 0 2px', flexShrink: 0, position: 'sticky', bottom: 0, zIndex: 10, background: '#000' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '6px 0 env(safe-area-inset-bottom, 2px)', flexShrink: 0, position: 'sticky', bottom: 0, zIndex: 10, background: 'transparent' }}>
             {Array.from({ length: Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE) }, (_, i) => (
               <button key={i} onClick={() => setMobilePage(i)}
                 style={{ width: mobilePage === i ? 18 : 8, height: 8, borderRadius: 4, border: 'none', background: mobilePage === i ? 'rgba(10,132,255,.80)' : 'rgba(255,255,255,.20)', cursor: 'pointer', transition: 'all .2s', padding: 0 }} />
