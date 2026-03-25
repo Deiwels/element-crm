@@ -1075,7 +1075,7 @@ export default function CalendarPage() {
   const loadPendingBlocks = useCallback(async () => {
     try {
       const data = await apiFetch('/api/requests')
-      const pending = (data?.requests || []).filter((r: any) => r.type === 'block_time' && r.status === 'pending' && r.data?.date === todayStr)
+      const pending = (data?.requests || []).filter((r: any) => r.type === 'block_time' && r.status === 'pending' && (!r.data?.date || r.data.date === todayStr))
       setPendingBlockRequests(pending)
     } catch { /* ignore */ }
   }, [todayStr])
@@ -1096,14 +1096,15 @@ export default function CalendarPage() {
     Promise.all([loadBarbers(), loadServices()]).then(async ([b, s]) => {
       setBarbers(b); setServices(s)
       setEvents(await loadBookings(b, s)); setLoading(false)
-      loadStudents(); loadWaitlist()
+      loadStudents(); loadWaitlist(); loadPendingBlocks()
     }).catch(e => { console.warn(e); setLoading(false) })
   }, [todayStr])
 
-  // Poll bookings every 15s
+  // Poll bookings + pending blocks every 15s
   useEffect(() => {
     const interval = setInterval(() => {
       loadBookings(barbers, services).then(setEvents).catch(console.warn)
+      loadPendingBlocks().catch(() => {})
     }, 15000)
     return () => clearInterval(interval)
   }, [barbers, services, loadBookings])
@@ -2135,7 +2136,7 @@ export default function CalendarPage() {
             if (blockModal.evId) {
               setEvents(prev => prev.map(x => x.id === blockModal.evId ? { ...x, durMin: dur, _pendingResize: true, _approvedDur: blockModal.originalDur } as any : x))
             }
-            apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'block_time', data: { barberId: blockModal.barberId, startAt: sa.toISOString(), endAt: new Date(sa.getTime() + dur * 60000).toISOString(), bookingId: blockModal.rawId, originalDur: blockModal.originalDur } }) }).then(() => showToast('Resize request sent')).catch(console.warn)
+            apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'block_time', data: { barberId: blockModal.barberId, date: todayStr, startMin: blockModal.startMin, duration: dur, startAt: sa.toISOString(), endAt: new Date(sa.getTime() + dur * 60000).toISOString(), bookingId: blockModal.rawId, originalDur: blockModal.originalDur } }) }).then(() => { showToast('Resize request sent'); loadPendingBlocks() }).catch(console.warn)
           }
           setBlockModal(null)
         }
