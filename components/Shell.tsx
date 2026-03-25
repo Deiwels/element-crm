@@ -304,6 +304,28 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   const [unreadChat, setUnreadChat] = useState<string | null>(null) // color of latest unread chat type
   const pathname = usePathname()
 
+  // Swipe to open/close sidebar
+  useEffect(() => {
+    let startX = 0, startY = 0
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0]; if (!t) return
+      startX = t.clientX; startY = t.clientY
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      const t = e.changedTouches[0]; if (!t) return
+      const dx = t.clientX - startX, dy = t.clientY - startY
+      if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return
+      if (dx > 0 && startX < 40) setSidebarOpen(true)
+      if (dx < 0) setSidebarOpen(false)
+    }
+    document.addEventListener('touchstart', onTouchStart, { passive: true })
+    document.addEventListener('touchend', onTouchEnd, { passive: true })
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart)
+      document.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [])
+
   useEffect(() => {
     const token = localStorage.getItem('ELEMENT_TOKEN')
     if (!token) { setStatus('noauth'); return }
