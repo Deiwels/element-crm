@@ -620,6 +620,11 @@ export default function CalendarPage() {
   const blockLongPressTimer = useRef<any>(null)
   const [trainingModal, setTrainingModal] = useState<{ barberId: string; barberName: string; min: number } | null>(null)
   const [toast, setToast] = useState('')
+  // Block modals
+  const [blockModal, setBlockModal] = useState<{ type: 'create' | 'resize'; barberId: string; startMin: number; currentDur: number; originalDur: number; evId?: string; rawId?: string } | null>(null)
+  const [blockDurInput, setBlockDurInput] = useState('30')
+  // Pending block requests (loaded from /api/requests)
+  const [pendingBlockRequests, setPendingBlockRequests] = useState<any[]>([])
   const [slotPicker, setSlotPicker] = useState<{ min: number; mentorId: string; mentorName: string }[] | null>(null)
   const [mobilePage, setMobilePage] = useState(0)
   const BARBERS_PER_PAGE = 2
@@ -1066,6 +1071,15 @@ export default function CalendarPage() {
     } catch { /* ignore */ }
   }, [isOwnerOrAdmin, todayStr])
 
+  // Load pending block requests to show as breathing blocks
+  const loadPendingBlocks = useCallback(async () => {
+    try {
+      const data = await apiFetch('/api/requests')
+      const pending = (data?.requests || []).filter((r: any) => r.type === 'block_time' && r.status === 'pending' && r.data?.date === todayStr)
+      setPendingBlockRequests(pending)
+    } catch { /* ignore */ }
+  }, [todayStr])
+
   const reloadAll = useCallback(async () => {
     try {
       const [b, s] = await Promise.all([loadBarbers(), loadServices()])
@@ -1073,8 +1087,9 @@ export default function CalendarPage() {
       setEvents(await loadBookings(b, s))
       loadStudents()
       loadWaitlist()
+      loadPendingBlocks()
     } catch(e) { console.warn(e) }
-  }, [loadBarbers, loadServices, loadBookings, loadStudents, loadWaitlist])
+  }, [loadBarbers, loadServices, loadBookings, loadStudents, loadWaitlist, loadPendingBlocks])
 
   useEffect(() => {
     setLoading(true)
@@ -1208,20 +1223,10 @@ export default function CalendarPage() {
 
   // ── Create / Block ─────────────────────────────────────────────────────────
   function openCreateBlock(barberId: string, startMin: number, durMin?: number) {
-    // Barber sends block as request for approval — ask for duration first
+    // Barber sends block as request for approval — show styled modal
     if (isBarber && !isOwnerOrAdmin && barberId === myBarberId) {
-      const durationStr = prompt('How many minutes do you want to block?', String(durMin || 30))
-      if (!durationStr) return
-      const duration = Math.max(5, Math.round(Number(durationStr) / 5) * 5) || 30
-      const startAt = new Date(todayStr + 'T' + minToHHMM(clamp(startMin)) + ':00')
-      // Show pending block immediately (with pending flag)
-      const pendingId = 'pending_block_' + Date.now()
-      const barber = barbers.find(b => b.id === barberId)
-      setEvents(prev => [...prev, { id: pendingId, type: 'block' as const, barberId, barberName: barber?.name || '', clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Pending approval', date: todayStr, startMin: clamp(startMin), durMin: duration, status: 'block_pending', paid: false, notes: 'Pending approval', _raw: null }])
-      apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
-        type: 'block_time',
-        data: { barberId, barberName: barber?.name || '', date: todayStr, startMin: clamp(startMin), duration, startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + duration*60000).toISOString() }
-      })}).then(() => showToast('Block request sent for approval')).catch(e => { showToast('Error: ' + e.message); setEvents(prev => prev.filter(x => x.id !== pendingId)) })
+      setBlockDurInput(String(durMin || 30))
+      setBlockModal({ type: 'create', barberId, startMin: clamp(startMin), currentDur: durMin || 30, originalDur: 0 })
       return
     }
     const duration = durMin || 30
@@ -1683,10 +1688,7 @@ export default function CalendarPage() {
                                 setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: startDur } : x))
                                 const sa = new Date(dateStr + 'T' + minToHHMM(startMin) + ':00')
                                 if (isBarber && !isOwnerOrAdmin) {
-                                  if (confirm(`Send resize request? ${minToHHMM(startMin)}–${minToHHMM(startMin + currentDur)} (${currentDur}min)`)) {
-                                    setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: currentDur, _pendingResize: true, _approvedDur: startDur } as any : x))
-                                    apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'block_time', data: { barberId: currentUser?.barber_id, startAt: sa.toISOString(), endAt: new Date(sa.getTime() + currentDur * 60000).toISOString(), bookingId: String(rawObj?.id), originalDur: startDur } }) }).catch(console.warn)
-                                  }
+                                  setBlockModal({ type: 'resize', barberId: currentUser?.barber_id || '', startMin, currentDur, originalDur: startDur, evId, rawId: String(rawObj?.id || '') })
                                 } else {
                                   if (confirm(`Resize block to ${minToHHMM(startMin)}–${minToHHMM(startMin + currentDur)} (${currentDur}min)?`)) {
                                     setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: currentDur } : x))
@@ -1739,6 +1741,22 @@ export default function CalendarPage() {
                             </div>
                           </div>
                           {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToHHMM(ev.startMin)} · {ev.serviceName}</div>}
+                        </div>
+                      )
+                    })}
+                    {/* Pending block request ghosts */}
+                    {pendingBlockRequests.filter(r => r.data?.barberId === barber.id).map((r, ri) => {
+                      const reqStartMin = Number(r.data?.startMin || 0)
+                      const reqDur = Number(r.data?.duration || 30)
+                      if (!reqStartMin) return null
+                      const top = minToY(reqStartMin)
+                      const height = Math.max(24, (reqDur / 5) * slotH) - 2
+                      return (
+                        <div key={`pblock-${r.id}`} className="block-pending-pulse" style={{ position: 'absolute', left: 4, right: 4, top, height, borderRadius: 10, zIndex: 3, padding: '5px 8px', overflow: 'hidden', pointerEvents: 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'rgba(255,107,107,.85)', fontWeight: 900 }}>Pending {minToHHMM(reqStartMin)}–{minToHHMM(reqStartMin + reqDur)}</span>
+                          </div>
                         </div>
                       )
                     })}
@@ -2098,6 +2116,63 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* Block duration / resize modal */}
+      {blockModal && (() => {
+        const isCreate = blockModal.type === 'create'
+        const submitBlock = () => {
+          const dur = Math.max(5, Math.round(Number(blockDurInput) / 5) * 5) || 30
+          if (isCreate) {
+            const startAt = new Date(todayStr + 'T' + minToHHMM(blockModal.startMin) + ':00')
+            const barber = barbers.find(b => b.id === blockModal.barberId)
+            apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
+              type: 'block_time',
+              data: { barberId: blockModal.barberId, barberName: barber?.name || '', date: todayStr, startMin: blockModal.startMin, duration: dur, startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + dur * 60000).toISOString() }
+            })}).then(() => { showToast('Block request sent'); loadPendingBlocks() }).catch(e => showToast('Error: ' + e.message))
+          } else {
+            // Resize
+            const sa = new Date(todayStr + 'T' + minToHHMM(blockModal.startMin) + ':00')
+            if (blockModal.evId) {
+              setEvents(prev => prev.map(x => x.id === blockModal.evId ? { ...x, durMin: dur, _pendingResize: true, _approvedDur: blockModal.originalDur } as any : x))
+            }
+            apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'block_time', data: { barberId: blockModal.barberId, startAt: sa.toISOString(), endAt: new Date(sa.getTime() + dur * 60000).toISOString(), bookingId: blockModal.rawId, originalDur: blockModal.originalDur } }) }).then(() => showToast('Resize request sent')).catch(console.warn)
+          }
+          setBlockModal(null)
+        }
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 16 }}
+            onClick={e => { if (e.target === e.currentTarget) setBlockModal(null) }}>
+            <div style={{ width: 'min(380px,92vw)', borderRadius: 22, border: '1px solid rgba(255,107,107,.25)', background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60)', padding: '24px 22px', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(255,107,107,.10)', border: '1px solid rgba(255,107,107,.30)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6b6b" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                </div>
+              </div>
+              <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.14em', textTransform: 'uppercase', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>{isCreate ? 'Block Time' : 'Resize Block'}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', textAlign: 'center', marginBottom: 16 }}>
+                {isCreate ? `Starting at ${minToHHMM(blockModal.startMin)}` : `${minToHHMM(blockModal.startMin)} — currently ${blockModal.originalDur}min`}
+              </div>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 6 }}>Duration (minutes)</div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+                  {[15, 30, 45, 60, 90, 120].map(d => (
+                    <button key={d} onClick={() => setBlockDurInput(String(d))} style={{ height: 36, minWidth: 48, borderRadius: 10, border: `1px solid ${String(d) === blockDurInput ? 'rgba(255,107,107,.65)' : 'rgba(255,255,255,.14)'}`, background: String(d) === blockDurInput ? 'rgba(255,107,107,.15)' : 'rgba(255,255,255,.04)', color: String(d) === blockDurInput ? '#ffd0d0' : '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>{d}</button>
+                  ))}
+                </div>
+                <input type="number" value={blockDurInput} onChange={e => setBlockDurInput(e.target.value)} min={5} max={480} step={5} style={{ width: 80, height: 40, borderRadius: 10, border: '1px solid rgba(255,255,255,.18)', background: 'rgba(255,255,255,.06)', color: '#fff', textAlign: 'center', fontSize: 18, fontWeight: 900, outline: 'none', fontFamily: 'inherit' }} />
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 4 }}>{minToHHMM(blockModal.startMin)} — {minToHHMM(blockModal.startMin + (Number(blockDurInput) || 30))}</div>
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,107,107,.60)', textAlign: 'center', marginBottom: 16 }}>This will be sent for owner/admin approval</div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <button onClick={() => setBlockModal(null)} style={{ flex: 1, height: 44, borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Cancel</button>
+                <button onClick={submitBlock} style={{ flex: 2, height: 44, borderRadius: 999, border: '1px solid rgba(255,107,107,.55)', background: 'rgba(255,107,107,.12)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>{isCreate ? 'Request Block' : 'Request Resize'}</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Pending block requests as ghost events in calendar */}
 
       {/* Waitlist confirm modal */}
       {wlConfirm && (() => {
