@@ -1642,56 +1642,54 @@ export default function CalendarPage() {
                             </div>
                             {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setEvents(prev => prev.filter(x => x.id!==ev.id)); if (ev._raw?.id) apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'DELETE'}).catch(console.warn) }} style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: 'rgba(255,107,107,.90)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontFamily: 'inherit' }}>✕</button>}
                           </div>
-                          {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && <div onMouseDown={e => {
-                            e.stopPropagation(); e.preventDefault()
-                            const startY = e.clientY, startDur = ev.durMin, evId = ev.id
-                            const onMove = (me: MouseEvent) => { me.preventDefault(); setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: Math.max(5, startDur + Math.round((me.clientY-startY)/slotH)*5)} : x)) }
-                            const onUp = () => {
-                              window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp)
-                              const u = events.find(x=>x.id===evId); if (!u?._raw?.id) return
-                              const newDur = u.durMin
-                              if (newDur === startDur) return // no change
-                              // Revert visual immediately
-                              setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: startDur} : x))
-                              const sa = new Date(u.date+'T'+minToHHMM(u.startMin)+':00')
-                              if (isBarber && !isOwnerOrAdmin) {
-                                if (confirm(`Send block request? ${minToHHMM(u.startMin)}–${minToHHMM(u.startMin+newDur)} (${newDur}min)`)) {
-                                  setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: newDur, _pendingResize: true} : x))
-                                  apiFetch('/api/requests',{method:'POST',body:JSON.stringify({type:'block_time',data:{barberId:currentUser?.barber_id,startAt:sa.toISOString(),endAt:new Date(sa.getTime()+newDur*60000).toISOString(),bookingId:String(u._raw.id)}})}).catch(console.warn)
-                                }
-                              } else {
-                                if (confirm(`Resize block to ${minToHHMM(u.startMin)}–${minToHHMM(u.startMin+newDur)} (${newDur}min)?`)) {
-                                  setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: newDur} : x))
-                                  apiFetch('/api/bookings/'+encodeURIComponent(String(u._raw.id)),{method:'PATCH',body:JSON.stringify({end_at:new Date(sa.getTime()+newDur*60000).toISOString()})}).catch(console.warn)
+                          {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && (() => {
+                            const handleResize = (startY: number, getY: (e: any) => number, evId: string, startDur: number, rawObj: any, startMin: number, dateStr: string, addMove: (fn: any) => void, addEnd: (fn: any) => void, rmMove: (fn: any) => void, rmEnd: (fn: any) => void) => {
+                              let currentDur = startDur
+                              const onMove = (e: any) => {
+                                if (e.preventDefault) e.preventDefault()
+                                const dy = getY(e) - startY
+                                currentDur = Math.max(5, startDur + Math.round(dy / slotH) * 5)
+                                setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: currentDur } : x))
+                              }
+                              const onEnd = () => {
+                                rmMove(onMove); rmEnd(onEnd)
+                                if (currentDur === startDur) return
+                                // Revert to original
+                                setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: startDur } : x))
+                                const sa = new Date(dateStr + 'T' + minToHHMM(startMin) + ':00')
+                                if (isBarber && !isOwnerOrAdmin) {
+                                  if (confirm(`Send block request? ${minToHHMM(startMin)}–${minToHHMM(startMin + currentDur)} (${currentDur}min)`)) {
+                                    setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: currentDur, _pendingResize: true } : x))
+                                    apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'block_time', data: { barberId: currentUser?.barber_id, startAt: sa.toISOString(), endAt: new Date(sa.getTime() + currentDur * 60000).toISOString(), bookingId: String(rawObj?.id) } }) }).catch(console.warn)
+                                  }
+                                } else {
+                                  if (confirm(`Resize block to ${minToHHMM(startMin)}–${minToHHMM(startMin + currentDur)} (${currentDur}min)?`)) {
+                                    setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: currentDur } : x))
+                                    apiFetch('/api/bookings/' + encodeURIComponent(String(rawObj?.id)), { method: 'PATCH', body: JSON.stringify({ end_at: new Date(sa.getTime() + currentDur * 60000).toISOString() }) }).catch(console.warn)
+                                  }
                                 }
                               }
+                              addMove(onMove); addEnd(onEnd)
                             }
-                            window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp)
-                          }} onTouchStart={e => {
-                            e.stopPropagation()
-                            const startY = e.touches[0].clientY, startDur = ev.durMin, evId = ev.id
-                            const onMove = (te: TouchEvent) => { te.preventDefault(); const dy = te.touches[0].clientY - startY; setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: Math.max(5, startDur + Math.round(dy/slotH)*5)} : x)) }
-                            const onEnd = () => {
-                              window.removeEventListener('touchmove',onMove); window.removeEventListener('touchend',onEnd)
-                              const u = events.find(x=>x.id===evId); if (!u?._raw?.id) return
-                              const newDur = u.durMin
-                              if (newDur === startDur) return
-                              setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: startDur} : x))
-                              const sa = new Date(u.date+'T'+minToHHMM(u.startMin)+':00')
-                              if (isBarber && !isOwnerOrAdmin) {
-                                if (confirm(`Send block request? ${minToHHMM(u.startMin)}–${minToHHMM(u.startMin+newDur)} (${newDur}min)`)) {
-                                  setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: newDur, _pendingResize: true} : x))
-                                  apiFetch('/api/requests',{method:'POST',body:JSON.stringify({type:'block_time',data:{barberId:currentUser?.barber_id,startAt:sa.toISOString(),endAt:new Date(sa.getTime()+newDur*60000).toISOString(),bookingId:String(u._raw.id)}})}).catch(console.warn)
-                                }
-                              } else {
-                                if (confirm(`Resize block to ${minToHHMM(u.startMin)}–${minToHHMM(u.startMin+newDur)} (${newDur}min)?`)) {
-                                  setEvents(prev => prev.map(x => x.id===evId ? {...x, durMin: newDur} : x))
-                                  apiFetch('/api/bookings/'+encodeURIComponent(String(u._raw.id)),{method:'PATCH',body:JSON.stringify({end_at:new Date(sa.getTime()+newDur*60000).toISOString()})}).catch(console.warn)
-                                }
-                              }
-                            }
-                            window.addEventListener('touchmove',onMove,{passive:false}); window.addEventListener('touchend',onEnd)
-                          }} style={{ position: 'absolute', left: 10, right: 10, bottom: 4, height: 12, borderRadius: 999, background: 'rgba(255,107,107,.35)', cursor: 'ns-resize', touchAction: 'none' }} />}
+                            return <div
+                              onMouseDown={e => {
+                                e.stopPropagation(); e.preventDefault()
+                                handleResize(e.clientY, (me: MouseEvent) => me.clientY, ev.id, ev.durMin, ev._raw, ev.startMin, ev.date,
+                                  fn => window.addEventListener('mousemove', fn),
+                                  fn => window.addEventListener('mouseup', fn),
+                                  fn => window.removeEventListener('mousemove', fn),
+                                  fn => window.removeEventListener('mouseup', fn))
+                              }}
+                              onTouchStart={e => {
+                                e.stopPropagation()
+                                handleResize(e.touches[0].clientY, (te: TouchEvent) => te.touches[0].clientY, ev.id, ev.durMin, ev._raw, ev.startMin, ev.date,
+                                  fn => window.addEventListener('touchmove', fn, { passive: false }),
+                                  fn => window.addEventListener('touchend', fn),
+                                  fn => window.removeEventListener('touchmove', fn),
+                                  fn => window.removeEventListener('touchend', fn))
+                              }}
+                              style={{ position: 'absolute', left: 10, right: 10, bottom: 4, height: 14, borderRadius: 999, background: 'rgba(255,107,107,.40)', cursor: 'ns-resize', touchAction: 'none' }} />
+                          })()}
                         </div>
                       )
 
