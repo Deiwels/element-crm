@@ -1420,7 +1420,8 @@ export default function CalendarPage() {
             : visibleBarbers
           const timeColW = isMobile ? 46 : 90
           return (
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', touchAction: drag ? 'none' : 'pan-x pan-y' }} ref={scrollContainerRef} onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd}>
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', touchAction: drag ? 'none' : 'pan-x pan-y' }} ref={scrollContainerRef} onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd}>
           <div style={{ minWidth: timeColW + pageBarbers.length * COL_MIN }}>
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
@@ -1733,15 +1734,16 @@ export default function CalendarPage() {
           )
         })()}
 
-        {/* Mobile page dots — sticky at bottom */}
+        {/* Mobile page dots — floating over calendar */}
         {isMobile && !isStudent && !isBarber && visibleBarbers.length > BARBERS_PER_PAGE && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '6px 0 env(safe-area-inset-bottom, 2px)', flexShrink: 0, position: 'sticky', bottom: 0, zIndex: 10, background: 'transparent' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '6px 0', position: 'absolute', bottom: 8, left: 0, right: 0, zIndex: 10, pointerEvents: 'none' }}>
             {Array.from({ length: Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE) }, (_, i) => (
               <button key={i} onClick={() => setMobilePage(i)}
-                style={{ width: mobilePage === i ? 18 : 8, height: 8, borderRadius: 4, border: 'none', background: mobilePage === i ? 'rgba(10,132,255,.80)' : 'rgba(255,255,255,.20)', cursor: 'pointer', transition: 'all .2s', padding: 0 }} />
+                style={{ width: mobilePage === i ? 18 : 8, height: 8, borderRadius: 4, border: 'none', background: mobilePage === i ? 'rgba(10,132,255,.80)' : 'rgba(255,255,255,.20)', cursor: 'pointer', transition: 'all .2s', padding: 0, pointerEvents: 'auto' }} />
             ))}
           </div>
         )}
+        </div>
 
         {loading && <div style={{ position: 'fixed', bottom: 20, right: 20, padding: '8px 16px', borderRadius: 999, background: 'rgba(10,132,255,.20)', border: '1px solid rgba(10,132,255,.40)', color: '#d7ecff', fontSize: 12, zIndex: 99 }}>Loading…</div>}
       </div>
