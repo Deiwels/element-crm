@@ -8,12 +8,14 @@ const MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 // value = "role:uid" e.g. "owner:abc123" or "barber:xyz"
 export function setAuthCookie(value: string): void {
   if (typeof document === 'undefined') return
+  const isSecure = window.location.protocol === 'https:'
   document.cookie = [
     `${COOKIE_NAME}=${encodeURIComponent(value)}`,
     `path=/`,
     `max-age=${MAX_AGE}`,
     `SameSite=Lax`,
-  ].join('; ')
+    isSecure ? 'Secure' : '',
+  ].filter(Boolean).join('; ')
 }
 
 export function clearAuthCookie(): void {
