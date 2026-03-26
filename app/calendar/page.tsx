@@ -1370,10 +1370,10 @@ export default function CalendarPage() {
         }
         .block-pending-pulse { animation: blockPendingPulse 2.4s ease-in-out infinite; }
         @keyframes arrivedPulse {
-          0%, 100% { box-shadow: 0 0 6px rgba(143,240,177,.12); border-color: rgba(143,240,177,.25); border-width: 1px; border-style: solid; background: linear-gradient(180deg,rgba(143,240,177,.12),rgba(143,240,177,.04)); }
-          50% { box-shadow: 0 0 22px rgba(143,240,177,.50); border-color: rgba(143,240,177,.60); border-width: 1px; border-style: solid; background: linear-gradient(180deg,rgba(143,240,177,.28),rgba(143,240,177,.10)); }
+          0%, 100% { box-shadow: 0 0 8px rgba(143,240,177,.10), inset 0 0 12px rgba(143,240,177,.04); border-color: rgba(143,240,177,.22); border-width: 1px; border-style: solid; background: linear-gradient(180deg,rgba(143,240,177,.10),rgba(143,240,177,.03)); }
+          50% { box-shadow: 0 0 24px rgba(143,240,177,.50), inset 0 0 30px rgba(143,240,177,.15); border-color: rgba(143,240,177,.60); border-width: 1px; border-style: solid; background: linear-gradient(180deg,rgba(143,240,177,.30),rgba(143,240,177,.12)); }
         }
-        .arrived-pulse { animation: arrivedPulse 2.4s ease-in-out infinite; }
+        .arrived-pulse { animation: arrivedPulse 2.6s ease-in-out infinite; }
         /* Desktop: hide mobile-only elements */
         .cal-search-icon{ display:none !important; }
         .cal-settings-icon{ display:none !important; }
