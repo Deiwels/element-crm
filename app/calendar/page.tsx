@@ -1270,7 +1270,7 @@ export default function CalendarPage() {
     setEvents(prev => [...prev, { id, type: 'block', barberId, barberName: barber?.name || '', clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Blocked', date: todayStr, startMin: clamp(startMin), durMin: duration, status: 'block', paid: false, notes: '', _raw: null }])
     const startAt = new Date(todayStr + 'T' + minToHHMM(clamp(startMin)) + ':00')
     try {
-      const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: barberId, type: 'block', status: 'block', client_name: 'BLOCKED', service_id: '', start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + duration*60000).toISOString(), notes: 'Blocked by manager' }) })
+      const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: barberId, type: 'block', status: 'confirmed', client_name: 'BLOCKED', service_id: '', start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + duration*60000).toISOString(), notes: 'Blocked by manager' }) })
       const savedId = res?.booking?.id || res?.id
       if (savedId) setEvents(prev => prev.map(e => e.id === id ? { ...e, _raw: { id: savedId } } : e))
       showToast('Block saved')
