@@ -2167,8 +2167,8 @@ export default function CalendarPage() {
           existingEvent={selectedEvent ? { id: selectedEvent.id, clientName: selectedEvent.clientName, clientPhone: selectedEvent.clientPhone, serviceId: selectedEvent.serviceId, serviceIds: selectedEvent.serviceIds, status: selectedEvent.status, notes: selectedEvent.notes, paid: selectedEvent.paid, paymentMethod: selectedEvent.paymentMethod, isModelEvent: selectedEvent._raw?.booking_type === 'model' || selectedEvent._raw?.booking_type === 'training', photoUrl: (() => {
               const r = selectedEvent._raw
               return r?.reference_photo_url || r?.photo_url || r?.client_photo || r?.client_photo_url || r?.attachment_url || r?.image_url || r?.photo || r?.haircut_photo || r?.style_photo || ''
-            })(), _raw: { ...selectedEvent._raw, start_min: selectedEvent.startMin } } : null}
-          allEvents={events.map(e => ({ id: e.id, barberId: e.barberId, startMin: e.startMin, durMin: e.durMin, status: e.status, paid: e.paid, clientName: e.clientName, paymentStatus: (e._raw as any)?.payment_status || '' }))}
+            })(), _raw: { ...selectedEvent._raw, start_min: selectedEvent.startMin, date: selectedEvent.date } } : null}
+          allEvents={events.map(e => ({ id: e.id, barberId: e.barberId, startMin: e.startMin, durMin: e.durMin, status: e.status, paid: e.paid, clientName: e.clientName, date: e.date, paymentStatus: (e._raw as any)?.payment_status || '' }))}
           onClose={() => { if (modal.isNew) setEvents(prev => prev.filter(e => e.id !== modal.eventId)); setModal({ open: false, eventId: null, isNew: false }) }}
           onSave={handleSave} onDelete={handleDelete} onPayment={handlePayment}
           onOpenEvent={(eventId) => { setModal({ open: false, eventId: null, isNew: false }); setTimeout(() => setModal({ open: true, eventId, isNew: false }), 100) }}

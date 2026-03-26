@@ -77,7 +77,7 @@ interface BookingModalProps {
   myBarberId?: string
   isStudent?: boolean
   mentorBarberIds?: string[]
-  allEvents?: Array<{ id: string; barberId: string; startMin: number; durMin: number; status: string; paid: boolean; clientName: string; paymentStatus?: string }>
+  allEvents?: Array<{ id: string; barberId: string; startMin: number; durMin: number; status: string; paid: boolean; clientName: string; date?: string; paymentStatus?: string }>
   existingEvent?: {
     id: string
     clientName: string
@@ -536,13 +536,14 @@ function PhotoUpload({ value, onChange }: { value: string; onChange: (url: strin
 }
 
 // ─── PaymentPanel ─────────────────────────────────────────────────────────────
-function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEvent }: {
+function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEvent, date }: {
   ev: BookingModalProps['existingEvent']
   services: Service[]
   onPayment: (method: string, tip: number) => void
   allEvents?: BookingModalProps['allEvents']
   barberId?: string
   onOpenEvent?: (eventId: string) => void
+  date?: string
 }) {
   const [method, setMethod] = useState('terminal')
   const [tipYes, setTipYes] = useState(false)
@@ -566,13 +567,15 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
   const priceCalc = calcTotal(basePrice, shopSettings)
   const price = priceCalc.total  // total with tax + fees
 
-  // Find blocking event — same barber, earlier start, not resolved
-  // Exclude block events (type 'block' or clientName 'BLOCKED') — they don't need payment
-  const RESOLVED = ['paid', 'done', 'cancelled', 'noshow', 'no_show', 'refunded', 'partially_refunded', 'block']
+  // Find blocking event — same barber, same day, earlier start, not resolved
+  // Exclude block events (clientName 'BLOCKED') — they don't need payment
+  const RESOLVED = ['paid', 'done', 'cancelled', 'noshow', 'no_show', 'refunded', 'partially_refunded', 'block', 'completed']
+  const evDate = date || ev?._raw?.date || ev?._raw?.start_at?.slice?.(0, 10) || ''
   const blockingEvent = ev && allEvents && barberId
     ? allEvents.find(e =>
         e.id !== ev.id &&
         e.barberId === barberId &&
+        e.date === evDate &&
         e.clientName !== 'BLOCKED' &&
         e.clientName !== 'Client' &&
         e.startMin < (ev._raw?.start_min ?? 0) &&
@@ -1118,7 +1121,7 @@ export function BookingModal({
 
             {/* Payment — owner/admin only, NOT for new bookings or model/training */}
             {isOwnerOrAdmin && existingEvent && !isNew && !isModelEvent && (
-              <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} allEvents={allEvents} barberId={barberId} onOpenEvent={onOpenEvent} />
+              <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} allEvents={allEvents} barberId={barberId} onOpenEvent={onOpenEvent} date={date} />
             )}
 
             {/* Form error */}
