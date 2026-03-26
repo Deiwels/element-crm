@@ -854,7 +854,7 @@ export default function CalendarPage() {
       : barbers
   const totalPages = Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE)
 
-  // Swipe handler for mobile
+  // Swipe handler for mobile — always changes day for everyone
   useEffect(() => {
     if (!isMobile) return
     const el = scrollContainerRef.current; if (!el) return
@@ -865,20 +865,14 @@ export default function CalendarPage() {
       const dy = e.changedTouches[0].clientY - swipeRef.current.startY
       swipeRef.current = null
       if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return
-      if (isBarber || isStudent || visibleBarbers.length <= BARBERS_PER_PAGE) {
-        // Barber/student: swipe changes day
-        if (dx < 0) setAnchor(a => { const x = new Date(a); x.setDate(x.getDate() + 1); return x })
-        else setAnchor(a => { const x = new Date(a); x.setDate(x.getDate() - 1); return x })
-      } else {
-        // Owner/admin: swipe changes barber page
-        if (dx < 0) setMobilePage(p => Math.min(p + 1, totalPages - 1))
-        else setMobilePage(p => Math.max(p - 1, 0))
-      }
+      // Swipe changes day for all roles
+      if (dx < 0) setAnchor(a => { const x = new Date(a); x.setDate(x.getDate() + 1); return x })
+      else setAnchor(a => { const x = new Date(a); x.setDate(x.getDate() - 1); return x })
     }
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchend', onTouchEnd, { passive: true })
     return () => { el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchend', onTouchEnd) }
-  }, [isMobile, isStudent, isBarber, visibleBarbers.length, totalPages])
+  }, [isMobile])
 
   const todayStr = isoDate(anchor)
 
@@ -1500,36 +1494,41 @@ export default function CalendarPage() {
 
         {/* Calendar grid */}
         {(() => {
-          // On mobile (owner/admin with multiple barbers): show BARBERS_PER_PAGE at a time
-          const pageBarbers = (isMobile && !isStudent && !isBarber && visibleBarbers.length > BARBERS_PER_PAGE)
-            ? visibleBarbers.slice(mobilePage * BARBERS_PER_PAGE, mobilePage * BARBERS_PER_PAGE + BARBERS_PER_PAGE)
-            : visibleBarbers
-          const timeColW = isMobile ? 46 : 90
+          // On mobile: show ALL barbers with narrower columns
+          const pageBarbers = visibleBarbers
+          const timeColW = isMobile ? 36 : 90
+          // Dynamic column min-width: shrink columns to fit all barbers on screen
+          const mobileColMin = isMobile && pageBarbers.length > 1
+            ? Math.max(60, Math.floor((window.innerWidth - timeColW) / pageBarbers.length))
+            : COL_MIN
+          const colMin = isMobile ? mobileColMin : COL_MIN
           return (
         <div style={{ flex: 1, position: 'relative', overflowY: 'auto', overflowX: 'hidden', touchAction: drag ? 'none' : 'pan-x pan-y' }} ref={scrollContainerRef} onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd}>
-          <div style={{ minWidth: timeColW + pageBarbers.length * COL_MIN }}>
+          <div style={{ minWidth: timeColW + pageBarbers.length * colMin }}>
             {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${colMin}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
               <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,.10)', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', textAlign: 'center' }}>Time</div>
               {pageBarbers.map((b, i) => {
                 const attachedStudents = studentUsers.filter(s => s.mentorIds.includes(b.id))
+                const compact = isMobile && pageBarbers.length > 2
+                const photoSize = compact ? 22 : 32
                 return (
-                  <div key={b.id} style={{ padding: '10px 12px', borderRight: i < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div key={b.id} style={{ padding: compact ? '6px 4px' : '10px 12px', borderRight: i < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'center', gap: compact ? 2 : 10, overflow: 'hidden' }}>
                     {b.id === '__student__' ? (
-                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(168,107,255,.20)', border: '1px solid rgba(168,107,255,.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>
+                      <div style={{ width: photoSize, height: photoSize, borderRadius: compact ? 7 : 10, background: 'rgba(168,107,255,.20)', border: '1px solid rgba(168,107,255,.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width={compact ? 11 : 15} height={compact ? 11 : 15} viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>
                       </div>
-                    ) : b.photo ? <img src={b.photo} alt={b.name} style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} /> : <div style={{ width: 10, height: 10, borderRadius: 999, background: b.color, flexShrink: 0 }} />}
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'nowrap' }}>
-                        <span style={{ fontWeight: 900, fontSize: 13, whiteSpace: 'nowrap' }}>{b.name}</span>
-                        {attachedStudents.length > 0 && attachedStudents.map(s => (
+                    ) : b.photo ? <img src={b.photo} alt={b.name} style={{ width: photoSize, height: photoSize, borderRadius: compact ? 7 : 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)', flexShrink: 0 }} onError={e => (e.currentTarget.style.display='none')} /> : <div style={{ width: compact ? 8 : 10, height: compact ? 8 : 10, borderRadius: 999, background: b.color, flexShrink: 0 }} />}
+                    <div style={{ minWidth: 0, textAlign: compact ? 'center' : 'left', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'nowrap', justifyContent: compact ? 'center' : 'flex-start' }}>
+                        <span style={{ fontWeight: 900, fontSize: compact ? 9 : 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{compact ? b.name.split(' ')[0] : b.name}</span>
+                        {!compact && attachedStudents.length > 0 && attachedStudents.map(s => (
                           <span key={s.id} style={{ fontSize: 8, padding: '1px 5px', borderRadius: 999, border: '1px solid rgba(168,107,255,.25)', background: 'rgba(168,107,255,.08)', color: 'rgba(168,107,255,.65)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                             {s.name.split(' ')[0]}
                           </span>
                         ))}
                       </div>
-                      {b.level && <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgba(255,255,255,.35)' }}>{b.level}</div>}
+                      {!compact && b.level && <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'rgba(255,255,255,.35)' }}>{b.level}</div>}
                     </div>
                   </div>
                 )
@@ -1537,7 +1536,7 @@ export default function CalendarPage() {
             </div>
 
             {/* Body */}
-            <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${COL_MIN}px,1fr))`, height: totalH, position: 'relative' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${colMin}px,1fr))`, height: totalH, position: 'relative' }}>
               {/* Time labels */}
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
                 {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
@@ -1773,12 +1772,18 @@ export default function CalendarPage() {
                         </div>
                       )
 
+                      const tinyCol = isMobile && pageBarbers.length > 2
                       return (
                         <div key={ev.id} className="cal-event"
-                          style={{ position: 'absolute', left: 8, right: 8, top, height: height-2, borderRadius: 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}26,${barber.color}12)`, padding: '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
+                          style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}26,${barber.color}12)`, padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
                           onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; startDrag(e, ev, bi) }}
                           onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
+                          {tinyCol ? (<>
+                            <div style={{ fontWeight: 900, fontSize: 9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.clientName.split(' ')[0]}</div>
+                            {height > 30 && <div style={{ fontSize: 8, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToAMPM(ev.startMin)}</div>}
+                            {height > 44 && <div style={{ fontSize: 8, color: ev.paid ? 'rgba(143,240,177,.70)' : 'rgba(255,255,255,.40)' }}>{ev.paid ? '✓' : ev.status?.charAt(0).toUpperCase()}</div>}
+                          </>) : (<>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
                             <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>{ev.clientName}{ev._raw?.client_status === 'vip' ? <span style={{ fontSize: 8, fontWeight: 900, color: '#ffd700', background: 'rgba(255,215,0,.18)', border: '1px solid rgba(255,215,0,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>VIP</span> : ev._raw?.client_status === 'new' ? <span style={{ fontSize: 8, fontWeight: 900, color: '#7abaff', background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>NEW</span> : ev._raw?.client_status === 'at_risk' ? <span style={{ fontSize: 9, fontWeight: 900, color: '#ff6b6b', background: 'rgba(255,107,107,.18)', border: '1px solid rgba(255,107,107,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>!</span> : ev._raw?.client_status === 'active' ? <span style={{ width: 5, height: 5, borderRadius: 999, background: '#8ff0b1', flexShrink: 0 }} /> : null}</div>
                             <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
@@ -1794,6 +1799,7 @@ export default function CalendarPage() {
                             </div>
                           </div>
                           {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToAMPM(ev.startMin)} · {ev.serviceName}</div>}
+                          </>)}
                         </div>
                       )
                     })}
@@ -1852,15 +1858,7 @@ export default function CalendarPage() {
           )
         })()}
 
-        {/* Mobile page dots — floating over calendar */}
-        {isMobile && !isStudent && !isBarber && visibleBarbers.length > BARBERS_PER_PAGE && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '6px 0', position: 'absolute', bottom: 8, left: 0, right: 0, zIndex: 10, pointerEvents: 'none' }}>
-            {Array.from({ length: Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE) }, (_, i) => (
-              <button key={i} onClick={() => setMobilePage(i)}
-                style={{ width: mobilePage === i ? 18 : 8, height: 8, borderRadius: 4, border: 'none', background: mobilePage === i ? 'rgba(10,132,255,.80)' : 'rgba(255,255,255,.20)', cursor: 'pointer', transition: 'all .2s', padding: 0, pointerEvents: 'auto' }} />
-            ))}
-          </div>
-        )}
+        {/* Mobile page dots removed — all barbers shown at once now */}
 
         {loading && <div style={{ position: 'fixed', bottom: 20, right: 20, padding: '8px 16px', borderRadius: 999, background: 'rgba(10,132,255,.20)', border: '1px solid rgba(10,132,255,.40)', color: '#d7ecff', fontSize: 12, zIndex: 99 }}>Loading…</div>}
       </div>
