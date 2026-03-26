@@ -1978,10 +1978,21 @@ export default function CalendarPage() {
           try {
             // Barber sends request instead of direct save
             if (isBarber && !isOwnerOrAdmin) {
-              // Build full schedule with the change applied so backend can save directly
+              // Build per-day schedule with the change applied
               const barber = barbers.find(b => b.id === barberId)
-              const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
-              const newSched = baseSched.map((d: any, i: number) => i === dow ? { ...d, startMin, endMin } : d)
+              const rawSched = barber?.schedule || barber?.work_schedule
+              const baseSched = Array.isArray(rawSched) ? rawSched :
+                (rawSched?.perDay ? rawSched.perDay :
+                  Array.from({length:7}, (_, i) => ({
+                    enabled: rawSched?.days ? rawSched.days.includes(i) : i !== 0,
+                    startMin: rawSched?.startMin ?? 10*60,
+                    endMin: rawSched?.endMin ?? 20*60
+                  })))
+              const newSched = baseSched.map((d: any, i: number) => i === dow ? { enabled: true, startMin, endMin } : {
+                enabled: d.enabled !== false,
+                startMin: d.startMin ?? 600,
+                endMin: d.endMin ?? 1200,
+              })
               const enabledDays = newSched.map((d: any, i: number) => d.enabled ? i : -1).filter((i: number) => i >= 0)
               const enabledScheds = newSched.filter((d: any) => d.enabled)
               const globalStart = enabledScheds.length ? Math.min(...enabledScheds.map((d: any) => d.startMin)) : startMin
@@ -1992,9 +2003,10 @@ export default function CalendarPage() {
                 data: {
                   barberName, barberId, dayName, dow,
                   startTime: fmt(startMin), endTime: fmt(endMin),
-                  // Full schedule for backend to apply on approve
-                  schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays },
-                  work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays },
+                  startMin, endMin,
+                  // Full per-day schedule for backend to apply on approve
+                  schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays, perDay: newSched },
+                  work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays, perDay: newSched },
                 }
               })})
               showToast('Schedule change request sent for approval')
@@ -2002,29 +2014,44 @@ export default function CalendarPage() {
               return
             }
             const barber = barbers.find(b => b.id === barberId)
-            const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
+            // Build per-day schedule array [Sun, Mon, Tue, ...]
+            const rawSched = barber?.schedule || barber?.work_schedule
+            const baseSched = Array.isArray(rawSched) ? rawSched :
+              (rawSched?.perDay ? rawSched.perDay :
+                Array.from({length:7}, (_, i) => ({
+                  enabled: rawSched?.days ? rawSched.days.includes(i) : i !== 0,
+                  startMin: rawSched?.startMin ?? 10*60,
+                  endMin: rawSched?.endMin ?? 20*60
+                })))
 
             // 1. Save this day's override to localStorage
             saveSchedOverride(barberId, dow, startMin, endMin)
 
-            // 2. Build updated schedule applying ALL localStorage overrides
+            // 2. Build updated per-day schedule applying ALL localStorage overrides
             const allOverrides = getSchedOverrides(barberId)
-            const newSched = baseSched.map((d, i) => {
+            const newSched = baseSched.map((d: any, i: number) => {
               const ov = allOverrides[i]
-              return ov ? { ...d, startMin: ov.startMin, endMin: ov.endMin } : d
+              return {
+                enabled: d.enabled !== false,
+                startMin: ov ? ov.startMin : (d.startMin ?? 600),
+                endMin: ov ? ov.endMin : (d.endMin ?? 1200),
+              }
             })
-            const enabledDays = newSched.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
 
-            // 3. Server stores global startMin/endMin (min/max of all enabled days)
-            const enabledDays2 = newSched.filter(d => d.enabled)
-            const globalStart = enabledDays2.length ? Math.min(...enabledDays2.map(d => d.startMin)) : startMin
-            const globalEnd   = enabledDays2.length ? Math.max(...enabledDays2.map(d => d.endMin))   : endMin
+            // 3. Apply the current change
+            newSched[dow] = { enabled: true, startMin, endMin }
+
+            // 4. Send per-day schedule to server
+            const enabledDays = newSched.map((d: any, i: number) => d.enabled ? i : -1).filter((i: number) => i >= 0)
+            const enabledScheds = newSched.filter((d: any) => d.enabled)
+            const globalStart = enabledScheds.length ? Math.min(...enabledScheds.map((d: any) => d.startMin)) : startMin
+            const globalEnd = enabledScheds.length ? Math.max(...enabledScheds.map((d: any) => d.endMin)) : endMin
 
             await apiFetch('/api/barbers/' + encodeURIComponent(barberId), {
               method: 'PATCH',
               body: JSON.stringify({
-                schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays },
-                work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays }
+                schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays, perDay: newSched },
+                work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays, perDay: newSched }
               })
             })
             loadBarbers().then(list => setBarbers(list))
