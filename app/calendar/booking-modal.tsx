@@ -879,7 +879,10 @@ export function BookingModal({
 
   const selectedSvcs = services.filter(s => serviceIds.includes(s.id))
   const durMin = isModelEvent ? 90 : (selectedSvcs.length > 0 ? selectedSvcs.reduce((sum, s) => sum + (s.durationMin || 30), 0) : 30)
-  const barberServices = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId))
+  const barberServices = (() => {
+    const filtered = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId))
+    return filtered.length > 0 ? filtered : services
+  })()
 
   // Time slots 5min
   const slots: number[] = []
