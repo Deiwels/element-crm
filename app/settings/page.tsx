@@ -406,20 +406,27 @@ function UsersTab() {
             const linked = barbers.find(b => b.id === u.barber_id)
             return (
               <div key={u.id} style={{ display: 'flex', flexDirection: 'column', gap: 0, borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.14)', opacity: u.active ? 1 : 0.55, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px' }}>
+                <div className="set-user-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 900, fontSize: 14 }}>{u.name || u.username}</div>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
-                      @{u.username}{(u as any).phone ? ` · ${(u as any).phone}` : ''}{linked ? ` · 💈 ${linked.name}` : ''}{u.role === 'student' && (u as any).mentor_barber_ids?.length ? ` · ${(u as any).mentor_barber_ids.map((id: string) => barbers.find(b => b.id === id)?.name || id).join(', ')}` : ''}{u.last_login ? ` · ${u.last_login.slice(0,10)}` : ''}
+                      @{u.username}{(u as any).phone ? ` · ${(u as any).phone}` : ''}{linked ? ` · ${linked.name}` : ''}{u.role === 'student' && (u as any).mentor_barber_ids?.length ? ` · ${(u as any).mentor_barber_ids.map((id: string) => barbers.find(b => b.id === id)?.name || id).join(', ')}` : ''}{u.last_login ? ` · ${u.last_login.slice(0,10)}` : ''}
                       {!u.active && <span style={{ color: '#ff6b6b', marginLeft: 8 }}>disabled</span>}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                  <div className="set-user-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', padding: '3px 9px', borderRadius: 999, border: `1px solid ${rc.border}`, background: 'rgba(0,0,0,.14)', color: rc.color }}>{u.role}</span>
                     <SmBtn onClick={() => editPhone(u.id, (u as any).phone)}>Phone</SmBtn>
                     {u.role === 'admin' && <SmBtn onClick={() => setEditScheduleId(editScheduleId === u.id ? null : u.id)}>Schedule</SmBtn>}
                     <SmBtn onClick={() => resetPw(u.id)}>Reset PW</SmBtn>
                     <SmBtn danger onClick={() => toggleActive(u.id, !u.active)}>{u.active ? 'Disable' : 'Enable'}</SmBtn>
+                    {u.role !== 'owner' && <SmBtn danger onClick={async () => {
+                      if (!window.confirm(`Permanently delete account "${u.name || u.username}"?\n\nThis will remove the account completely and cannot be undone.`)) return
+                      try {
+                        await apiFetch(`/api/users/${encodeURIComponent(u.id)}?hard=true`, { method: 'DELETE' })
+                        load()
+                      } catch (e: any) { alert(e?.message || 'Delete failed') }
+                    }}>Delete</SmBtn>}
                   </div>
                 </div>
                 {editScheduleId === u.id && u.role === 'admin' && (
@@ -557,6 +564,10 @@ export default function SettingsPage() {
           .set-topbar h2{font-size:13px!important;}
           .set-fee-row{grid-template-columns:1fr 70px 80px 36px!important;}
           .set-fee-col3{display:none!important;}
+          .set-user-actions{flex-direction:column!important;align-items:stretch!important;gap:4px!important;}
+          .set-user-actions button{width:100%!important;justify-content:center!important;}
+          .set-user-card{flex-direction:column!important;align-items:stretch!important;gap:8px!important;}
+          .set-create-grid{grid-template-columns:1fr!important;}
         }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
