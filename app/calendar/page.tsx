@@ -1033,7 +1033,7 @@ export default function CalendarPage() {
       // Use LOCAL time for startMin and date — not UTC slice
       const startMin = startAt ? startAt.getHours() * 60 + startAt.getMinutes() : 10*60
       const localDate = startAt ? isoDate(startAt) : todayStr
-      const isBlock = b.status === 'block' || b.type === 'block'
+      const isBlock = b.status === 'block' || b.type === 'block' || b.booking_type === 'block' || (b.client_name === 'BLOCKED' && b.type !== 'booking')
       const isModelOrTraining = b.booking_type === 'model' || b.booking_type === 'training'
       const rawServiceIds: string[] = Array.isArray(b.service_ids) ? b.service_ids.map(String) : b.service_id ? [String(b.service_id)] : []
       const svcs = servicesArg.filter(s => rawServiceIds.includes(s.id))
@@ -1260,9 +1260,12 @@ export default function CalendarPage() {
     // Barber/Student sends block as request for approval
     if (!isOwnerOrAdmin) {
       try {
+        const startAt = new Date(todayStr + 'T' + minToHHMM(clamp(startMin)) + ':00')
+        const endAt = new Date(startAt.getTime() + duration * 60000)
+        const barber = barbers.find(b => b.id === barberId)
         await apiFetch('/api/requests', {
           method: 'POST',
-          body: JSON.stringify({ type: 'block_time', data: { barber_id: barberId, date: todayStr, start_min: startMin, duration_min: duration } })
+          body: JSON.stringify({ type: 'block_time', data: { barber_id: barberId, barberId, barberName: barber?.name || '', date: todayStr, startMin, duration, start_min: startMin, duration_min: duration, startAt: startAt.toISOString(), endAt: endAt.toISOString() } })
         })
         showToast('Block request sent for approval')
       } catch (e: any) { showToast('Failed to send request: ' + (e.message || 'Error')) }
