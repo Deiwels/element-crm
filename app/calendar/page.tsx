@@ -17,7 +17,7 @@ interface Service {
 }
 interface CalEvent {
   id: string; type?: 'booking' | 'block'; barberId: string; barberName: string
-  clientName: string; clientPhone: string; serviceId: string; serviceName: string
+  clientName: string; clientPhone: string; serviceId: string; serviceIds?: string[]; serviceName: string
   date: string; startMin: number; durMin: number; status: string
   paid: boolean; paymentMethod?: string; notes?: string; tipAmount?: number; _raw: any
 }
@@ -972,15 +972,19 @@ export default function CalendarPage() {
       const localDate = startAt ? isoDate(startAt) : todayStr
       const isBlock = b.status === 'block' || b.type === 'block'
       const isModelOrTraining = b.booking_type === 'model' || b.booking_type === 'training'
-      const svc = servicesArg.find(s => s.id === String(b.service_id || ''))
+      const rawServiceIds: string[] = Array.isArray(b.service_ids) ? b.service_ids.map(String) : b.service_id ? [String(b.service_id)] : []
+      const svcs = servicesArg.filter(s => rawServiceIds.includes(s.id))
+      const svc = svcs[0] || servicesArg.find(s => s.id === String(b.service_id || ''))
       const barber = barbersArg.find(br => br.id === String(b.barber_id || ''))
-      // For blocks and model/training: use end_at - start_at; for regular bookings: use service duration
-      const durMin = (isBlock || isModelOrTraining) ? (b.end_at && startAt ? Math.max(5, Math.round((new Date(b.end_at).getTime() - startAt.getTime()) / 60000)) : 90) : (svc?.durationMin || 30)
+      // For blocks and model/training: use end_at - start_at; for regular bookings: use service duration(s)
+      const svcDurMin = svcs.length > 0 ? svcs.reduce((sum, s) => sum + (s.durationMin || 30), 0) : (svc?.durationMin || 30)
+      const durMin = (isBlock || isModelOrTraining) ? (b.end_at && startAt ? Math.max(5, Math.round((new Date(b.end_at).getTime() - startAt.getTime()) / 60000)) : 90) : svcDurMin
+      const svcName = svcs.length > 1 ? svcs.map(s => s.name).join(' + ') : (svc?.name || String(b.service_name || b.notes || ''))
       return {
         id: String(b.id || uid()), type: isBlock ? 'block' as const : 'booking' as const,
         barberId: String(b.barber_id || ''), barberName: barber?.name || String(b.barber_name || ''),
         clientName: String(b.client_name || 'Client'), clientPhone: String(b.client_phone || ''),
-        serviceId: String(b.service_id || ''), serviceName: svc?.name || String(b.service_name || b.notes || ''),
+        serviceId: rawServiceIds[0] || String(b.service_id || ''), serviceIds: rawServiceIds, serviceName: svcName,
         date: localDate,
         startMin: clamp(startMin), durMin: Math.max(5, durMin),
         status: String(b.status || 'booked'), paid: !!(b.paid || b.is_paid),
@@ -1146,17 +1150,19 @@ export default function CalendarPage() {
 
   async function handleSave(patch: any) {
     const ev = events.find(e => e.id === modal.eventId); if (!ev) return
-    const updated = { ...ev, ...patch }
+    const svcIds: string[] = patch.serviceIds || (patch.serviceId ? [patch.serviceId] : [])
+    const svcNames = svcIds.map(id => services.find(s => s.id === id)?.name).filter(Boolean).join(' + ')
+    const updated = { ...ev, ...patch, serviceIds: svcIds, serviceName: svcNames || ev.serviceName }
     setEvents(prev => prev.map(e => e.id === ev.id ? updated : e))
     try {
       if (!ev._raw?.id) {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         const endAt = new Date(startAt.getTime() + (updated.durMin || 30) * 60000)
-        const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), end_at: endAt.toISOString(), notes: updated.notes || '', status: 'booked', reference_photo_url: updated.photoUrl || '', ...(isStudent ? { booking_type: 'model', student_id: currentUser?.uid || '' } : {}) }) })
+        const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId, service_ids: svcIds, client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), end_at: endAt.toISOString(), notes: updated.notes || '', status: 'booked', reference_photo_url: updated.photoUrl || '', ...(isStudent ? { booking_type: 'model', student_id: currentUser?.uid || '' } : {}) }) })
         const savedId = res?.booking?.id || res?.id
         if (savedId) setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, _raw: { ...e._raw, ...res, id: savedId }, id: String(savedId) } : e))
       } else {
-        await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ barber_id: updated.barberId, service_id: updated.serviceId, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: updated.status, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '' }) })
+        await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId, service_ids: svcIds, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: updated.status, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '' }) })
       }
     } catch(e: any) { console.warn('save:', e.message) }
     setModal({ open: false, eventId: null, isNew: false })
@@ -1869,7 +1875,7 @@ export default function CalendarPage() {
           barbers={barbers} services={services}
           isOwnerOrAdmin={isOwnerOrAdmin} myBarberId={myBarberId}
           isStudent={isStudent} mentorBarberIds={mentorBarberIds}
-          existingEvent={selectedEvent ? { id: selectedEvent.id, clientName: selectedEvent.clientName, clientPhone: selectedEvent.clientPhone, serviceId: selectedEvent.serviceId, status: selectedEvent.status, notes: selectedEvent.notes, paid: selectedEvent.paid, paymentMethod: selectedEvent.paymentMethod, isModelEvent: selectedEvent._raw?.booking_type === 'model' || selectedEvent._raw?.booking_type === 'training', photoUrl: (() => {
+          existingEvent={selectedEvent ? { id: selectedEvent.id, clientName: selectedEvent.clientName, clientPhone: selectedEvent.clientPhone, serviceId: selectedEvent.serviceId, serviceIds: selectedEvent.serviceIds, status: selectedEvent.status, notes: selectedEvent.notes, paid: selectedEvent.paid, paymentMethod: selectedEvent.paymentMethod, isModelEvent: selectedEvent._raw?.booking_type === 'model' || selectedEvent._raw?.booking_type === 'training', photoUrl: (() => {
               const r = selectedEvent._raw
               return r?.reference_photo_url || r?.photo_url || r?.client_photo || r?.client_photo_url || r?.attachment_url || r?.image_url || r?.photo || r?.haircut_photo || r?.style_photo || ''
             })(), _raw: { ...selectedEvent._raw, start_min: selectedEvent.startMin } } : null}

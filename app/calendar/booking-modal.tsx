@@ -83,6 +83,7 @@ interface BookingModalProps {
     clientName: string
     clientPhone?: string
     serviceId: string
+    serviceIds?: string[]
     status: string
     notes?: string
     paid: boolean
@@ -93,7 +94,7 @@ interface BookingModalProps {
   } | null
   onSave: (data: {
     clientName: string; clientPhone: string; clientId?: string
-    barberId: string; serviceId: string; date: string; startMin: number
+    barberId: string; serviceId: string; serviceIds: string[]; date: string; startMin: number
     durMin: number; status: string; notes: string; photoUrl?: string
   }) => void
   onDelete: () => void
@@ -557,8 +558,9 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
   useEffect(() => { getShopSettings().then(setShopSettings) }, [])
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
-  const svc = services.find(s => s.id === ev?.serviceId)
-  const basePrice = svc?.price ? Number(String(svc.price).replace(/[^\d.]/g, '')) : 0
+  const evServiceIds = ev?.serviceIds?.length ? ev.serviceIds : ev?.serviceId ? [ev.serviceId] : []
+  const evSvcs = services.filter(s => evServiceIds.includes(s.id))
+  const basePrice = evSvcs.reduce((sum, s) => sum + (s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0), 0)
   const priceCalc = calcTotal(basePrice, shopSettings)
   const price = priceCalc.total  // total with tax + fees
 
@@ -660,7 +662,7 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
           amount: priceCalc.total,
           currency: 'USD',
           client_name: ev?._raw?.client_name || '',
-          service_name: svc?.name || '',
+          service_name: evSvcs.map(s => s.name).join(' + ') || '',
           service_amount: basePrice,
           tax_amount: priceCalc.tax,
           fee_amount: priceCalc.fees,
@@ -729,7 +731,7 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
     try {
       await apiFetch('/api/payments/terminal', {
         method: 'POST',
-        body: JSON.stringify({ booking_id: backendId ? String(backendId) : '', amount: priceCalc.total, tip, tip_amount: tip, source: method, payment_method: method, currency: 'USD', client_name: ev?._raw?.client_name || '', service_name: svc?.name || '', service_amount: basePrice, tax_amount: priceCalc.tax, fee_amount: priceCalc.fees })
+        body: JSON.stringify({ booking_id: backendId ? String(backendId) : '', amount: priceCalc.total, tip, tip_amount: tip, source: method, payment_method: method, currency: 'USD', client_name: ev?._raw?.client_name || '', service_name: evSvcs.map(s => s.name).join(' + ') || '', service_amount: basePrice, tax_amount: priceCalc.tax, fee_amount: priceCalc.fees })
       })
       if (backendId) {
         await apiFetch('/api/bookings/' + encodeURIComponent(String(backendId)), {
@@ -820,7 +822,7 @@ export function BookingModal({
   const [clientName, setClientName] = useState('')
   const [modalKey, setModalKey] = useState(0)  // force remount ClientSearch on open
   const [selBarberId, setSelBarberId] = useState(barberId)
-  const [serviceId, setServiceId] = useState('')
+  const [serviceIds, setServiceIds] = useState<string[]>([])
   const [selStartMin, setSelStartMin] = useState(startMin)
   const [status, setStatus] = useState('booked')
   const [notes, setNotes] = useState('')
@@ -842,7 +844,7 @@ export function BookingModal({
     setModalKey(k => k + 1)  // remount ClientSearch
     if (existingEvent) {
       setClientName(existingEvent.clientName || '')
-      setServiceId(existingEvent.serviceId || '')
+      setServiceIds(existingEvent.serviceIds?.length ? existingEvent.serviceIds : existingEvent.serviceId ? [existingEvent.serviceId] : [])
       setStatus(existingEvent.status || 'booked')
       setNotes(existingEvent.notes || '')
       setPhotoUrl('')
@@ -860,13 +862,23 @@ export function BookingModal({
       } else {
         setClientName(''); setStatus('booked')
       }
-      setServiceId(''); setNotes(''); setPhotoUrl('')
+      setServiceIds([]); setNotes(''); setPhotoUrl('')
       setSelectedClient(null)
     }
   }, [isOpen, existingEvent?.id, barberId, startMin])
 
-  const svc = services.find(s => s.id === serviceId)
-  const durMin = isModelEvent ? 90 : (svc?.durationMin || 30)
+  // When barber changes, drop services not available for that barber
+  useEffect(() => {
+    if (!serviceIds.length) return
+    const available = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId)).map(s => s.id)
+    setServiceIds(prev => {
+      const filtered = prev.filter(id => available.includes(id))
+      return filtered.length !== prev.length ? filtered : prev
+    })
+  }, [selBarberId])
+
+  const selectedSvcs = services.filter(s => serviceIds.includes(s.id))
+  const durMin = isModelEvent ? 90 : (selectedSvcs.length > 0 ? selectedSvcs.reduce((sum, s) => sum + (s.durationMin || 30), 0) : 30)
   const barberServices = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId))
 
   // Time slots 5min
@@ -876,7 +888,7 @@ export function BookingModal({
   async function handleSave() {
     setFormError('')
     if (!isModelEvent && !clientName.trim()) { setFormError('Enter client name'); return }
-    if (!isModelEvent && !serviceId) { setFormError('Choose service'); return }
+    if (!isModelEvent && serviceIds.length === 0) { setFormError('Choose at least one service'); return }
     setSaving(true)
     // Student: format name as "Training · StudentName · ModelName"
     let finalClientName = clientName.trim()
@@ -891,7 +903,8 @@ export function BookingModal({
       clientPhone: selectedClient?.phone || '',
       clientId: selectedClient?.id,
       barberId: selBarberId,
-      serviceId,
+      serviceId: serviceIds[0] || '',
+      serviceIds,
       date,
       startMin: selStartMin,
       durMin,
@@ -990,7 +1003,7 @@ export function BookingModal({
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
+                <div style={{ gridColumn: '1 / 2' }}>
                   <label style={lbl}>Barber</label>
                   <select value={selBarberId} onChange={e => setSelBarberId(e.target.value)}
                     disabled={!isOwnerOrAdmin}
@@ -998,17 +1011,41 @@ export function BookingModal({
                     {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label style={lbl}>Service</label>
-                  <select value={serviceId} onChange={e => setServiceId(e.target.value)} style={inp}>
-                    <option value="">Choose service…</option>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={lbl}>Services {serviceIds.length > 0 && <span style={{ color: 'rgba(255,255,255,.30)', fontWeight: 400 }}>({serviceIds.length} selected)</span>}</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
                     {barberServices.map(s => {
+                      const active = serviceIds.includes(s.id)
                       const bp = s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0
                       const calc = calcTotal(bp, shopSettings)
-                      const label = bp > 0 ? (calc.total !== bp ? ` — $${calc.total.toFixed(2)} (base $${bp.toFixed(2)})` : ` — $${bp.toFixed(2)}`) : ''
-                      return <option key={s.id} value={s.id}>{s.name}{label}</option>
+                      const priceLabel = bp > 0 ? `$${calc.total.toFixed(2)}` : ''
+                      return (
+                        <button key={s.id} type="button"
+                          onClick={() => setServiceIds(prev => active ? prev.filter(id => id !== s.id) : [...prev, s.id])}
+                          style={{
+                            height: 36, padding: '0 12px', borderRadius: 10,
+                            border: `1px solid ${active ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.12)'}`,
+                            background: active ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.04)',
+                            color: active ? '#d7ecff' : 'rgba(255,255,255,.65)',
+                            cursor: 'pointer', fontSize: 12, fontWeight: active ? 800 : 500,
+                            fontFamily: 'inherit', whiteSpace: 'nowrap' as const,
+                            transition: 'all .15s',
+                          }}>
+                          {s.name}{priceLabel ? ` · ${priceLabel}` : ''}{active ? ' ✓' : ''}
+                        </button>
+                      )
                     })}
-                  </select>
+                  </div>
+                  {selectedSvcs.length > 1 && (() => {
+                    let totalBase = 0
+                    for (const s of selectedSvcs) { totalBase += s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0 }
+                    const calc = calcTotal(totalBase, shopSettings)
+                    return (
+                      <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,.50)' }}>
+                        Total: {durMin}min · ${calc.total.toFixed(2)}
+                      </div>
+                    )
+                  })()}
                 </div>
                 <div>
                   <label style={lbl}>Time</label>
