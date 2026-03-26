@@ -565,14 +565,16 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
   const price = priceCalc.total  // total with tax + fees
 
   // Find blocking event — same barber, earlier start, not resolved
-  const RESOLVED = ['paid', 'done', 'cancelled', 'noshow', 'no_show', 'refunded', 'partially_refunded']
+  // Exclude block events (type 'block' or clientName 'BLOCKED') — they don't need payment
+  const RESOLVED = ['paid', 'done', 'cancelled', 'noshow', 'no_show', 'refunded', 'partially_refunded', 'block', 'confirmed']
   const blockingEvent = ev && allEvents && barberId
     ? allEvents.find(e =>
         e.id !== ev.id &&
         e.barberId === barberId &&
+        e.clientName !== 'BLOCKED' &&
         e.startMin < (ev._raw?.start_min ?? 0) &&
         !e.paid &&
-        e.paymentStatus !== 'refunded' && // refunded = resolved even if paid=false
+        e.paymentStatus !== 'refunded' &&
         !RESOLVED.includes(e.status)
       )
     : null

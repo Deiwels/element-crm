@@ -1027,7 +1027,7 @@ export default function CalendarPage() {
       // Use LOCAL time for startMin and date — not UTC slice
       const startMin = startAt ? startAt.getHours() * 60 + startAt.getMinutes() : 10*60
       const localDate = startAt ? isoDate(startAt) : todayStr
-      const isBlock = b.status === 'block' || b.type === 'block' || b.booking_type === 'block' || (b.client_name === 'BLOCKED' && b.type !== 'booking')
+      const isBlock = b.status === 'block' || b.type === 'block' || b.booking_type === 'block' || b.client_name === 'BLOCKED'
       const isModelOrTraining = b.booking_type === 'model' || b.booking_type === 'training'
       const rawServiceIds: string[] = Array.isArray(b.service_ids) ? b.service_ids.map(String) : b.service_id ? [String(b.service_id)] : []
       const svcs = servicesArg.filter(s => rawServiceIds.includes(s.id))
@@ -1705,7 +1705,7 @@ export default function CalendarPage() {
                     {colEvents.map(ev => {
                       const top = minToY(ev.startMin)
                       const height = Math.max(slotH*6, (ev.durMin/5)*slotH)
-                      const isBlock = ev.type === 'block' || ev.status === 'block'
+                      const isBlock = ev.type === 'block' || ev.status === 'block' || ev.clientName === 'BLOCKED'
                       const canDrag = isStudent ? false : (isBlock ? isOwnerOrAdmin : (!isBarber || ev.barberId === myBarberId))
 
                       const isPending = ev.status === 'block_pending' || !!(ev as any)._pendingResize
@@ -1804,7 +1804,7 @@ export default function CalendarPage() {
                       )
                     })}
                     {/* Pending block request ghosts */}
-                    {pendingBlockRequests.filter(r => r.data?.barberId === barber.id).map((r, ri) => {
+                    {pendingBlockRequests.filter(r => (r.data?.barberId || r.data?.barber_id) === barber.id).map((r, ri) => {
                       const reqStartMin = Number(r.data?.startMin || 0)
                       const reqDur = Number(r.data?.duration || 30)
                       if (!reqStartMin) return null
