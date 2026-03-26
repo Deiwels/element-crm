@@ -1246,14 +1246,19 @@ export default function CalendarPage() {
 
   // ── Create / Block ─────────────────────────────────────────────────────────
   function openCreateBlock(barberId: string, startMin: number, durMin?: number) {
-    // Show confirmation modal for everyone (barber, owner, admin)
+    // Owner/Admin: create block immediately, no modal
+    if (isOwnerOrAdmin) {
+      confirmCreateBlock(barberId, clamp(startMin), durMin || 30)
+      return
+    }
+    // Barber/Student: show modal for approval request
     setBlockDurInput(String(durMin || 30))
     setBlockModal({ type: 'create', barberId, startMin: clamp(startMin), currentDur: durMin || 30, originalDur: 0 })
   }
 
   async function confirmCreateBlock(barberId: string, startMin: number, duration: number) {
-    // Barber sends block as request for approval
-    if (isBarber && !isOwnerOrAdmin && barberId === myBarberId) {
+    // Barber/Student sends block as request for approval
+    if (!isOwnerOrAdmin) {
       try {
         await apiFetch('/api/requests', {
           method: 'POST',
