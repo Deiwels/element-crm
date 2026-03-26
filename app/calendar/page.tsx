@@ -1311,6 +1311,13 @@ export default function CalendarPage() {
         await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId, service_ids: svcIds, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: updated.status, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '', end_at: patchEnd.toISOString() }) })
       }
     } catch(e: any) { console.warn('save:', e.message) }
+    // If status changed to 'arrived' — send message to barbers chat
+    if (patch.status === 'arrived' && ev.status !== 'arrived') {
+      const barberName = barbers.find(b => b.id === updated.barberId)?.name || updated.barberName || ''
+      const clientName = updated.clientName || 'Client'
+      const msgText = `📍 ${clientName} arrived — ${barberName}`
+      apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: 'barbers', text: msgText }) }).catch(() => {})
+    }
     setModal({ open: false, eventId: null, isNew: false })
     // Reload bookings to get fresh data from server
     setTimeout(() => { loadBookings(barbers, services).then(setEvents).catch(console.warn) }, 500)
@@ -1350,6 +1357,11 @@ export default function CalendarPage() {
           50% { box-shadow: 0 0 18px rgba(255,107,107,.40); border-color: rgba(255,107,107,.55); background: rgba(255,107,107,.10); }
         }
         .block-pending-pulse { animation: blockPendingPulse 2.4s ease-in-out infinite; }
+        @keyframes arrivedPulse {
+          0%, 100% { box-shadow: 0 0 6px rgba(143,240,177,.10); border-color: rgba(143,240,177,.25); }
+          50% { box-shadow: 0 0 20px rgba(143,240,177,.40); border-color: rgba(143,240,177,.55); }
+        }
+        .arrived-pulse { animation: arrivedPulse 2.4s ease-in-out infinite; }
         /* Desktop: hide mobile-only elements */
         .cal-search-icon{ display:none !important; }
         .cal-settings-icon{ display:none !important; }
@@ -1780,9 +1792,10 @@ export default function CalendarPage() {
                       )
 
                       const tinyCol = isMobile && pageBarbers.length > 2
+                      const isArrived = ev.status === 'arrived'
                       return (
-                        <div key={ev.id} className="cal-event"
-                          style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}26,${barber.color}12)`, padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
+                        <div key={ev.id} className={`cal-event${isArrived ? ' arrived-pulse' : ''}`}
+                          style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : isArrived ? 'rgba(143,240,177,.30)' : 'rgba(255,255,255,.10)'}`, background: isArrived ? `linear-gradient(180deg,rgba(143,240,177,.18),rgba(143,240,177,.06))` : (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}26,${barber.color}12)`, padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
                           onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; e.stopPropagation(); clearTimeout(eventLongPressTimer.current); const touch = e.touches[0]; const evCopy = ev; const biCopy = bi; eventLongPressTimer.current = setTimeout(() => { const fakeEvt = { preventDefault(){}, stopPropagation(){}, touches: [touch] } as any; startDrag(fakeEvt, evCopy, biCopy) }, 400) }}
                           onTouchEnd={() => clearTimeout(eventLongPressTimer.current)}
