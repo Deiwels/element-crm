@@ -164,9 +164,22 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [sched, setSched] = useState<DaySchedule[]>(() => {
-    // Load from barber's actual schedule if available
-    if (b.schedule && b.schedule.length === 7) {
-      return b.schedule.map(d => ({ enabled: d.enabled, startMin: d.startMin, endMin: d.endMin }))
+    const raw = b.schedule || b.work_schedule
+    // Per-day array format
+    if (Array.isArray(raw) && raw.length === 7) {
+      return raw.map((d: any) => ({ enabled: d.enabled !== false, startMin: Number(d.startMin ?? d.start_min ?? 600), endMin: Number(d.endMin ?? d.end_min ?? 1200) }))
+    }
+    // Object with perDay
+    if (raw?.perDay && Array.isArray(raw.perDay) && raw.perDay.length === 7) {
+      return raw.perDay.map((d: any) => ({ enabled: d.enabled !== false, startMin: Number(d.startMin ?? d.start_min ?? 600), endMin: Number(d.endMin ?? d.end_min ?? 1200) }))
+    }
+    // Legacy { startMin, endMin, days }
+    if (raw?.days) {
+      return Array.from({length: 7}, (_, i) => ({
+        enabled: raw.days.includes(i),
+        startMin: Number(raw.startMin ?? 600),
+        endMin: Number(raw.endMin ?? 1200),
+      }))
     }
     return DAY_DEFAULTS.map(d => ({...d}))
   })
@@ -210,7 +223,8 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
       const enabledScheds = sched.filter(d => d.enabled)
       const startMin = enabledScheds.length ? Math.min(...enabledScheds.map(d => d.startMin)) : 10*60
       const endMin   = enabledScheds.length ? Math.max(...enabledScheds.map(d => d.endMin))   : 20*60
-      const schedPayload = { startMin, endMin, days: enabledDays }
+      const perDay = sched.map(d => ({ enabled: d.enabled, startMin: d.startMin, endMin: d.endMin }))
+      const schedPayload = { startMin, endMin, days: enabledDays, perDay }
       const rLabels = radarLabels.split(',').map(s => s.trim()).filter(Boolean)
       const rValues = radarValues.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
       const changes = { level, base_price: price, public_role: publicRole || level, about, description: about, bio: about, radar_labels: rLabels, radar_values: rValues, photo_url: photoPreview || b.photo || '', schedule: schedPayload, work_schedule: schedPayload, public_off_days: DAY_NAMES.filter((_,i) => !sched[i].enabled), public_enabled: true }
