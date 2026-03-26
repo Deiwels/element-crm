@@ -566,12 +566,13 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
 
   // Find blocking event — same barber, earlier start, not resolved
   // Exclude block events (type 'block' or clientName 'BLOCKED') — they don't need payment
-  const RESOLVED = ['paid', 'done', 'cancelled', 'noshow', 'no_show', 'refunded', 'partially_refunded', 'block', 'confirmed']
+  const RESOLVED = ['paid', 'done', 'cancelled', 'noshow', 'no_show', 'refunded', 'partially_refunded', 'block']
   const blockingEvent = ev && allEvents && barberId
     ? allEvents.find(e =>
         e.id !== ev.id &&
         e.barberId === barberId &&
         e.clientName !== 'BLOCKED' &&
+        e.clientName !== 'Client' &&
         e.startMin < (ev._raw?.start_min ?? 0) &&
         !e.paid &&
         e.paymentStatus !== 'refunded' &&
@@ -587,7 +588,7 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
           <span style={{ fontSize: 12, fontWeight: 700, color: '#ffcf3f' }}>Cannot charge yet</span>
         </div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', lineHeight: 1.5 }}>
-          <strong style={{ color: '#fff' }}>{blockingEvent.clientName || 'Previous client'}</strong> has not been charged, cancelled, or marked as no-show yet.
+          <strong style={{ color: '#fff' }}>{blockingEvent.clientName || 'Previous client'}</strong> ({minToHHMM(blockingEvent.startMin)}) has not been charged, cancelled, or marked as no-show yet.
           <br />Please resolve them first.
         </div>
       </div>
