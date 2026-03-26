@@ -1246,20 +1246,39 @@ export default function CalendarPage() {
 
   // ── Create / Block ─────────────────────────────────────────────────────────
   function openCreateBlock(barberId: string, startMin: number, durMin?: number) {
-    // Barber sends block as request for approval — show styled modal
+    // Show confirmation modal for everyone (barber, owner, admin)
+    setBlockDurInput(String(durMin || 30))
+    setBlockModal({ type: 'create', barberId, startMin: clamp(startMin), currentDur: durMin || 30, originalDur: 0 })
+  }
+
+  async function confirmCreateBlock(barberId: string, startMin: number, duration: number) {
+    // Barber sends block as request for approval
     if (isBarber && !isOwnerOrAdmin && barberId === myBarberId) {
-      setBlockDurInput(String(durMin || 30))
-      setBlockModal({ type: 'create', barberId, startMin: clamp(startMin), currentDur: durMin || 30, originalDur: 0 })
+      try {
+        await apiFetch('/api/requests', {
+          method: 'POST',
+          body: JSON.stringify({ type: 'block_time', data: { barber_id: barberId, date: todayStr, start_min: startMin, duration_min: duration } })
+        })
+        showToast('Block request sent for approval')
+      } catch (e: any) { showToast('Failed to send request: ' + (e.message || 'Error')) }
+      setBlockModal(null)
       return
     }
-    const duration = durMin || 30
+    // Owner/Admin: create block directly
     const id = 'block_' + Date.now()
     const barber = barbers.find(b => b.id === barberId)
     setEvents(prev => [...prev, { id, type: 'block', barberId, barberName: barber?.name || '', clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Blocked', date: todayStr, startMin: clamp(startMin), durMin: duration, status: 'block', paid: false, notes: '', _raw: null }])
     const startAt = new Date(todayStr + 'T' + minToHHMM(clamp(startMin)) + ':00')
-    apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: barberId, type: 'block', status: 'block', client_name: 'BLOCKED', service_id: '', start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + duration*60000).toISOString(), notes: 'Blocked by manager' }) })
-      .then(res => { const savedId = res?.booking?.id || res?.id; if (savedId) setEvents(prev => prev.map(e => e.id === id ? { ...e, _raw: { id: savedId } } : e)) })
-      .catch(console.warn)
+    try {
+      const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: barberId, type: 'block', status: 'block', client_name: 'BLOCKED', service_id: '', start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + duration*60000).toISOString(), notes: 'Blocked by manager' }) })
+      const savedId = res?.booking?.id || res?.id
+      if (savedId) setEvents(prev => prev.map(e => e.id === id ? { ...e, _raw: { id: savedId } } : e))
+      showToast('Block saved')
+    } catch (e: any) {
+      setEvents(prev => prev.filter(e => e.id !== id))
+      showToast('Failed to save block: ' + (e.message || 'Error'))
+    }
+    setBlockModal(null)
   }
 
   function openCreate(barberId: string, startMin: number) {
@@ -2175,15 +2194,11 @@ export default function CalendarPage() {
         const isCreate = bm.type === 'create'
         const isResizeConfirm = bm.type === 'resize_confirm'
         const isOwnerResize = bm.type === 'owner_resize'
-        const submitBlock = () => {
+        const submitBlock = async () => {
           if (isCreate) {
             const dur = Math.max(5, Math.round(Number(blockDurInput) / 5) * 5) || 30
-            const startAt = new Date(todayStr + 'T' + minToHHMM(bm.startMin) + ':00')
-            const barber = barbers.find(b => b.id === bm.barberId)
-            apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
-              type: 'block_time',
-              data: { barberId: bm.barberId, barberName: barber?.name || '', date: todayStr, startMin: bm.startMin, duration: dur, startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + dur * 60000).toISOString() }
-            })}).then(() => { showToast('Block request sent'); loadPendingBlocks() }).catch(e => showToast('Error: ' + e.message))
+            await confirmCreateBlock(bm.barberId, bm.startMin, dur)
+            return
           } else if (isResizeConfirm) {
             const sa = new Date(todayStr + 'T' + minToHHMM(bm.startMin) + ':00')
             if (bm.evId) setEvents(prev => prev.map(x => x.id === bm.evId ? { ...x, durMin: bm.currentDur, _pendingResize: true, _approvedDur: bm.originalDur } as any : x))
@@ -2224,7 +2239,7 @@ export default function CalendarPage() {
                   <input type="number" value={blockDurInput} onChange={e => setBlockDurInput(e.target.value)} min={5} max={480} step={5} style={{ width: 80, height: 40, borderRadius: 10, border: '1px solid rgba(255,255,255,.18)', background: 'rgba(255,255,255,.06)', color: '#fff', textAlign: 'center', fontSize: 18, fontWeight: 900, outline: 'none', fontFamily: 'inherit' }} />
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 4 }}>{minToAMPM(bm.startMin)} — {minToAMPM(bm.startMin + (Number(blockDurInput) || 30))}</div>
                 </div>
-                <div style={{ fontSize: 11, color: 'rgba(255,107,107,.60)', textAlign: 'center', marginBottom: 16 }}>This will be sent for owner/admin approval</div>
+                {!isOwnerOrAdmin && <div style={{ fontSize: 11, color: 'rgba(255,107,107,.60)', textAlign: 'center', marginBottom: 16 }}>This will be sent for owner/admin approval</div>}
               </>) : (<>
                 {/* Resize confirm: show old → new */}
                 <div style={{ textAlign: 'center', marginBottom: 20 }}>
@@ -2238,7 +2253,7 @@ export default function CalendarPage() {
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                 <button onClick={() => { if (bm.evId && (isResizeConfirm || isOwnerResize)) setEvents(prev => prev.map(x => x.id === bm.evId ? { ...x, durMin: bm.originalDur } : x)); setBlockModal(null) }} style={{ flex: 1, height: 44, borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Cancel</button>
                 <button onClick={submitBlock} style={{ flex: 2, height: 44, borderRadius: 999, border: `1px solid ${accentColor}.55)`, background: `${accentColor}.12)`, color: isOwnerResize ? '#fff' : '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>
-                  {isCreate ? 'Request Block' : isResizeConfirm ? 'Send for Approval' : 'Confirm Resize'}
+                  {isCreate ? (isOwnerOrAdmin ? 'Block' : 'Request Block') : isResizeConfirm ? 'Send for Approval' : 'Confirm Resize'}
                 </button>
               </div>
             </div>
