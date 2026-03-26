@@ -10,7 +10,7 @@ interface Barber {
   id: string; name: string; level?: string; photo?: string; color: string
   about?: string; basePrice?: string; publicRole?: string
   radarLabels?: string[]; radarValues?: number[]; username?: string
-  schedule?: { enabled: boolean; startMin: number; endMin: number }[]
+  schedule?: any; work_schedule?: any
 }
 interface Service {
   id: string; name: string; durationMin: number; price?: string; barberIds: string[]
