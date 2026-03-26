@@ -976,9 +976,10 @@ export default function CalendarPage() {
       const svcs = servicesArg.filter(s => rawServiceIds.includes(s.id))
       const svc = svcs[0] || servicesArg.find(s => s.id === String(b.service_id || ''))
       const barber = barbersArg.find(br => br.id === String(b.barber_id || ''))
-      // For blocks and model/training: use end_at - start_at; for regular bookings: use service duration(s)
+      // Use end_at when available (most accurate), fallback to sum of service durations
       const svcDurMin = svcs.length > 0 ? svcs.reduce((sum, s) => sum + (s.durationMin || 30), 0) : (svc?.durationMin || 30)
-      const durMin = (isBlock || isModelOrTraining) ? (b.end_at && startAt ? Math.max(5, Math.round((new Date(b.end_at).getTime() - startAt.getTime()) / 60000)) : 90) : svcDurMin
+      const endAtDur = b.end_at && startAt ? Math.max(5, Math.round((new Date(b.end_at).getTime() - startAt.getTime()) / 60000)) : 0
+      const durMin = (isBlock || isModelOrTraining) ? (endAtDur || 90) : (endAtDur || svcDurMin)
       const svcName = svcs.length > 1 ? svcs.map(s => s.name).join(' + ') : (svc?.name || String(b.service_name || b.notes || ''))
       return {
         id: String(b.id || uid()), type: isBlock ? 'block' as const : 'booking' as const,
@@ -1162,7 +1163,9 @@ export default function CalendarPage() {
         const savedId = res?.booking?.id || res?.id
         if (savedId) setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, _raw: { ...e._raw, ...res, id: savedId }, id: String(savedId) } : e))
       } else {
-        await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId, service_ids: svcIds, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: updated.status, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '' }) })
+        const patchStart = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
+        const patchEnd = new Date(patchStart.getTime() + (updated.durMin || 30) * 60000)
+        await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId, service_ids: svcIds, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: updated.status, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '', end_at: patchEnd.toISOString() }) })
       }
     } catch(e: any) { console.warn('save:', e.message) }
     setModal({ open: false, eventId: null, isNew: false })
