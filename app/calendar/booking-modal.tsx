@@ -886,19 +886,23 @@ export function BookingModal({
         ? `Training · ${studentName} · ${finalClientName}`
         : `Training · ${studentName}`
     }
-    onSave({
-      clientName: finalClientName,
-      clientPhone: selectedClient?.phone || '',
-      clientId: selectedClient?.id,
-      barberId: selBarberId,
-      serviceId,
-      date,
-      startMin: selStartMin,
-      durMin,
-      status,
-      notes,
-      photoUrl,
-    })
+    try {
+      await onSave({
+        clientName: finalClientName,
+        clientPhone: selectedClient?.phone || '',
+        clientId: selectedClient?.id,
+        barberId: selBarberId,
+        serviceId,
+        date,
+        startMin: selStartMin,
+        durMin,
+        status,
+        notes,
+        photoUrl,
+      })
+    } catch (e: any) {
+      setFormError(e?.message || 'Save failed')
+    }
     setSaving(false)
   }
 

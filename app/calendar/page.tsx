@@ -1120,14 +1120,15 @@ export default function CalendarPage() {
     }).catch(e => { console.warn(e); setLoading(false) })
   }, [todayStr])
 
-  // Poll bookings + pending blocks every 15s
+  // Poll bookings + pending blocks every 15s — PAUSE when modal is open
   useEffect(() => {
+    if (modal.open) return // Don't poll while booking modal is open
     const interval = setInterval(() => {
       loadBookings(barbers, services).then(setEvents).catch(console.warn)
       loadPendingBlocks().catch(() => {})
     }, 15000)
     return () => clearInterval(interval)
-  }, [barbers, services, loadBookings])
+  }, [barbers, services, loadBookings, modal.open])
 
   const reload = useCallback(() => {
     loadBookings(barbers, services).then(setEvents).catch(console.warn)
@@ -1284,6 +1285,8 @@ export default function CalendarPage() {
       }
     } catch(e: any) { console.warn('save:', e.message) }
     setModal({ open: false, eventId: null, isNew: false })
+    // Reload bookings to get fresh data from server
+    setTimeout(() => { loadBookings(barbers, services).then(setEvents).catch(console.warn) }, 500)
   }
 
   async function handleDelete() {
