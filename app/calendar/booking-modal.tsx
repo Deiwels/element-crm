@@ -99,6 +99,7 @@ interface BookingModalProps {
   }) => void
   onDelete: () => void
   onPayment: (method: string, tip: number) => void
+  onOpenEvent?: (eventId: string) => void
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -535,12 +536,13 @@ function PhotoUpload({ value, onChange }: { value: string; onChange: (url: strin
 }
 
 // ─── PaymentPanel ─────────────────────────────────────────────────────────────
-function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
+function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEvent }: {
   ev: BookingModalProps['existingEvent']
   services: Service[]
   onPayment: (method: string, tip: number) => void
   allEvents?: BookingModalProps['allEvents']
   barberId?: string
+  onOpenEvent?: (eventId: string) => void
 }) {
   const [method, setMethod] = useState('terminal')
   const [tipYes, setTipYes] = useState(false)
@@ -582,14 +584,16 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId }: {
 
   if (blockingEvent) {
     return (
-      <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,207,63,.30)', background: 'rgba(255,207,63,.06)' }}>
+      <div onClick={() => onOpenEvent?.(blockingEvent.id)} style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,207,63,.30)', background: 'rgba(255,207,63,.06)', cursor: onOpenEvent ? 'pointer' : 'default', transition: 'background .15s' }}
+        onMouseEnter={e => { if (onOpenEvent) (e.currentTarget as HTMLElement).style.background = 'rgba(255,207,63,.12)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,207,63,.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffcf3f" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span style={{ fontSize: 12, fontWeight: 700, color: '#ffcf3f' }}>Cannot charge yet</span>
         </div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)', lineHeight: 1.5 }}>
           <strong style={{ color: '#fff' }}>{blockingEvent.clientName || 'Previous client'}</strong> ({minToHHMM(blockingEvent.startMin)}) has not been charged, cancelled, or marked as no-show yet.
-          <br />Please resolve them first.
+          <br />{onOpenEvent ? 'Tap to open and resolve.' : 'Please resolve them first.'}
         </div>
       </div>
     )
@@ -819,7 +823,7 @@ export function BookingModal({
   isOpen, onClose, barberId, barberName, date, startMin,
   barbers, services, isOwnerOrAdmin, myBarberId,
   isStudent, mentorBarberIds,
-  existingEvent, onSave, onDelete, onPayment, allEvents
+  existingEvent, onSave, onDelete, onPayment, allEvents, onOpenEvent
 }: BookingModalProps) {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientName, setClientName] = useState('')
@@ -1114,7 +1118,7 @@ export function BookingModal({
 
             {/* Payment — owner/admin only, NOT for new bookings or model/training */}
             {isOwnerOrAdmin && existingEvent && !isNew && !isModelEvent && (
-              <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} allEvents={allEvents} barberId={barberId} />
+              <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} allEvents={allEvents} barberId={barberId} onOpenEvent={onOpenEvent} />
             )}
 
             {/* Form error */}
