@@ -469,6 +469,21 @@ export default function MessagesPage() {
   async function reviewRequest(id: string, status: 'approved' | 'rejected') {
     try {
       await apiFetch(`/api/requests/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ status }) })
+      // When approving a block_time request, create the actual booking
+      if (status === 'approved') {
+        const req = requests.find(r => r.id === id)
+        if (req?.type === 'block_time' && req.data) {
+          const d = req.data
+          const startAt = d.startAt || (d.date && d.startMin != null ? `${d.date}T${String(Math.floor(d.startMin / 60)).padStart(2, '0')}:${String(d.startMin % 60).padStart(2, '0')}:00` : '')
+          const dur = d.duration || d.duration_min || 30
+          const endAt = d.endAt || (startAt ? new Date(new Date(startAt).getTime() + dur * 60000).toISOString() : '')
+          if (startAt && endAt) {
+            try {
+              await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: d.barber_id || d.barberId || '', type: 'block', status: 'confirmed', client_name: 'BLOCKED', service_id: '', start_at: startAt.includes('T') && startAt.includes('Z') ? startAt : new Date(startAt).toISOString(), end_at: endAt.includes('T') && endAt.includes('Z') ? endAt : new Date(endAt).toISOString(), notes: 'Blocked (approved request)' }) })
+            } catch (e: any) { console.warn('Failed to create block booking:', e.message) }
+          }
+        }
+      }
       loadRequests()
     } catch (e: any) { alert(e.message) }
   }
