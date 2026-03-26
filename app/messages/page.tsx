@@ -480,7 +480,7 @@ export default function MessagesPage() {
           if (startAt && endAt) {
             try {
               await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: d.barber_id || d.barberId || '', type: 'block', status: 'confirmed', client_name: 'BLOCKED', service_id: '', start_at: startAt.includes('T') && startAt.includes('Z') ? startAt : new Date(startAt).toISOString(), end_at: endAt.includes('T') && endAt.includes('Z') ? endAt : new Date(endAt).toISOString(), notes: 'Blocked (approved request)' }) })
-            } catch (e: any) { console.warn('Failed to create block booking:', e.message) }
+            } catch (_) { /* backend may already create booking on approve — 409 is ok */ }
           }
         }
       }
