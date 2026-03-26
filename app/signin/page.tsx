@@ -67,7 +67,9 @@ export default function SignInPage() {
 
       const role = userData.role || 'barber'
       const dest = (role === 'barber' || role === 'student') ? '/calendar' : '/dashboard'
-      window.location.href = dest
+      // Small delay to ensure cookie is persisted in WKWebView before navigation
+      await new Promise(r => setTimeout(r, 300))
+      window.location.replace(dest)
 
     } catch (err: any) {
       setError(err.message || 'Login failed')

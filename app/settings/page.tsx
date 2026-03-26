@@ -66,6 +66,210 @@ function SmBtn({ onClick, children, danger, disabled }: { onClick: () => void; c
   )
 }
 
+// ─── Hero Media Upload (resize + compress on client, then upload) ──────────────
+function HeroMediaCard({ settings: s, onUpdate, onSave }: { settings: any; onUpdate: (key: string, val: any) => void; onSave: () => void }) {
+  const [uploading, setUploading] = useState(false)
+  const [uploadMsg, setUploadMsg] = useState('')
+  const [progress, setProgress] = useState(0)
+
+  // Resize image on client before upload (max 1920px, JPEG 85%)
+  function resizeImage(file: File): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 1920
+        let w = img.width, h = img.height
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX }
+          else { w = Math.round(w * MAX / h); h = MAX }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, w, h)
+        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Compress failed')), 'image/jpeg', 0.85)
+      }
+      img.onerror = reject
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
+  async function handleFileUpload(file: File | null) {
+    if (!file) return
+    const maxSize = 50 * 1024 * 1024
+    if (file.size > maxSize) { setUploadMsg('File too large (max 50MB)'); return }
+
+    const isVideo = file.type.startsWith('video/')
+    const isImage = file.type.startsWith('image/')
+    if (!isVideo && !isImage) { setUploadMsg('Only image or video files'); return }
+
+    setUploading(true)
+    setProgress(0)
+
+    try {
+      let uploadFile: Blob = file
+
+      // Resize images on client (saves upload time dramatically)
+      if (isImage) {
+        setUploadMsg('Compressing…')
+        uploadFile = await resizeImage(file)
+        setUploadMsg(`Compressed: ${(file.size/1024/1024).toFixed(1)}MB → ${(uploadFile.size/1024/1024).toFixed(1)}MB`)
+      } else {
+        setUploadMsg('Uploading video…')
+      }
+
+      // Convert to base64
+      setUploadMsg(prev => prev + ' — uploading…')
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onprogress = (e) => { if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 50)) }
+        reader.onload = () => { setProgress(50); resolve(reader.result as string) }
+        reader.onerror = reject
+        reader.readAsDataURL(uploadFile)
+      })
+
+      setUploadMsg('Saving to server…')
+      setProgress(60)
+
+      const res = await apiFetch('/api/settings/upload-hero', {
+        method: 'POST',
+        body: JSON.stringify({
+          data_url: dataUrl,
+          file_name: file.name,
+          content_type: isImage ? 'image/jpeg' : file.type,
+        })
+      })
+
+      setProgress(90)
+
+      if (res.url) {
+        onUpdate('hero_media_url', res.url)
+        onUpdate('hero_media_type', isVideo ? 'video' : 'image')
+        setTimeout(() => onSave(), 500)
+        setProgress(100)
+        setUploadMsg('Uploaded & saved!')
+      } else {
+        setUploadMsg('Upload failed: ' + (res.error || 'unknown'))
+      }
+    } catch (e: any) {
+      setUploadMsg('Upload error: ' + e.message)
+    }
+    setUploading(false)
+  }
+
+  return (
+    <SectionCard title="Homepage hero">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* File upload */}
+        <Field label="Upload photo or video">
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 14, border: '2px dashed rgba(255,255,255,.18)', background: 'rgba(255,255,255,.04)', cursor: uploading ? 'wait' : 'pointer', color: 'rgba(255,255,255,.55)', fontSize: 13, fontWeight: 700, transition: 'all .2s' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            {uploading ? 'Uploading…' : 'Choose file (photo or video)'}
+            <input type="file" accept="image/*,video/*" style={{ display: 'none' }} disabled={uploading}
+              onChange={e => handleFileUpload(e.target.files?.[0] || null)} />
+          </label>
+        </Field>
+
+        {uploading && progress > 0 && (
+          <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,.08)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${progress}%`, background: 'rgba(10,132,255,.65)', borderRadius: 2, transition: 'width .3s' }} />
+          </div>
+        )}
+        {uploadMsg && <div style={{ fontSize: 11, color: uploadMsg.includes('error') || uploadMsg.includes('failed') || uploadMsg.includes('large') ? '#ffb7b7' : '#c9ffe1' }}>{uploadMsg}</div>}
+
+        {/* Or paste URL */}
+        <Field label="Or paste URL directly">
+          <input value={s.hero_media_url || ''} onChange={e => onUpdate('hero_media_url', e.target.value)} placeholder="https://..." style={inp} />
+        </Field>
+
+        <Field label="Media type">
+          <select value={s.hero_media_type || 'video'} onChange={e => onUpdate('hero_media_type', e.target.value)} style={inp}>
+            <option value="video">Video</option>
+            <option value="image">Image</option>
+          </select>
+        </Field>
+
+        {/* Preview */}
+        {s.hero_media_url && (
+          <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,.10)', maxHeight: 200 }}>
+            {(s.hero_media_type || 'video') === 'video' ? (
+              <video src={s.hero_media_url} muted autoPlay loop playsInline style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+            ) : (
+              <img src={s.hero_media_url} alt="Hero" style={{ width: '100%', height: 200, objectFit: 'cover' }} />
+            )}
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', lineHeight: 1.5 }}>
+          Upload from your computer or paste a URL. This shows on the main homepage.
+        </div>
+
+        <Field label="Banner text (top notification)">
+          <input value={s.bannerText || ''} onChange={e => onUpdate('bannerText', e.target.value)} placeholder="Now accepting walk-ins!" style={inp} />
+        </Field>
+        <Toggle checked={!!s.bannerEnabled} onChange={v => onUpdate('bannerEnabled', v)} label="Show banner on homepage" sub="Yellow notification bar at top" />
+      </div>
+    </SectionCard>
+  )
+}
+
+// ─── Schedule Editor for Admin users ──────────────────────────────────────────
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const DEFAULT_ADMIN_SCHEDULE = DAY_NAMES.map((_,i) => ({ enabled: i >= 1 && i <= 6, startMin: 540, endMin: 1230 })) // Mon-Sat 9:00-20:30
+
+function ScheduleEditor({ userId, userName, currentSchedule, onSaved }: { userId: string; userName: string; currentSchedule: any[] | null; onSaved: () => void }) {
+  const [sched, setSched] = useState(
+    Array.isArray(currentSchedule) && currentSchedule.length === 7
+      ? currentSchedule.map(d => ({ enabled: !!d?.enabled, startMin: Number(d?.startMin || 540), endMin: Number(d?.endMin || 1230) }))
+      : DEFAULT_ADMIN_SCHEDULE.map(d => ({ ...d }))
+  )
+  const [saving, setSaving] = useState(false)
+
+  function minToTime(m: number) { return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}` }
+  function timeToMin(t: string) { const [h,m] = t.split(':').map(Number); return h*60+m }
+
+  async function save() {
+    setSaving(true)
+    try {
+      await apiFetch(`/api/users/${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ schedule: sched })
+      })
+      onSaved()
+    } catch (e: any) { alert(e.message) }
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ marginTop: 8, padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(10,132,255,.25)', background: 'rgba(10,132,255,.06)' }}>
+      <div style={{ fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(10,132,255,.70)', marginBottom: 8, fontWeight: 900 }}>Schedule — {userName}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+        {DAY_NAMES.map((day, i) => (
+          <div key={i} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,.50)', marginBottom: 4, fontWeight: 900 }}>{day}</div>
+            <button onClick={() => { const n = [...sched]; n[i] = { ...n[i], enabled: !n[i].enabled }; setSched(n) }}
+              style={{ width: '100%', height: 24, borderRadius: 6, border: `1px solid ${sched[i].enabled ? 'rgba(10,132,255,.50)' : 'rgba(255,255,255,.12)'}`, background: sched[i].enabled ? 'rgba(10,132,255,.15)' : 'rgba(255,255,255,.04)', color: sched[i].enabled ? '#d7ecff' : 'rgba(255,255,255,.35)', cursor: 'pointer', fontSize: 9, fontWeight: 900, fontFamily: 'inherit' }}>
+              {sched[i].enabled ? 'ON' : 'OFF'}
+            </button>
+            {sched[i].enabled && (
+              <>
+                <input type="time" value={minToTime(sched[i].startMin)} onChange={e => { const n = [...sched]; n[i] = { ...n[i], startMin: timeToMin(e.target.value) }; setSched(n) }}
+                  style={{ width: '100%', height: 22, borderRadius: 4, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', color: '#fff', fontSize: 9, padding: '0 2px', marginTop: 3, colorScheme: 'dark' as any }} />
+                <input type="time" value={minToTime(sched[i].endMin)} onChange={e => { const n = [...sched]; n[i] = { ...n[i], endMin: timeToMin(e.target.value) }; setSched(n) }}
+                  style={{ width: '100%', height: 22, borderRadius: 4, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', color: '#fff', fontSize: 9, padding: '0 2px', marginTop: 2, colorScheme: 'dark' as any }} />
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+      <button onClick={save} disabled={saving}
+        style={{ marginTop: 8, width: '100%', height: 34, borderRadius: 10, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
+        {saving ? 'Saving…' : 'Save schedule'}
+      </button>
+    </div>
+  )
+}
+
 // ─── Users Tab ────────────────────────────────────────────────────────────────
 function UsersTab() {
   const [users, setUsers] = useState<UserAccount[]>([])
@@ -80,6 +284,7 @@ function UsersTab() {
   const [mentorBarberIds, setMentorBarberIds] = useState<string[]>([])
   const [phone, setPhone] = useState('')
   const [creating, setCreating] = useState(false)
+  const [editScheduleId, setEditScheduleId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -200,20 +405,33 @@ function UsersTab() {
             const rc = roleColors[u.role] || roleColors.barber
             const linked = barbers.find(b => b.id === u.barber_id)
             return (
-              <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.14)', opacity: u.active ? 1 : 0.55 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 900, fontSize: 14 }}>{u.name || u.username}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
-                    @{u.username}{(u as any).phone ? ` · ${(u as any).phone}` : ''}{linked ? ` · 💈 ${linked.name}` : ''}{u.role === 'student' && (u as any).mentor_barber_ids?.length ? ` · ${(u as any).mentor_barber_ids.map((id: string) => barbers.find(b => b.id === id)?.name || id).join(', ')}` : ''}{u.last_login ? ` · ${u.last_login.slice(0,10)}` : ''}
-                    {!u.active && <span style={{ color: '#ff6b6b', marginLeft: 8 }}>disabled</span>}
+              <div key={u.id} style={{ display: 'flex', flexDirection: 'column', gap: 0, borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.14)', opacity: u.active ? 1 : 0.55, overflow: 'hidden' }}>
+                <div className="set-user-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 900, fontSize: 14 }}>{u.name || u.username}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
+                      @{u.username}{(u as any).phone ? ` · ${(u as any).phone}` : ''}{linked ? ` · ${linked.name}` : ''}{u.role === 'student' && (u as any).mentor_barber_ids?.length ? ` · ${(u as any).mentor_barber_ids.map((id: string) => barbers.find(b => b.id === id)?.name || id).join(', ')}` : ''}{u.last_login ? ` · ${u.last_login.slice(0,10)}` : ''}
+                      {!u.active && <span style={{ color: '#ff6b6b', marginLeft: 8 }}>disabled</span>}
+                    </div>
+                  </div>
+                  <div className="set-user-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', padding: '3px 9px', borderRadius: 999, border: `1px solid ${rc.border}`, background: 'rgba(0,0,0,.14)', color: rc.color }}>{u.role}</span>
+                    <SmBtn onClick={() => editPhone(u.id, (u as any).phone)}>Phone</SmBtn>
+                    {u.role === 'admin' && <SmBtn onClick={() => setEditScheduleId(editScheduleId === u.id ? null : u.id)}>Schedule</SmBtn>}
+                    <SmBtn onClick={() => resetPw(u.id)}>Reset PW</SmBtn>
+                    <SmBtn danger onClick={() => toggleActive(u.id, !u.active)}>{u.active ? 'Disable' : 'Enable'}</SmBtn>
+                    {u.role !== 'owner' && <SmBtn danger onClick={async () => {
+                      if (!window.confirm(`Permanently delete account "${u.name || u.username}"?\n\nThis will remove the account completely and cannot be undone.`)) return
+                      try {
+                        await apiFetch(`/api/users/${encodeURIComponent(u.id)}?hard=true`, { method: 'DELETE' })
+                        load()
+                      } catch (e: any) { alert(e?.message || 'Delete failed') }
+                    }}>Delete</SmBtn>}
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  <span style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', padding: '3px 9px', borderRadius: 999, border: `1px solid ${rc.border}`, background: 'rgba(0,0,0,.14)', color: rc.color }}>{u.role}</span>
-                  <SmBtn onClick={() => editPhone(u.id, (u as any).phone)}>Phone</SmBtn>
-                  <SmBtn onClick={() => resetPw(u.id)}>Reset PW</SmBtn>
-                  <SmBtn danger onClick={() => toggleActive(u.id, !u.active)}>{u.active ? 'Disable' : 'Enable'}</SmBtn>
-                </div>
+                {editScheduleId === u.id && u.role === 'admin' && (
+                  <ScheduleEditor userId={u.id} userName={u.name || u.username} currentSchedule={(u as any).schedule} onSaved={() => { setEditScheduleId(null); load() }} />
+                )}
               </div>
             )
           })
@@ -326,7 +544,7 @@ export default function SettingsPage() {
     { id: 'fees', label: 'Fees & Charges' },
     { id: 'booking', label: 'Booking & SMS' },
     { id: 'payroll', label: 'Payroll' },
-    { id: 'square', label: 'Square' },
+    // { id: 'square', label: 'Square' }, // hidden — not used
     { id: 'users', label: 'Accounts' },
   ] as const
 
@@ -346,6 +564,10 @@ export default function SettingsPage() {
           .set-topbar h2{font-size:13px!important;}
           .set-fee-row{grid-template-columns:1fr 70px 80px 36px!important;}
           .set-fee-col3{display:none!important;}
+          .set-user-actions{flex-direction:column!important;align-items:stretch!important;gap:4px!important;}
+          .set-user-actions button{width:100%!important;justify-content:center!important;}
+          .set-user-card{flex-direction:column!important;align-items:stretch!important;gap:8px!important;}
+          .set-create-grid{grid-template-columns:1fr!important;}
         }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
@@ -407,6 +629,8 @@ export default function SettingsPage() {
                     </select>
                   </Field>
                 </SectionCard>
+
+                <HeroMediaCard settings={s} onUpdate={(key: string, val: any) => set(key, val)} onSave={save} />
 
                 <SectionCard title="Tax">
                   <Toggle checked={!!tax.enabled} onChange={v => setNested('tax','enabled',v)} label="Enable tax on services" sub="Added to invoice total" />
@@ -479,6 +703,14 @@ export default function SettingsPage() {
                   <Toggle checked={!!booking.reminder_hours_2} onChange={v => setNested('booking','reminder_hours_2',v)} label="2h reminder" sub="2 hours before" />
                   <Toggle checked={!!booking.sms_on_reschedule} onChange={v => setNested('booking','sms_on_reschedule',v)} label="Reschedule notification" sub="When appointment time changes" />
                   <Toggle checked={!!booking.sms_on_cancel} onChange={v => setNested('booking','sms_on_cancel',v)} label="Cancellation notification" sub="When appointment is cancelled" />
+                </SectionCard>
+                <SectionCard title="Push notifications (Element B&S app)">
+                  <Toggle checked={booking.push_confirm !== false} onChange={v => setNested('booking','push_confirm',v)} label="Booking confirmation" sub="Push when appointment is booked" />
+                  <Toggle checked={booking.push_reminder_24 !== false} onChange={v => setNested('booking','push_reminder_24',v)} label="24h reminder push" sub="Day before appointment" />
+                  <Toggle checked={booking.push_reminder_2 !== false} onChange={v => setNested('booking','push_reminder_2',v)} label="2h reminder push" sub="2 hours before" />
+                  <Toggle checked={booking.push_reschedule !== false} onChange={v => setNested('booking','push_reschedule',v)} label="Reschedule push" sub="When time changes" />
+                  <Toggle checked={booking.push_cancel !== false} onChange={v => setNested('booking','push_cancel',v)} label="Cancellation push" sub="When appointment cancelled" />
+                  <Toggle checked={booking.push_waitlist !== false} onChange={v => setNested('booking','push_waitlist',v)} label="Waitlist push" sub="When spot opens up" />
                 </SectionCard>
                 <SectionCard title="Booking page">
                   <Field label="Cancellation window (hours)">

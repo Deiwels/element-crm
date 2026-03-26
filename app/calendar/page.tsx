@@ -10,7 +10,7 @@ interface Barber {
   id: string; name: string; level?: string; photo?: string; color: string
   about?: string; basePrice?: string; publicRole?: string
   radarLabels?: string[]; radarValues?: number[]; username?: string
-  schedule?: { enabled: boolean; startMin: number; endMin: number }[]
+  schedule?: any; work_schedule?: any
 }
 interface Service {
   id: string; name: string; durationMin: number; price?: string; barberIds: string[]
@@ -25,7 +25,7 @@ interface ModalState { open: boolean; eventId: string | null; isNew: boolean }
 interface DaySchedule { enabled: boolean; startMin: number; endMin: number }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const SLOT_H = 11
+const slotH_DEFAULT = 11
 const START_HOUR = 0
 const END_HOUR = 24
 const COL_MIN = 190
@@ -44,6 +44,12 @@ const DAY_DEFAULTS: DaySchedule[] = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const minToHHMM = (min: number) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
+const minToAMPM = (min: number) => {
+  const h = Math.floor(min / 60), m = min % 60
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return m === 0 ? `${h12} ${period}` : `${h12}:${pad2(m)} ${period}`
+}
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`
 const uid = () => 'e_' + Math.random().toString(16).slice(2)
 const clamp = (min: number) => Math.max(START_HOUR * 60, Math.min(min, END_HOUR * 60 - 5))
@@ -158,9 +164,22 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [sched, setSched] = useState<DaySchedule[]>(() => {
-    // Load from barber's actual schedule if available
-    if (b.schedule && b.schedule.length === 7) {
-      return b.schedule.map(d => ({ enabled: d.enabled, startMin: d.startMin, endMin: d.endMin }))
+    const raw = b.schedule || b.work_schedule
+    // Per-day array format
+    if (Array.isArray(raw) && raw.length === 7) {
+      return raw.map((d: any) => ({ enabled: d.enabled !== false, startMin: Number(d.startMin ?? d.start_min ?? 600), endMin: Number(d.endMin ?? d.end_min ?? 1200) }))
+    }
+    // Object with perDay
+    if (raw?.perDay && Array.isArray(raw.perDay) && raw.perDay.length === 7) {
+      return raw.perDay.map((d: any) => ({ enabled: d.enabled !== false, startMin: Number(d.startMin ?? d.start_min ?? 600), endMin: Number(d.endMin ?? d.end_min ?? 1200) }))
+    }
+    // Legacy { startMin, endMin, days }
+    if (raw?.days) {
+      return Array.from({length: 7}, (_, i) => ({
+        enabled: raw.days.includes(i),
+        startMin: Number(raw.startMin ?? 600),
+        endMin: Number(raw.endMin ?? 1200),
+      }))
     }
     return DAY_DEFAULTS.map(d => ({...d}))
   })
@@ -204,7 +223,8 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
       const enabledScheds = sched.filter(d => d.enabled)
       const startMin = enabledScheds.length ? Math.min(...enabledScheds.map(d => d.startMin)) : 10*60
       const endMin   = enabledScheds.length ? Math.max(...enabledScheds.map(d => d.endMin))   : 20*60
-      const schedPayload = { startMin, endMin, days: enabledDays }
+      const perDay = sched.map(d => ({ enabled: d.enabled, startMin: d.startMin, endMin: d.endMin }))
+      const schedPayload = { startMin, endMin, days: enabledDays, perDay }
       const rLabels = radarLabels.split(',').map(s => s.trim()).filter(Boolean)
       const rValues = radarValues.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
       const changes = { level, base_price: price, public_role: publicRole || level, about, description: about, bio: about, radar_labels: rLabels, radar_values: rValues, photo_url: photoPreview || b.photo || '', schedule: schedPayload, work_schedule: schedPayload, public_off_days: DAY_NAMES.filter((_,i) => !sched[i].enabled), public_enabled: true }
@@ -598,6 +618,7 @@ export default function CalendarPage() {
   const [wlConfirm, setWlConfirm] = useState<{ w: any; barberId: string; barberName: string; slotMin: number; dur: number } | null>(null)
   const [wlConfirming, setWlConfirming] = useState(false)
   const [search, setSearch] = useState('')
+  const [slotH, setSlotH] = useState(slotH_DEFAULT)
   const [isMobile, setIsMobile] = useState(false) // mobile detection
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768)
@@ -613,8 +634,17 @@ export default function CalendarPage() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; barberId: string; min: number } | null>(null)
+  const [blockDrag, setBlockDrag] = useState<{ barberId: string; barberIdx: number; startMin: number; endMin: number } | null>(null)
+  const blockDragRef = useRef<{ barberId: string; barberIdx: number; startMin: number; endMin: number } | null>(null)
+  const blockDragJustEnded = useRef(false)
+  const blockLongPressTimer = useRef<any>(null)
   const [trainingModal, setTrainingModal] = useState<{ barberId: string; barberName: string; min: number } | null>(null)
   const [toast, setToast] = useState('')
+  // Block modals
+  const [blockModal, setBlockModal] = useState<{ type: 'create' | 'resize_confirm' | 'owner_resize'; barberId: string; startMin: number; currentDur: number; originalDur: number; evId?: string; rawId?: string } | null>(null)
+  const [blockDurInput, setBlockDurInput] = useState('30')
+  // Pending block requests (loaded from /api/requests)
+  const [pendingBlockRequests, setPendingBlockRequests] = useState<any[]>([])
   const [slotPicker, setSlotPicker] = useState<{ min: number; mentorId: string; mentorName: string }[] | null>(null)
   const [mobilePage, setMobilePage] = useState(0)
   const BARBERS_PER_PAGE = 2
@@ -624,10 +654,35 @@ export default function CalendarPage() {
   const colRefs = useRef<(HTMLDivElement | null)[]>([])
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
+  // Pinch zoom
+  const lastPinchDist = useRef(0)
+  const onPinchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      lastPinchDist.current = Math.sqrt(dx*dx + dy*dy)
+    }
+  }
+  const onPinchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.sqrt(dx*dx + dy*dy)
+      if (lastPinchDist.current > 0) {
+        const scale = dist / lastPinchDist.current
+        setSlotH(prev => Math.round(Math.max(6, Math.min(22, prev * scale))))
+      }
+      lastPinchDist.current = dist
+    }
+  }
+  const onPinchEnd = () => { lastPinchDist.current = 0 }
+
   // Work hours per barber: { barberId -> { startMin, endMin } }
   // Default: 10:00–20:00 if no schedule loaded
   const [workHours, setWorkHours] = useState<Record<string, { startMin: number; endMin: number }>>({})
   const offResize = useRef<{ barberId: string; type: 'top' | 'bottom'; startY: number; origMin: number } | null>(null)
+  const hasScrolledRef = useRef(false)
+  const prevAnchorRef = useRef<string>('')
   const [scheduleConfirm, setScheduleConfirm] = useState<{ barberId: string; barberName: string; dow: number; startMin: number; endMin: number } | null>(null)
 
   // Student schedule state
@@ -676,6 +731,14 @@ export default function CalendarPage() {
   // Scroll to current time or work start — runs after barbers load
   useEffect(() => {
     if (!barbers.length) return
+    const anchorStr = isoDate(anchor)
+    // Reset scroll flag when anchor date changes (user navigated to a different day)
+    if (prevAnchorRef.current && prevAnchorRef.current !== anchorStr) {
+      hasScrolledRef.current = false
+    }
+    prevAnchorRef.current = anchorStr
+    // Only scroll once per anchor date
+    if (hasScrolledRef.current) return
     const container = scrollContainerRef.current
     if (!container) return
     const now = new Date()
@@ -689,11 +752,11 @@ export default function CalendarPage() {
     }
     // If today → scroll to current time (30% from top)
     // If another day → scroll to work start
-    const anchorStr = isoDate(anchor)
     const scrollMin = anchorStr === today ? currentMin : earliestWorkStart
-    const y = ((scrollMin - START_HOUR * 60) / 5) * SLOT_H
+    const y = ((scrollMin - START_HOUR * 60) / 5) * slotH
     const offset = Math.max(0, y - container.clientHeight * 0.3)
     requestAnimationFrame(() => { container.scrollTop = offset })
+    hasScrolledRef.current = true
   }, [barbers, anchor, workHours])
 
   // Off-block resize handlers
@@ -705,7 +768,7 @@ export default function CalendarPage() {
       const { barberId, type, startY, origMin } = offResize.current
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
       const dy = clientY - startY
-      const dMin = Math.round(dy / SLOT_H) * 5
+      const dMin = Math.round(dy / slotH) * 5
       setWorkHours(prev => {
         const cur = prev[barberId] || { startMin: 10*60, endMin: 20*60 }
         if (type === 'top') {
@@ -976,11 +1039,15 @@ export default function CalendarPage() {
       const svcs = servicesArg.filter(s => rawServiceIds.includes(s.id))
       const svc = svcs[0] || servicesArg.find(s => s.id === String(b.service_id || ''))
       const barber = barbersArg.find(br => br.id === String(b.barber_id || ''))
-      // Use end_at when available (most accurate), fallback to sum of service durations
+      // Duration: prefer end_at - start_at (handles multi-service), fallback to duration_minutes, then service durations sum
       const svcDurMin = svcs.length > 0 ? svcs.reduce((sum, s) => sum + (s.durationMin || 30), 0) : (svc?.durationMin || 30)
-      const endAtDur = b.end_at && startAt ? Math.max(5, Math.round((new Date(b.end_at).getTime() - startAt.getTime()) / 60000)) : 0
-      const durMin = (isBlock || isModelOrTraining) ? (endAtDur || 90) : (endAtDur || svcDurMin)
-      const svcName = svcs.length > 1 ? svcs.map(s => s.name).join(' + ') : (svc?.name || String(b.service_name || b.notes || ''))
+      const endAtTime = b.end_at ? new Date(b.end_at).getTime() : 0
+      const startAtTime = startAt ? startAt.getTime() : 0
+      const calcFromEndAt = (endAtTime && startAtTime && endAtTime > startAtTime) ? Math.round((endAtTime - startAtTime) / 60000) : 0
+      const durMin = (isBlock || isModelOrTraining)
+        ? (calcFromEndAt || 90)
+        : (calcFromEndAt || Number(b.duration_minutes || 0) || svcDurMin)
+      const svcName = svcs.length > 1 ? svcs.map(s => s.name).join(' + ') : (svc?.name || String(b.service_name || b.notes || 'Service'))
       return {
         id: String(b.id || uid()), type: isBlock ? 'block' as const : 'booking' as const,
         barberId: String(b.barber_id || ''), barberName: barber?.name || String(b.barber_name || ''),
@@ -1025,6 +1092,15 @@ export default function CalendarPage() {
     } catch { /* ignore */ }
   }, [isOwnerOrAdmin, todayStr])
 
+  // Load pending block requests to show as breathing blocks
+  const loadPendingBlocks = useCallback(async () => {
+    try {
+      const data = await apiFetch('/api/requests')
+      const pending = (data?.requests || []).filter((r: any) => r.type === 'block_time' && r.status === 'pending' && (!r.data?.date || r.data.date === todayStr))
+      setPendingBlockRequests(pending)
+    } catch { /* ignore */ }
+  }, [todayStr])
+
   const reloadAll = useCallback(async () => {
     try {
       const [b, s] = await Promise.all([loadBarbers(), loadServices()])
@@ -1032,24 +1108,35 @@ export default function CalendarPage() {
       setEvents(await loadBookings(b, s))
       loadStudents()
       loadWaitlist()
+      loadPendingBlocks()
     } catch(e) { console.warn(e) }
-  }, [loadBarbers, loadServices, loadBookings, loadStudents, loadWaitlist])
+  }, [loadBarbers, loadServices, loadBookings, loadStudents, loadWaitlist, loadPendingBlocks])
 
   useEffect(() => {
     setLoading(true)
     Promise.all([loadBarbers(), loadServices()]).then(async ([b, s]) => {
       setBarbers(b); setServices(s)
       setEvents(await loadBookings(b, s)); setLoading(false)
-      loadStudents(); loadWaitlist()
+      loadStudents(); loadWaitlist(); loadPendingBlocks()
     }).catch(e => { console.warn(e); setLoading(false) })
   }, [todayStr])
+
+  // Poll bookings + pending blocks every 15s — PAUSE when modal is open
+  useEffect(() => {
+    if (modal.open) return // Don't poll while booking modal is open
+    const interval = setInterval(() => {
+      loadBookings(barbers, services).then(setEvents).catch(console.warn)
+      loadPendingBlocks().catch(() => {})
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [barbers, services, loadBookings, modal.open])
 
   const reload = useCallback(() => {
     loadBookings(barbers, services).then(setEvents).catch(console.warn)
   }, [barbers, services, loadBookings])
 
-  const totalH = (END_HOUR - START_HOUR) * 12 * SLOT_H
-  const minToY = (min: number) => ((min - START_HOUR * 60) / 5) * SLOT_H
+  const totalH = (END_HOUR - START_HOUR) * 12 * slotH
+  const minToY = (min: number) => ((min - START_HOUR * 60) / 5) * slotH
   const nowY = minToY(nowMin)
   const isToday = (() => { const t = new Date(); return todayStr === isoDate(t) })()
   const showNow = isToday && nowMin >= START_HOUR * 60 && nowMin <= END_HOUR * 60
@@ -1068,7 +1155,7 @@ export default function CalendarPage() {
     e.preventDefault(); e.stopPropagation()
     const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
     const col = colRefs.current[barberIdx]; if (!col) return
-    const clickedMin = Math.round((clientY - col.getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
+    const clickedMin = Math.round((clientY - col.getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
     setDrag({ eventId: ev.id, offsetMin: clickedMin - ev.startMin, ghostBarberIdx: barberIdx, ghostMin: ev.startMin })
   }
 
@@ -1081,7 +1168,7 @@ export default function CalendarPage() {
     let newBI = drag.ghostBarberIdx
     colRefs.current.forEach((col, i) => { if (!col) return; const r = col.getBoundingClientRect(); if (clientX >= r.left && clientX <= r.right) newBI = i })
     const col = colRefs.current[newBI]; if (!col) return
-    const rawMin = Math.round((clientY - col.getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60 - drag.offsetMin
+    const rawMin = Math.round((clientY - col.getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60 - drag.offsetMin
     setDrag(d => d ? { ...d, ghostBarberIdx: newBI, ghostMin: clamp(rawMin) } : d)
   }
 
@@ -1121,22 +1208,56 @@ export default function CalendarPage() {
     return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', end); window.removeEventListener('touchmove', move); window.removeEventListener('touchend', end) }
   }, [drag, events, barbers])
 
+  // ── Block drag-to-create ────────────────────────────────────────────────────
+  function startBlockDrag(barberId: string, barberIdx: number, startMin: number) {
+    const bd = { barberId, barberIdx, startMin: clamp(startMin), endMin: clamp(startMin) + 15 }
+    blockDragRef.current = bd
+    setBlockDrag(bd)
+  }
+  useEffect(() => {
+    if (!blockDrag) return
+    function onMove(e: MouseEvent | TouchEvent) {
+      if (!blockDragRef.current) return
+      if ('touches' in e) e.preventDefault()
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+      const col = colRefs.current[blockDragRef.current.barberIdx]; if (!col) return
+      const rawMin = Math.round((clientY - col.getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
+      const endMin = Math.max(blockDragRef.current.startMin + 5, clamp(rawMin))
+      const updated = { ...blockDragRef.current, endMin }
+      blockDragRef.current = updated
+      setBlockDrag(updated)
+    }
+    function onEnd() {
+      const bd = blockDragRef.current
+      if (bd && bd.endMin - bd.startMin >= 5) {
+        openCreateBlock(bd.barberId, bd.startMin, bd.endMin - bd.startMin)
+      }
+      blockDragRef.current = null
+      setBlockDrag(null)
+      blockDragJustEnded.current = true
+      setTimeout(() => { blockDragJustEnded.current = false }, 50)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onEnd)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onEnd)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onEnd); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd) }
+  }, [blockDrag, slotH])
+
   // ── Create / Block ─────────────────────────────────────────────────────────
-  function openCreateBlock(barberId: string, startMin: number) {
-    // Barber sends block as request for approval
+  function openCreateBlock(barberId: string, startMin: number, durMin?: number) {
+    // Barber sends block as request for approval — show styled modal
     if (isBarber && !isOwnerOrAdmin && barberId === myBarberId) {
-      const startAt = new Date(todayStr + 'T' + minToHHMM(clamp(startMin)) + ':00')
-      apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
-        type: 'block_time',
-        data: { barberId, barberName: barbers.find(b => b.id === barberId)?.name || '', date: todayStr, startMin: clamp(startMin), startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + 30*60000).toISOString() }
-      })}).then(() => showToast('Block request sent for approval')).catch(e => showToast('Error: ' + e.message))
+      setBlockDurInput(String(durMin || 30))
+      setBlockModal({ type: 'create', barberId, startMin: clamp(startMin), currentDur: durMin || 30, originalDur: 0 })
       return
     }
+    const duration = durMin || 30
     const id = 'block_' + Date.now()
     const barber = barbers.find(b => b.id === barberId)
-    setEvents(prev => [...prev, { id, type: 'block', barberId, barberName: barber?.name || '', clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Blocked', date: todayStr, startMin: clamp(startMin), durMin: 30, status: 'block', paid: false, notes: '', _raw: null }])
+    setEvents(prev => [...prev, { id, type: 'block', barberId, barberName: barber?.name || '', clientName: 'BLOCKED', clientPhone: '', serviceId: '', serviceName: 'Blocked', date: todayStr, startMin: clamp(startMin), durMin: duration, status: 'block', paid: false, notes: '', _raw: null }])
     const startAt = new Date(todayStr + 'T' + minToHHMM(clamp(startMin)) + ':00')
-    apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: barberId, type: 'block', status: 'block', client_name: 'BLOCKED', service_id: '', start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + 30*60000).toISOString(), notes: 'Blocked by manager' }) })
+    apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: barberId, type: 'block', status: 'block', client_name: 'BLOCKED', service_id: '', start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + duration*60000).toISOString(), notes: 'Blocked by manager' }) })
       .then(res => { const savedId = res?.booking?.id || res?.id; if (savedId) setEvents(prev => prev.map(e => e.id === id ? { ...e, _raw: { id: savedId } } : e)) })
       .catch(console.warn)
   }
@@ -1169,6 +1290,8 @@ export default function CalendarPage() {
       }
     } catch(e: any) { console.warn('save:', e.message) }
     setModal({ open: false, eventId: null, isNew: false })
+    // Reload bookings to get fresh data from server
+    setTimeout(() => { loadBookings(barbers, services).then(setEvents).catch(console.warn) }, 500)
   }
 
   async function handleDelete() {
@@ -1195,6 +1318,16 @@ export default function CalendarPage() {
         }
         .wl-ghost-pulse { animation: wlGhostPulse 2.6s ease-in-out infinite; transition: filter .2s; }
         .wl-ghost-pulse:hover { filter: brightness(1.25); }
+        @keyframes blockPendingPulse {
+          0%, 100% { box-shadow: 0 0 6px rgba(255,107,107,.15), inset 0 0 0 1px rgba(255,107,107,.12); border-color: rgba(255,107,107,.25); background: rgba(255,107,107,.04); }
+          50% { box-shadow: 0 0 18px rgba(255,107,107,.45), inset 0 0 0 1px rgba(255,107,107,.30); border-color: rgba(255,107,107,.55); background: rgba(255,107,107,.10); }
+        }
+        .block-pending-pulse { animation: blockPendingPulse 2.6s ease-in-out infinite; }
+        @keyframes blockPendingPulse {
+          0%, 100% { box-shadow: 0 0 6px rgba(255,107,107,.10); border-color: rgba(255,107,107,.25); background: rgba(255,107,107,.04); }
+          50% { box-shadow: 0 0 18px rgba(255,107,107,.40); border-color: rgba(255,107,107,.55); background: rgba(255,107,107,.10); }
+        }
+        .block-pending-pulse { animation: blockPendingPulse 2.4s ease-in-out infinite; }
         /* Desktop: hide mobile-only elements */
         .cal-search-icon{ display:none !important; }
         .cal-settings-icon{ display:none !important; }
@@ -1243,13 +1376,13 @@ export default function CalendarPage() {
           .cal-settings-icon{ display:flex !important; }
           /* Hide Calendar title + date on mobile */
           .cal-topbar-left{ display:none !important; }
-          /* Compact topbar on mobile */
-          .cal-topbar-wrap{ padding:6px 8px 8px !important; }
+          /* Compact topbar on mobile — safe area for status bar */
+          .cal-topbar-wrap{ padding:calc(env(safe-area-inset-top, 0px) + 6px) 8px 8px !important; }
         }
         select option { background: #111; }
         input[type=date],input[type=time] { color-scheme: dark; }
       `}</style>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
 
         {/* Topbar */}
         <div className="cal-topbar-wrap" style={{ padding: '10px 18px 12px', background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', flexShrink: 0 }}>
@@ -1326,21 +1459,17 @@ export default function CalendarPage() {
                 <button onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(10,132,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ New</button>
               )}
 
+              {/* Zoom +/- — desktop only */}
+              {!isMobile && <>
+                <button onClick={() => setSlotH(h => Math.max(6, h-2))} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 17, fontWeight: 700, flexShrink: 0, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{'\u2212'}</button>
+                <button onClick={() => setSlotH(h => Math.min(22, h+2))} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 17, fontWeight: 700, flexShrink: 0, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+              </>}
+
               {/* Reload — desktop only */}
               {!isMobile && <button onClick={reload} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>↻</button>}
             </div>
           </div>
         </div>
-
-        {/* Mobile page dots */}
-        {isMobile && !isStudent && !isBarber && visibleBarbers.length > BARBERS_PER_PAGE && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '6px 0 2px', flexShrink: 0 }}>
-            {Array.from({ length: Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE) }, (_, i) => (
-              <button key={i} onClick={() => setMobilePage(i)}
-                style={{ width: mobilePage === i ? 18 : 8, height: 8, borderRadius: 4, border: 'none', background: mobilePage === i ? 'rgba(10,132,255,.80)' : 'rgba(255,255,255,.20)', cursor: 'pointer', transition: 'all .2s', padding: 0 }} />
-            ))}
-          </div>
-        )}
 
         {/* Calendar grid */}
         {(() => {
@@ -1350,7 +1479,7 @@ export default function CalendarPage() {
             : visibleBarbers
           const timeColW = isMobile ? 46 : 90
           return (
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', touchAction: drag ? 'none' : 'pan-x pan-y' }} ref={scrollContainerRef}>
+        <div style={{ flex: 1, position: 'relative', overflowY: 'auto', overflowX: 'hidden', touchAction: drag ? 'none' : 'pan-x pan-y' }} ref={scrollContainerRef} onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd}>
           <div style={{ minWidth: timeColW + pageBarbers.length * COL_MIN }}>
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${COL_MIN}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
@@ -1385,7 +1514,7 @@ export default function CalendarPage() {
               {/* Time labels */}
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
                 {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
-                  <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*SLOT_H*12, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 8, color: 'rgba(255,255,255,.40)', fontSize: 11 }}>{(() => {
+                  <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*slotH*12, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 8, color: 'rgba(255,255,255,.40)', fontSize: 11 }}>{(() => {
                     const h = START_HOUR + i
                     if (h === 0) return '12 AM'
                     if (h === 12) return '12 PM'
@@ -1402,11 +1531,31 @@ export default function CalendarPage() {
                   : filtered.filter(e => e.barberId === barber.id)
                 return (
                   <div key={barber.id} ref={el => { colRefs.current[bi] = el }}
-                    style={{ position: 'relative', borderRight: bi < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'transparent', transition: 'background .15s', touchAction: drag ? 'none' : 'pan-y' }}
+                    style={{ position: 'relative', borderRight: bi < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: blockDrag?.barberIdx === bi ? 'rgba(255,107,107,.03)' : drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'transparent', transition: 'background .15s', touchAction: (drag || blockDrag) ? 'none' : 'pan-y' }}
+                    onMouseDown={e => {
+                      if (e.button !== 0 || !e.shiftKey) return
+                      if ((e.target as HTMLElement).closest('.cal-event')) return
+                      if (isStudent) return
+                      const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
+                      // Shift+click on empty space starts block drag
+                      if (isOwnerOrAdmin || (isBarber && barber.id === myBarberId)) { e.preventDefault(); startBlockDrag(barber.id, bi, min); return }
+                    }}
+                    onTouchStart={e => {
+                      clearTimeout(blockLongPressTimer.current)
+                      if ((e.target as HTMLElement).closest('.cal-event')) return
+                      if (isBarber && !isOwnerOrAdmin && barber.id === myBarberId && e.touches.length === 1) {
+                        const min = Math.round((e.touches[0].clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
+                        const bId = barber.id
+                        blockLongPressTimer.current = setTimeout(() => { startBlockDrag(bId, bi, min) }, 400)
+                      }
+                    }}
+                    onTouchEnd={() => { clearTimeout(blockLongPressTimer.current) }}
+                    onTouchMove={() => { clearTimeout(blockLongPressTimer.current) }}
                     onClick={e => {
+                      if (blockDrag || blockDragRef.current || blockDragJustEnded.current) return
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       if (isBarber && barber.id !== myBarberId) return
-                      const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / SLOT_H) * 5 + START_HOUR * 60
+                      const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
                       // Student: find which mentor is free at this slot
                       if (isStudent) {
                         const slotMin = clamp(min)
@@ -1462,7 +1611,7 @@ export default function CalendarPage() {
                               {/* Label */}
                               {sy > 32 && (
                                 <div style={{ position: 'absolute', bottom: 18, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-                                  <span style={TIME_PILL}>{minToHHMM(startMin)}</span>
+                                  <span style={TIME_PILL}>{minToAMPM(startMin)}</span>
                                 </div>
                               )}
                               {/* Handle zone — owner/admin/barber(own column) can drag */}
@@ -1494,7 +1643,7 @@ export default function CalendarPage() {
                               {/* Label */}
                               {(totalPx - ey) > 32 && (
                                 <div style={{ position: 'absolute', top: 16, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-                                  <span style={TIME_PILL}>{minToHHMM(endMin)}</span>
+                                  <span style={TIME_PILL}>{minToAMPM(endMin)}</span>
                                 </div>
                               )}
                             </div>
@@ -1504,7 +1653,7 @@ export default function CalendarPage() {
                     })()}
                     {/* Grid lines */}
                     {Array.from({ length: (END_HOUR-START_HOUR)*12 }, (_, i) => (
-                      <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*SLOT_H, height: 1, background: i%12===0 ? 'rgba(255,255,255,.10)' : i%4===0 ? 'rgba(255,255,255,.04)' : 'rgba(255,255,255,.015)', pointerEvents: 'none' }} />
+                      <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*slotH, height: 1, background: i%12===0 ? 'rgba(255,255,255,.10)' : i%4===0 ? 'rgba(255,255,255,.04)' : 'rgba(255,255,255,.015)', pointerEvents: 'none' }} />
                     ))}
                     {/* Now line — full width across all columns */}
                     {showNow && (
@@ -1515,34 +1664,85 @@ export default function CalendarPage() {
                     {/* Ghost */}
                     {drag?.ghostBarberIdx===bi && (() => {
                       const dragEv = events.find(e => e.id === drag.eventId); if (!dragEv) return null
-                      return <div style={{ position: 'absolute', left: 8, right: 8, top: minToY(drag.ghostMin), height: Math.max(SLOT_H*6, (dragEv.durMin/5)*SLOT_H)-2, borderRadius: 14, border: '2px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.12)', pointerEvents: 'none', zIndex: 40 }}><div style={{ padding: '6px 10px', fontWeight: 900, fontSize: 11, color: '#d7ecff' }}>{dragEv.clientName} — {minToHHMM(drag.ghostMin)}</div></div>
+                      return <div style={{ position: 'absolute', left: 8, right: 8, top: minToY(drag.ghostMin), height: Math.max(slotH*6, (dragEv.durMin/5)*slotH)-2, borderRadius: 14, border: '2px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.12)', pointerEvents: 'none', zIndex: 40 }}><div style={{ padding: '6px 10px', fontWeight: 900, fontSize: 11, color: '#d7ecff' }}>{dragEv.clientName} — {minToAMPM(drag.ghostMin)}</div></div>
+                    })()}
+                    {/* Block drag ghost */}
+                    {blockDrag?.barberIdx === bi && (() => {
+                      const h = minToY(blockDrag.endMin) - minToY(blockDrag.startMin)
+                      return <div style={{ position: 'absolute', left: 4, right: 4, top: minToY(blockDrag.startMin), height: Math.max(slotH * 2, h), borderRadius: 10, border: '2px dashed rgba(255,107,107,.65)', background: 'repeating-linear-gradient(45deg,rgba(255,107,107,.08) 0px,rgba(255,107,107,.08) 6px,rgba(255,107,107,.03) 6px,rgba(255,107,107,.03) 12px)', pointerEvents: 'none', zIndex: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                        <span style={{ fontSize: 10, fontWeight: 900, color: 'rgba(255,107,107,.80)', textTransform: 'uppercase' }}>{minToAMPM(blockDrag.startMin)}–{minToAMPM(blockDrag.endMin)}</span>
+                        <span style={{ fontSize: 9, color: 'rgba(255,107,107,.55)' }}>{blockDrag.endMin - blockDrag.startMin}min</span>
+                      </div>
                     })()}
                     {/* Events */}
                     {colEvents.map(ev => {
                       const top = minToY(ev.startMin)
-                      const height = Math.max(SLOT_H*6, (ev.durMin/5)*SLOT_H)
+                      const height = Math.max(slotH*6, (ev.durMin/5)*slotH)
                       const isBlock = ev.type === 'block' || ev.status === 'block'
                       const canDrag = isStudent ? false : (isBlock ? isOwnerOrAdmin : (!isBarber || ev.barberId === myBarberId))
 
+                      const isPending = ev.status === 'block_pending' || !!(ev as any)._pendingResize
+                      const approvedDur = (ev as any)._approvedDur || (isPending ? 0 : ev.durMin)
+                      const hasPendingExtension = !isPending && (ev as any)._pendingResize && approvedDur > 0 && ev.durMin > approvedDur
                       if (isBlock) return (
-                        <div key={ev.id}
-                          style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, background: 'repeating-linear-gradient(45deg,rgba(255,107,107,.10) 0px,rgba(255,107,107,.10) 6px,rgba(255,107,107,.04) 6px,rgba(255,107,107,.04) 12px)', border: `1px solid ${drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.28)'}`, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'hidden', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'grab') : 'default', opacity: drag?.eventId===ev.id ? 0.5 : 1, userSelect: 'none' }}
+                        <div key={ev.id} style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'visible', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'grab') : 'default', opacity: drag?.eventId===ev.id ? 0.5 : 1, userSelect: 'none' }}
                           onMouseDown={e => { if (!isOwnerOrAdmin || e.button!==0) return; e.stopPropagation(); startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); startDrag(e, ev, bi) }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px' }}>
+                          {/* Approved part (solid) */}
+                          {!isPending && <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: hasPendingExtension ? (approvedDur / ev.durMin * 100) + '%' : '100%', borderRadius: hasPendingExtension ? '10px 10px 0 0' : 10, background: 'repeating-linear-gradient(45deg,rgba(255,107,107,.10) 0px,rgba(255,107,107,.10) 6px,rgba(255,107,107,.04) 6px,rgba(255,107,107,.04) 12px)', border: `1px solid ${drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.28)'}` }} />}
+                          {/* Pending part (breathing red) */}
+                          {(isPending || hasPendingExtension) && <div className="block-pending-pulse" style={{ position: 'absolute', left: 0, right: 0, top: hasPendingExtension ? (approvedDur / ev.durMin * 100) + '%' : 0, bottom: 0, borderRadius: hasPendingExtension ? '0 0 10px 10px' : 10, border: '1px solid rgba(255,107,107,.45)' }} />}
+                          {/* Content */}
+                          <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                              <span style={{ fontSize: 10, textTransform: 'uppercase', color: 'rgba(255,107,107,.80)', fontWeight: 900 }}>Blocked {minToHHMM(ev.startMin)}–{minToHHMM(ev.startMin+ev.durMin)}</span>
+                              <span style={{ fontSize: 10, textTransform: 'uppercase', color: isPending ? 'rgba(255,107,107,.90)' : 'rgba(255,107,107,.80)', fontWeight: 900 }}>{isPending ? 'Pending approval' : hasPendingExtension ? 'Blocked + Pending' : 'Blocked'} {minToAMPM(ev.startMin)}–{minToAMPM(ev.startMin+ev.durMin)}</span>
                             </div>
-                            {isOwnerOrAdmin && <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setEvents(prev => prev.filter(x => x.id!==ev.id)); if (ev._raw?.id) apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'DELETE'}).catch(console.warn) }} style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: 'rgba(255,107,107,.90)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontFamily: 'inherit' }}>✕</button>}
+                            {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setEvents(prev => prev.filter(x => x.id!==ev.id)); if (ev._raw?.id) apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'DELETE'}).catch(console.warn) }} style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: 'rgba(255,107,107,.90)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontFamily: 'inherit' }}>✕</button>}
                           </div>
-                          {isOwnerOrAdmin && <div onMouseDown={e => {
-                            e.stopPropagation(); e.preventDefault()
-                            const startY = e.clientY, startDur = ev.durMin
-                            const onMove = (me: MouseEvent) => { setEvents(prev => prev.map(x => x.id===ev.id ? {...x, durMin: Math.max(5, startDur + Math.round((me.clientY-startY)/SLOT_H)*5)} : x)) }
-                            const onUp = () => { window.removeEventListener('mousemove',onMove); window.removeEventListener('mouseup',onUp); const u = events.find(x=>x.id===ev.id); if (u?._raw?.id) { const sa=new Date(u.date+'T'+minToHHMM(u.startMin)+':00'); apiFetch('/api/bookings/'+encodeURIComponent(String(u._raw.id)),{method:'PATCH',body:JSON.stringify({end_at:new Date(sa.getTime()+u.durMin*60000).toISOString()})}).catch(console.warn) } }
-                            window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp)
-                          }} style={{ position: 'absolute', left: 10, right: 10, bottom: 4, height: 8, borderRadius: 999, background: 'rgba(255,107,107,.25)', cursor: 'ns-resize' }} />}
+                          {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && (() => {
+                            const handleResize = (startY: number, getY: (e: any) => number, evId: string, startDur: number, rawObj: any, startMin: number, dateStr: string, addMove: (fn: any) => void, addEnd: (fn: any) => void, rmMove: (fn: any) => void, rmEnd: (fn: any) => void) => {
+                              let currentDur = startDur
+                              const onMove = (e: any) => {
+                                if (e.preventDefault) e.preventDefault()
+                                const dy = getY(e) - startY
+                                currentDur = Math.max(5, startDur + Math.round(dy / slotH) * 5)
+                                setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: currentDur } : x))
+                              }
+                              const onEnd = () => {
+                                rmMove(onMove); rmEnd(onEnd)
+                                if (currentDur === startDur) return
+                                // Revert to original
+                                setEvents(prev => prev.map(x => x.id === evId ? { ...x, durMin: startDur } : x))
+                                const sa = new Date(dateStr + 'T' + minToHHMM(startMin) + ':00')
+                                if (isBarber && !isOwnerOrAdmin) {
+                                  setBlockModal({ type: 'resize_confirm', barberId: currentUser?.barber_id || '', startMin, currentDur, originalDur: startDur, evId, rawId: String(rawObj?.id || '') })
+                                } else {
+                                  setBlockModal({ type: 'owner_resize', barberId: '', startMin, currentDur, originalDur: startDur, evId, rawId: String(rawObj?.id || '') })
+                                }
+                              }
+                              addMove(onMove); addEnd(onEnd)
+                            }
+                            return <div
+                              onMouseDown={e => {
+                                e.stopPropagation(); e.preventDefault()
+                                handleResize(e.clientY, (me: MouseEvent) => me.clientY, ev.id, ev.durMin, ev._raw, ev.startMin, ev.date,
+                                  fn => window.addEventListener('mousemove', fn),
+                                  fn => window.addEventListener('mouseup', fn),
+                                  fn => window.removeEventListener('mousemove', fn),
+                                  fn => window.removeEventListener('mouseup', fn))
+                              }}
+                              onTouchStart={e => {
+                                e.stopPropagation()
+                                handleResize(e.touches[0].clientY, (te: TouchEvent) => te.touches[0].clientY, ev.id, ev.durMin, ev._raw, ev.startMin, ev.date,
+                                  fn => window.addEventListener('touchmove', fn, { passive: false }),
+                                  fn => window.addEventListener('touchend', fn),
+                                  fn => window.removeEventListener('touchmove', fn),
+                                  fn => window.removeEventListener('touchend', fn))
+                              }}
+                              style={{ position: 'absolute', left: 10, right: 10, bottom: 4, height: 14, borderRadius: 999, background: 'rgba(255,107,107,.40)', cursor: 'ns-resize', touchAction: 'none' }} />
+                          })()}
                         </div>
                       )
 
@@ -1553,7 +1753,7 @@ export default function CalendarPage() {
                           onTouchStart={e => { if (!canDrag) return; startDrag(e, ev, bi) }}
                           onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
-                            <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{ev.clientName}</div>
+                            <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>{ev.clientName}{ev._raw?.client_status === 'vip' ? <span style={{ fontSize: 8, fontWeight: 900, color: '#ffd700', background: 'rgba(255,215,0,.18)', border: '1px solid rgba(255,215,0,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>VIP</span> : ev._raw?.client_status === 'new' ? <span style={{ fontSize: 8, fontWeight: 900, color: '#7abaff', background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>NEW</span> : ev._raw?.client_status === 'at_risk' ? <span style={{ fontSize: 9, fontWeight: 900, color: '#ff6b6b', background: 'rgba(255,107,107,.18)', border: '1px solid rgba(255,107,107,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>!</span> : ev._raw?.client_status === 'active' ? <span style={{ width: 5, height: 5, borderRadius: 999, background: '#8ff0b1', flexShrink: 0 }} /> : null}</div>
                             <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                               {ev._raw?.booking_type === 'model' && <Chip label="Model" type="model" />}
                               {ev._raw?.booking_type === 'training' && <Chip label="Training" type="model" />}
@@ -1566,7 +1766,23 @@ export default function CalendarPage() {
                               )}
                             </div>
                           </div>
-                          {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToHHMM(ev.startMin)} · {ev.serviceName}</div>}
+                          {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToAMPM(ev.startMin)} · {ev.serviceName}</div>}
+                        </div>
+                      )
+                    })}
+                    {/* Pending block request ghosts */}
+                    {pendingBlockRequests.filter(r => r.data?.barberId === barber.id).map((r, ri) => {
+                      const reqStartMin = Number(r.data?.startMin || 0)
+                      const reqDur = Number(r.data?.duration || 30)
+                      if (!reqStartMin) return null
+                      const top = minToY(reqStartMin)
+                      const height = Math.max(24, (reqDur / 5) * slotH) - 2
+                      return (
+                        <div key={`pblock-${r.id}`} className="block-pending-pulse" style={{ position: 'absolute', left: 4, right: 4, top, height, borderRadius: 10, zIndex: 3, padding: '5px 8px', overflow: 'hidden', pointerEvents: 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'rgba(255,107,107,.85)', fontWeight: 900 }}>Pending {minToAMPM(reqStartMin)}–{minToAMPM(reqStartMin + reqDur)}</span>
+                          </div>
                         </div>
                       )
                     })}
@@ -1591,12 +1807,12 @@ export default function CalendarPage() {
                       }
                       if (slotMin < 0) return null
                       const top = minToY(slotMin)
-                      const height = Math.max(24, (dur / 5) * SLOT_H) - 2
+                      const height = Math.max(24, (dur / 5) * slotH) - 2
                       return (
                         <div key={`wl-${w.id}`} className="wl-ghost-pulse" style={{ position: 'absolute', left: 8, right: 8, top, height, borderRadius: 14, border: '1px solid rgba(10,132,255,.35)', background: 'rgba(10,132,255,.08)', zIndex: 3, padding: '6px 10px', cursor: 'pointer', overflow: 'hidden', boxShadow: '0 0 12px rgba(10,132,255,.20), inset 0 0 0 1px rgba(10,132,255,.15)' }}
                           onClick={() => setWlConfirm({ w, barberId: barber.id, barberName: barber.name, slotMin, dur })}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: '#bfe0ff' }}>{w.client_name || 'Waitlist'}</div>
-                          <div style={{ fontSize: 9, color: 'rgba(10,132,255,.70)', marginTop: 1 }}>{minToHHMM(slotMin)} · {dur}min · {prefStart !== wh.startMin || prefEnd !== wh.endMin ? `${minToHHMM(prefStart)}-${minToHHMM(prefEnd)}` : 'WAITLIST'}</div>
+                          <div style={{ fontSize: 9, color: 'rgba(10,132,255,.70)', marginTop: 1 }}>{minToAMPM(slotMin)} · {dur}min · {prefStart !== wh.startMin || prefEnd !== wh.endMin ? `${minToAMPM(prefStart)}-${minToAMPM(prefEnd)}` : 'WAITLIST'}</div>
                         </div>
                       )
                     })}
@@ -1608,6 +1824,16 @@ export default function CalendarPage() {
         </div>
           )
         })()}
+
+        {/* Mobile page dots — floating over calendar */}
+        {isMobile && !isStudent && !isBarber && visibleBarbers.length > BARBERS_PER_PAGE && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '6px 0', position: 'absolute', bottom: 8, left: 0, right: 0, zIndex: 10, pointerEvents: 'none' }}>
+            {Array.from({ length: Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE) }, (_, i) => (
+              <button key={i} onClick={() => setMobilePage(i)}
+                style={{ width: mobilePage === i ? 18 : 8, height: 8, borderRadius: 4, border: 'none', background: mobilePage === i ? 'rgba(10,132,255,.80)' : 'rgba(255,255,255,.20)', cursor: 'pointer', transition: 'all .2s', padding: 0, pointerEvents: 'auto' }} />
+            ))}
+          </div>
+        )}
 
         {loading && <div style={{ position: 'fixed', bottom: 20, right: 20, padding: '8px 16px', borderRadius: 999, background: 'rgba(10,132,255,.20)', border: '1px solid rgba(10,132,255,.40)', color: '#d7ecff', fontSize: 12, zIndex: 99 }}>Loading…</div>}
       </div>
@@ -1631,7 +1857,7 @@ export default function CalendarPage() {
           <div style={{ position: 'fixed', left, top, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 16px 40px rgba(0,0,0,.65), inset 0 0 0 0.5px rgba(255,255,255,.06)', padding: '10px 10px 8px', fontFamily: 'Inter,sans-serif' }} onClick={e => e.stopPropagation()}>
             {/* Time + barber */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{minToHHMM(contextMenu.min)}</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{minToAMPM(contextMenu.min)}</span>
               <span style={{ fontSize: 10, color: 'rgba(255,255,255,.35)' }}>{cmBarber?.name}</span>
             </div>
             {/* Buttons in a row */}
@@ -1657,7 +1883,7 @@ export default function CalendarPage() {
               <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: 'rgba(255,255,255,.70)', marginBottom: 14 }}>Move booking</div>
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.08em' }}>{dragConfirm.newBarberName}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{minToHHMM(dragConfirm.newMin)}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{minToAMPM(dragConfirm.newMin)}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)' }}>{ev.clientName} · {ev.serviceName}</div>
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -1708,7 +1934,7 @@ export default function CalendarPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
                   <div style={{ ...mLbl, marginBottom: 2 }}>Time</div>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>{minToHHMM(trainingModal.min)} — {minToHHMM(trainingModal.min + tt.durMin)}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{minToAMPM(trainingModal.min)} — {minToAMPM(trainingModal.min + tt.durMin)}</div>
                 </div>
                 <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
                   <div style={{ ...mLbl, marginBottom: 2 }}>Duration</div>
@@ -1773,17 +1999,27 @@ export default function CalendarPage() {
         const { barberId, barberName, dow, startMin, endMin } = scheduleConfirm
         const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
         const dayName = dayNames[dow]
-        const pad2 = (n: number) => String(n).padStart(2,'0')
-        const fmt = (m: number) => `${pad2(Math.floor(m/60))}:${pad2(m%60)}`
+        const fmt = minToAMPM
         async function confirm() {
           setScheduleConfirm(null)
           try {
             // Barber sends request instead of direct save
             if (isBarber && !isOwnerOrAdmin) {
-              // Build full schedule with the change applied so backend can save directly
+              // Build per-day schedule with the change applied
               const barber = barbers.find(b => b.id === barberId)
-              const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
-              const newSched = baseSched.map((d: any, i: number) => i === dow ? { ...d, startMin, endMin } : d)
+              const rawSched = barber?.schedule || barber?.work_schedule
+              const baseSched = Array.isArray(rawSched) ? rawSched :
+                (rawSched?.perDay ? rawSched.perDay :
+                  Array.from({length:7}, (_, i) => ({
+                    enabled: rawSched?.days ? rawSched.days.includes(i) : i !== 0,
+                    startMin: rawSched?.startMin ?? 10*60,
+                    endMin: rawSched?.endMin ?? 20*60
+                  })))
+              const newSched = baseSched.map((d: any, i: number) => i === dow ? { enabled: true, startMin, endMin } : {
+                enabled: d.enabled !== false,
+                startMin: d.startMin ?? 600,
+                endMin: d.endMin ?? 1200,
+              })
               const enabledDays = newSched.map((d: any, i: number) => d.enabled ? i : -1).filter((i: number) => i >= 0)
               const enabledScheds = newSched.filter((d: any) => d.enabled)
               const globalStart = enabledScheds.length ? Math.min(...enabledScheds.map((d: any) => d.startMin)) : startMin
@@ -1794,9 +2030,10 @@ export default function CalendarPage() {
                 data: {
                   barberName, barberId, dayName, dow,
                   startTime: fmt(startMin), endTime: fmt(endMin),
-                  // Full schedule for backend to apply on approve
-                  schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays },
-                  work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays },
+                  startMin, endMin,
+                  // Full per-day schedule for backend to apply on approve
+                  schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays, perDay: newSched },
+                  work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays, perDay: newSched },
                 }
               })})
               showToast('Schedule change request sent for approval')
@@ -1804,29 +2041,44 @@ export default function CalendarPage() {
               return
             }
             const barber = barbers.find(b => b.id === barberId)
-            const baseSched = barber?.schedule || Array.from({length:7}, (_, i) => ({ enabled: i !== 0, startMin: 10*60, endMin: 20*60 }))
+            // Build per-day schedule array [Sun, Mon, Tue, ...]
+            const rawSched = barber?.schedule || barber?.work_schedule
+            const baseSched = Array.isArray(rawSched) ? rawSched :
+              (rawSched?.perDay ? rawSched.perDay :
+                Array.from({length:7}, (_, i) => ({
+                  enabled: rawSched?.days ? rawSched.days.includes(i) : i !== 0,
+                  startMin: rawSched?.startMin ?? 10*60,
+                  endMin: rawSched?.endMin ?? 20*60
+                })))
 
             // 1. Save this day's override to localStorage
             saveSchedOverride(barberId, dow, startMin, endMin)
 
-            // 2. Build updated schedule applying ALL localStorage overrides
+            // 2. Build updated per-day schedule applying ALL localStorage overrides
             const allOverrides = getSchedOverrides(barberId)
-            const newSched = baseSched.map((d, i) => {
+            const newSched = baseSched.map((d: any, i: number) => {
               const ov = allOverrides[i]
-              return ov ? { ...d, startMin: ov.startMin, endMin: ov.endMin } : d
+              return {
+                enabled: d.enabled !== false,
+                startMin: ov ? ov.startMin : (d.startMin ?? 600),
+                endMin: ov ? ov.endMin : (d.endMin ?? 1200),
+              }
             })
-            const enabledDays = newSched.map((d, i) => d.enabled ? i : -1).filter(i => i >= 0)
 
-            // 3. Server stores global startMin/endMin (min/max of all enabled days)
-            const enabledDays2 = newSched.filter(d => d.enabled)
-            const globalStart = enabledDays2.length ? Math.min(...enabledDays2.map(d => d.startMin)) : startMin
-            const globalEnd   = enabledDays2.length ? Math.max(...enabledDays2.map(d => d.endMin))   : endMin
+            // 3. Apply the current change
+            newSched[dow] = { enabled: true, startMin, endMin }
+
+            // 4. Send per-day schedule to server
+            const enabledDays = newSched.map((d: any, i: number) => d.enabled ? i : -1).filter((i: number) => i >= 0)
+            const enabledScheds = newSched.filter((d: any) => d.enabled)
+            const globalStart = enabledScheds.length ? Math.min(...enabledScheds.map((d: any) => d.startMin)) : startMin
+            const globalEnd = enabledScheds.length ? Math.max(...enabledScheds.map((d: any) => d.endMin)) : endMin
 
             await apiFetch('/api/barbers/' + encodeURIComponent(barberId), {
               method: 'PATCH',
               body: JSON.stringify({
-                schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays },
-                work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays }
+                schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays, perDay: newSched },
+                work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays, perDay: newSched }
               })
             })
             loadBarbers().then(list => setBarbers(list))
@@ -1906,7 +2158,7 @@ export default function CalendarPage() {
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', cursor: 'pointer', color: '#e9e9e9', fontFamily: 'inherit', textAlign: 'left', width: '100%' }}
                   onMouseEnter={e => (e.currentTarget.style.background='rgba(168,107,255,.12)')} onMouseLeave={e => (e.currentTarget.style.background='rgba(255,255,255,.04)')}>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 800 }}>{minToHHMM(slot.min)} — {minToHHMM(slot.min + 90)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800 }}>{minToAMPM(slot.min)} — {minToAMPM(slot.min + 90)}</div>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 2 }}>with {slot.mentorName}</div>
                   </div>
                   <div style={{ fontSize: 11, color: 'rgba(168,107,255,.80)', fontWeight: 700 }}>90 min</div>
@@ -1916,6 +2168,85 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* Block duration / resize modal */}
+      {blockModal && (() => {
+        const bm = blockModal
+        const isCreate = bm.type === 'create'
+        const isResizeConfirm = bm.type === 'resize_confirm'
+        const isOwnerResize = bm.type === 'owner_resize'
+        const submitBlock = () => {
+          if (isCreate) {
+            const dur = Math.max(5, Math.round(Number(blockDurInput) / 5) * 5) || 30
+            const startAt = new Date(todayStr + 'T' + minToHHMM(bm.startMin) + ':00')
+            const barber = barbers.find(b => b.id === bm.barberId)
+            apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({
+              type: 'block_time',
+              data: { barberId: bm.barberId, barberName: barber?.name || '', date: todayStr, startMin: bm.startMin, duration: dur, startAt: startAt.toISOString(), endAt: new Date(startAt.getTime() + dur * 60000).toISOString() }
+            })}).then(() => { showToast('Block request sent'); loadPendingBlocks() }).catch(e => showToast('Error: ' + e.message))
+          } else if (isResizeConfirm) {
+            const sa = new Date(todayStr + 'T' + minToHHMM(bm.startMin) + ':00')
+            if (bm.evId) setEvents(prev => prev.map(x => x.id === bm.evId ? { ...x, durMin: bm.currentDur, _pendingResize: true, _approvedDur: bm.originalDur } as any : x))
+            apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'block_time', data: { barberId: bm.barberId, date: todayStr, startMin: bm.startMin, duration: bm.currentDur, startAt: sa.toISOString(), endAt: new Date(sa.getTime() + bm.currentDur * 60000).toISOString(), bookingId: bm.rawId, originalDur: bm.originalDur } }) }).then(() => { showToast('Resize request sent'); loadPendingBlocks() }).catch(console.warn)
+          } else if (isOwnerResize) {
+            const sa = new Date(todayStr + 'T' + minToHHMM(bm.startMin) + ':00')
+            if (bm.evId) setEvents(prev => prev.map(x => x.id === bm.evId ? { ...x, durMin: bm.currentDur } : x))
+            apiFetch('/api/bookings/' + encodeURIComponent(String(bm.rawId)), { method: 'PATCH', body: JSON.stringify({ end_at: new Date(sa.getTime() + bm.currentDur * 60000).toISOString() }) }).catch(console.warn)
+          }
+          setBlockModal(null)
+        }
+        const accentColor = isResizeConfirm ? 'rgba(255,107,107,' : (isOwnerResize ? 'rgba(255,255,255,' : 'rgba(255,107,107,')
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 16 }}
+            onClick={e => { if (e.target === e.currentTarget) { if (bm.evId && (isResizeConfirm || isOwnerResize)) setEvents(prev => prev.map(x => x.id === bm.evId ? { ...x, durMin: bm.originalDur } : x)); setBlockModal(null) } }}>
+            <div style={{ width: 'min(380px,92vw)', borderRadius: 22, border: `1px solid ${accentColor}.25)`, background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60)', padding: '24px 22px', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+              {/* Icon */}
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{ width: 52, height: 52, borderRadius: 16, background: `${accentColor}.10)`, border: `1px solid ${accentColor}.30)`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={isOwnerResize ? '#fff' : '#ff6b6b'} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                </div>
+              </div>
+              {/* Title */}
+              <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.14em', textTransform: 'uppercase', fontSize: 14, textAlign: 'center', marginBottom: 8 }}>
+                {isCreate ? 'Block Time' : 'Resize Block'}
+              </div>
+
+              {isCreate ? (<>
+                {/* Create: duration picker */}
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', textAlign: 'center', marginBottom: 16 }}>Starting at {minToAMPM(bm.startMin)}</div>
+                <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 6 }}>Duration (minutes)</div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+                    {[15, 30, 45, 60, 90, 120].map(d => (
+                      <button key={d} onClick={() => setBlockDurInput(String(d))} style={{ height: 36, minWidth: 48, borderRadius: 10, border: `1px solid ${String(d) === blockDurInput ? 'rgba(255,107,107,.65)' : 'rgba(255,255,255,.14)'}`, background: String(d) === blockDurInput ? 'rgba(255,107,107,.15)' : 'rgba(255,255,255,.04)', color: String(d) === blockDurInput ? '#ffd0d0' : '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>{d}</button>
+                    ))}
+                  </div>
+                  <input type="number" value={blockDurInput} onChange={e => setBlockDurInput(e.target.value)} min={5} max={480} step={5} style={{ width: 80, height: 40, borderRadius: 10, border: '1px solid rgba(255,255,255,.18)', background: 'rgba(255,255,255,.06)', color: '#fff', textAlign: 'center', fontSize: 18, fontWeight: 900, outline: 'none', fontFamily: 'inherit' }} />
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 4 }}>{minToAMPM(bm.startMin)} — {minToAMPM(bm.startMin + (Number(blockDurInput) || 30))}</div>
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,107,107,.60)', textAlign: 'center', marginBottom: 16 }}>This will be sent for owner/admin approval</div>
+              </>) : (<>
+                {/* Resize confirm: show old → new */}
+                <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{minToAMPM(bm.startMin)} — {minToAMPM(bm.startMin + bm.currentDur)}</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,.50)' }}>{bm.originalDur}min → <span style={{ color: '#ffd0d0', fontWeight: 700 }}>{bm.currentDur}min</span></div>
+                </div>
+                {isResizeConfirm && <div style={{ fontSize: 11, color: 'rgba(255,107,107,.60)', textAlign: 'center', marginBottom: 16 }}>Extended time will be sent for approval</div>}
+              </>)}
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <button onClick={() => { if (bm.evId && (isResizeConfirm || isOwnerResize)) setEvents(prev => prev.map(x => x.id === bm.evId ? { ...x, durMin: bm.originalDur } : x)); setBlockModal(null) }} style={{ flex: 1, height: 44, borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Cancel</button>
+                <button onClick={submitBlock} style={{ flex: 2, height: 44, borderRadius: 999, border: `1px solid ${accentColor}.55)`, background: `${accentColor}.12)`, color: isOwnerResize ? '#fff' : '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>
+                  {isCreate ? 'Request Block' : isResizeConfirm ? 'Send for Approval' : 'Confirm Resize'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Pending block requests as ghost events in calendar */}
 
       {/* Waitlist confirm modal */}
       {wlConfirm && (() => {
@@ -1935,7 +2266,7 @@ export default function CalendarPage() {
               notes: 'From waitlist', source: 'waitlist',
             })})
             await apiFetch(`/api/waitlist/${encodeURIComponent(w.id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) })
-            showToast(`${w.client_name || 'Client'} booked at ${minToHHMM(slotMin)}`)
+            showToast(`${w.client_name || 'Client'} booked at ${minToAMPM(slotMin)}`)
             setWlConfirm(null); loadWaitlist(); reloadAll()
           } catch (e: any) { showToast('Error: ' + e.message) }
           setWlConfirming(false)
@@ -1964,7 +2295,7 @@ export default function CalendarPage() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Time</span>
-                  <span style={{ fontSize: 14, fontWeight: 700 }}>{minToHHMM(slotMin)} — {minToHHMM(slotMin + dur)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{minToAMPM(slotMin)} — {minToAMPM(slotMin + dur)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: svcNames.length ? 8 : 0 }}>
                   <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Duration</span>
@@ -2005,3 +2336,4 @@ export default function CalendarPage() {
     </Shell>
   )
 }
+/* deploy 1774457169 */

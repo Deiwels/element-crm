@@ -16,6 +16,8 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 interface AttRecord {
   id: string; user_id: string; user_name: string; role: string; barber_id?: string
   clock_in: string | null; clock_out: string | null; duration_minutes: number | null; date: string
+  auto_closed?: boolean; auto_close_reason?: string
+  at_shop?: boolean; capped_to_schedule?: boolean; distance_meters?: number
 }
 interface Barber {
   id: string; name: string; schedule?: any; work_schedule?: any
@@ -89,7 +91,7 @@ export default function AttendancePage() {
     setLoading(false)
   }, [from, to])
 
-  useEffect(() => { loadAll() }, [loadAll])
+  useEffect(() => { loadAll(); const interval = setInterval(loadAll, 30000); return () => clearInterval(interval) }, [loadAll])
 
   // Build barber map (barber_id → Barber) and user→barber map
   const barberMap: Record<string, Barber> = {}
@@ -138,6 +140,19 @@ export default function AttendancePage() {
         <style>{`
           @keyframes latePulse { 0%,100%{opacity:.7} 50%{opacity:1} }
           .late-badge { animation: latePulse 2s ease-in-out infinite; }
+          .att-grid { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 14px; }
+          .att-topbar-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+          .att-topbar-controls input[type="date"],
+          .att-topbar-controls select { min-width: 0; }
+          .att-log-col { display: flex; flex-direction: column; gap: 14px; max-height: none; overflow-y: visible; }
+          @media (max-width: 768px) {
+            .att-grid { grid-template-columns: 1fr !important; }
+            .att-topbar-controls { flex-direction: column; align-items: stretch; }
+            .att-topbar-controls input[type="date"],
+            .att-topbar-controls select,
+            .att-topbar-controls button { width: 100%; box-sizing: border-box; }
+            .att-log-col { max-height: 60vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+          }
         `}</style>
 
         {/* Topbar */}
@@ -147,7 +162,7 @@ export default function AttendancePage() {
               <h2 style={{ margin: 0, fontFamily: '"Julius Sans One", sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 16 }}>Attendance</h2>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>Hours & clock history</div>
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="att-topbar-controls">
               <input type="date" value={from} onChange={e => setFrom(e.target.value)} style={inp} />
               <span style={{ color: 'rgba(255,255,255,.30)', fontSize: 12 }}>→</span>
               <input type="date" value={to} onChange={e => setTo(e.target.value)} style={inp} />
@@ -155,18 +170,15 @@ export default function AttendancePage() {
                 <option value="">All staff</option>
                 {uniqueUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
-              <button onClick={loadAll} disabled={loading} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(10,132,255,.45)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', opacity: loading ? .5 : 1 }}>
-                {loading ? 'Loading…' : '↻ Refresh'}
-              </button>
             </div>
           </div>
         </div>
 
         {/* Main grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 14 }}>
+        <div className="att-grid">
 
           {/* Left — Attendance Log */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="att-log-col">
             {loading && <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,.40)' }}>Loading attendance records…</div>}
             {!loading && sortedDates.length === 0 && <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,.40)' }}>No attendance records for this period.</div>}
 
@@ -195,20 +207,20 @@ export default function AttendancePage() {
                               <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: ROLE_COLORS[r.role] || 'rgba(255,255,255,.50)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{r.role}</span>
                               {late > 0 && (
                                 <span className="late-badge" style={{ fontSize: 10, padding: '2px 6px', borderRadius: 999, background: 'rgba(255,107,107,.15)', border: '1px solid rgba(255,107,107,.30)', color: '#ff6b6b', fontWeight: 700 }}>
-                                  +{late}min late
+                                  +{fmtMins(late)} late
                                 </span>
                               )}
                             </div>
                             {schedStart !== null && (
                               <div style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginTop: 1 }}>
-                                Scheduled: {Math.floor(schedStart / 60)}:{String(schedStart % 60).padStart(2, '0')} {schedStart < 720 ? 'AM' : 'PM'}
+                                Scheduled: {schedStart < 780 ? Math.floor(schedStart / 60) : Math.floor(schedStart / 60) - 12}:{String(schedStart % 60).padStart(2, '0')} {schedStart < 720 ? 'AM' : 'PM'}
                               </div>
                             )}
                           </div>
                           {/* Times */}
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)' }}>
-                              {fmtTime(r.clock_in || undefined)} → {r.clock_out ? fmtTime(r.clock_out) : <span style={{ color: '#8ff0b1' }}>Still in</span>}
+                              {fmtTime(r.clock_in || undefined)} → {r.clock_out ? (<>{fmtTime(r.clock_out)}{r.auto_closed && <span style={{ fontSize: 9, color: '#ffb000', marginLeft: 4 }} title="Auto-closed: forgot to clock out">AUTO</span>}{r.capped_to_schedule && <span style={{ fontSize: 9, color: '#ff6b6b', marginLeft: 4 }} title={`Capped to schedule end (was ${r.distance_meters}m away)`}>CAPPED</span>}{r.at_shop === false && !r.auto_closed && !r.capped_to_schedule && <span style={{ fontSize: 9, color: 'rgba(255,255,255,.35)', marginLeft: 4 }}>OUT</span>}</>) : <span style={{ color: '#8ff0b1' }}>Still in</span>}
                             </div>
                             <div style={{ fontSize: 11, color: '#8ff0b1', fontWeight: 700 }}>
                               {r.duration_minutes ? fmtMins(r.duration_minutes) : (r.clock_in ? fmtMins(Math.round((Date.now() - new Date(r.clock_in).getTime()) / 60000)) : '—')}
@@ -258,7 +270,7 @@ export default function AttendancePage() {
                       {u.late_count > 0 && (
                         <div>
                           <span style={{ color: 'rgba(255,255,255,.40)' }}>Late: </span>
-                          <span style={{ color: '#ff6b6b', fontWeight: 700 }}>{u.late_count}× (avg {Math.round(u.late_minutes / u.late_count)}m)</span>
+                          <span style={{ color: '#ff6b6b', fontWeight: 700 }}>{u.late_count}× (avg {fmtMins(Math.round(u.late_minutes / u.late_count))})</span>
                         </div>
                       )}
                     </div>

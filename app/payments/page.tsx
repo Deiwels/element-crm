@@ -210,7 +210,7 @@ export default function PaymentsPage() {
     setLoading(false)
   }, [from, to])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); const interval = setInterval(load, 30000); return () => clearInterval(interval) }, [load])
 
   // Filtered list
   const ql = q.toLowerCase()
@@ -303,8 +303,6 @@ export default function PaymentsPage() {
                 style={{ ...inp, cursor: 'pointer', fontWeight: 700, minWidth: 180, textAlign: 'left', background: 'rgba(255,255,255,.05)' }}>
                 {from === to && from === todayIso() ? 'Today' : `${fmtDateShort(from)} → ${fmtDateShort(to)}`}
               </button>
-              <button onClick={load} disabled={loading}
-                style={{ height: 40, width: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16, opacity: loading ? .5 : 1 }}>↻</button>
               <button onClick={exportCSV}
                 style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
                 Export CSV

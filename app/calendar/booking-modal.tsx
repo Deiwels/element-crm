@@ -901,20 +901,24 @@ export function BookingModal({
         ? `Training · ${studentName} · ${finalClientName}`
         : `Training · ${studentName}`
     }
-    onSave({
-      clientName: finalClientName,
-      clientPhone: selectedClient?.phone || '',
-      clientId: selectedClient?.id,
-      barberId: selBarberId,
-      serviceId: serviceIds[0] || '',
-      serviceIds,
-      date,
-      startMin: selStartMin,
-      durMin,
-      status,
-      notes,
-      photoUrl,
-    })
+    try {
+      await onSave({
+        clientName: finalClientName,
+        clientPhone: selectedClient?.phone || '',
+        clientId: selectedClient?.id,
+        barberId: selBarberId,
+        serviceId: serviceIds[0] || '',
+        serviceIds,
+        date,
+        startMin: selStartMin,
+        durMin,
+        status,
+        notes,
+        photoUrl,
+      })
+    } catch (e: any) {
+      setFormError(e?.message || 'Save failed')
+    }
     setSaving(false)
   }
 
@@ -1105,8 +1109,8 @@ export function BookingModal({
             {/* Upload reference photo — not for students */}
             {!isModelEvent && <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />}
 
-            {/* Payment — owner/admin only, NOT for model/training */}
-            {isOwnerOrAdmin && existingEvent && !isModelEvent && (
+            {/* Payment — owner/admin only, NOT for new bookings or model/training */}
+            {isOwnerOrAdmin && existingEvent && !isNew && !isModelEvent && (
               <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} allEvents={allEvents} barberId={barberId} />
             )}
 

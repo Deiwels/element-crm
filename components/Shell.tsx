@@ -15,7 +15,7 @@ const NAV = [
   { id: 'dashboard', href: '/dashboard', label: 'Dashboard',  sub: 'Today overview' },
   { id: 'calendar',  href: '/calendar',  label: 'Calendar',   sub: 'Bookings grid' },
   { id: 'messages',  href: '/messages',  label: 'Messages',   sub: 'Team chat' },
-  { id: 'waitlist',  href: '/waitlist',  label: 'Waitlist',   sub: 'Queue & notify',      ownerAdmin: true },
+  { id: 'waitlist',  href: '/waitlist',  label: 'Waitlist',   sub: 'Queue & notify' },
   { id: 'clients',   href: '/clients',   label: 'Clients',    sub: 'Search / notes',      ownerAdmin: true },
   { id: 'payments',  href: '/payments',  label: 'Payments',   sub: 'Square + Terminal',   ownerAdmin: true },
   { id: 'attendance', href: '/attendance', label: 'Attendance', sub: 'Hours & clock',       ownerAdmin: true },
@@ -262,6 +262,29 @@ function ProfileModal({ user, onClose, onUpdated }: {
             <button onClick={savePassword} disabled={saving} style={{ height: 42, borderRadius: 12, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.10)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
               {saving ? 'Saving…' : 'Update password'}
             </button>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,.06)', paddingTop: 14, marginTop: 6 }}>
+              <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,107,107,.55)', marginBottom: 8 }}>Danger zone</div>
+              <button onClick={async () => {
+                if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) return
+                if (!confirm('This will permanently delete your account and all data. Type your password to confirm.')) return
+                try {
+                  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+                  const res = await fetch(`${API}/api/auth/delete-account`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY },
+                    body: JSON.stringify({ password: currentPw })
+                  })
+                  const data = await res.json()
+                  if (!res.ok) throw new Error(data.error || 'Failed to delete account')
+                  localStorage.removeItem('ELEMENT_TOKEN')
+                  localStorage.removeItem('ELEMENT_USER')
+                  window.location.href = '/signin'
+                } catch (e: any) { setErr(e.message) }
+              }} style={{ height: 38, padding: '0 16px', borderRadius: 10, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit' }}>
+                Delete my account
+              </button>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginTop: 6 }}>Enter your current password above, then click delete. This cannot be undone.</div>
+            </div>
           </>}
 
           {msg && <div style={{ fontSize: 12, color: '#c9ffe1', padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(143,240,177,.22)', background: 'rgba(143,240,177,.06)' }}>{msg}</div>}
@@ -278,7 +301,30 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   const [status, setStatus] = useState<'loading' | 'ok' | 'noauth'>('loading')
   const [showProfile, setShowProfile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [unreadChat, setUnreadChat] = useState<string | null>(null) // color of latest unread chat type
   const pathname = usePathname()
+
+  // Swipe to open/close sidebar
+  useEffect(() => {
+    let startX = 0, startY = 0
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0]; if (!t) return
+      startX = t.clientX; startY = t.clientY
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      const t = e.changedTouches[0]; if (!t) return
+      const dx = t.clientX - startX, dy = t.clientY - startY
+      if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return
+      if (dx > 0 && startX < 40) setSidebarOpen(true)
+      if (dx < 0) setSidebarOpen(false)
+    }
+    document.addEventListener('touchstart', onTouchStart, { passive: true })
+    document.addEventListener('touchend', onTouchEnd, { passive: true })
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart)
+      document.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [])
 
   useEffect(() => {
     const token = localStorage.getItem('ELEMENT_TOKEN')
@@ -315,6 +361,80 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   }, [])
 
   useEffect(() => { if (status === 'noauth') window.location.href = '/signin' }, [status])
+
+  // Poll for unread messages — check latest message per chat type
+  useEffect(() => {
+    if (status !== 'ok' || !user) return
+    const CHAT_COLORS: Record<string, string> = { general: '#d7ecff', barbers: '#d7ecff', admins: '#c9ffe1', students: '#d4b8ff', requests: '#ffe9a3', applications: '#ffb7d5' }
+    const chatTypes = ['general', 'barbers', 'admins', 'students']
+    const lastSeenKey = 'ELEMENT_MSG_LAST_SEEN'
+    const lastSeenAppsKey = 'ELEMENT_APPS_LAST_SEEN'
+    const lastSeenReqKey = 'ELEMENT_REQ_LAST_SEEN'
+    const isOwnerAdmin = user.role === 'owner' || user.role === 'admin'
+    const hdrs = { Authorization: `Bearer ${localStorage.getItem('ELEMENT_TOKEN') || ''}`, 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' }
+
+    async function checkUnread() {
+      if (pathname === '/messages') { setUnreadChat(null); return }
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      if (!token) return
+      const lastSeen = localStorage.getItem(lastSeenKey) || ''
+      try {
+        // Check chat messages
+        for (const ct of chatTypes) {
+          const res = await fetch(`${API}/api/messages?chatType=${ct}&limit=1`, { credentials: 'include', headers: hdrs })
+          if (!res.ok) continue
+          const data = await res.json()
+          const msgs = data?.messages || []
+          if (msgs.length && msgs[msgs.length - 1]?.createdAt > lastSeen && msgs[msgs.length - 1]?.senderId !== user.uid) {
+            setUnreadChat(CHAT_COLORS[ct] || '#d7ecff')
+            return
+          }
+        }
+        // Check new applications (owner/admin only)
+        if (isOwnerAdmin) {
+          const lastSeenApps = localStorage.getItem(lastSeenAppsKey) || ''
+          const appsRes = await fetch(`${API}/api/applications?status=new&limit=1`, { credentials: 'include', headers: hdrs })
+          if (appsRes.ok) {
+            const appsData = await appsRes.json()
+            const apps = appsData?.applications || []
+            if (apps.length && apps[0]?.created_at > lastSeenApps) {
+              setUnreadChat(CHAT_COLORS.applications)
+              return
+            }
+          }
+        }
+        // Check pending requests
+        if (isOwnerAdmin) {
+          const lastSeenReq = localStorage.getItem(lastSeenReqKey) || ''
+          const reqRes = await fetch(`${API}/api/requests`, { credentials: 'include', headers: hdrs })
+          if (reqRes.ok) {
+            const reqData = await reqRes.json()
+            const pending = (reqData?.requests || []).filter((r: any) => r.status === 'pending')
+            if (pending.length && pending[0]?.createdAt > lastSeenReq) {
+              setUnreadChat(CHAT_COLORS.requests)
+              return
+            }
+          }
+        }
+        setUnreadChat(null)
+      } catch { /* ignore */ }
+    }
+
+    checkUnread()
+    const interval = setInterval(checkUnread, 8000)
+    return () => clearInterval(interval)
+  }, [status, user, pathname])
+
+  // Mark messages as seen when visiting Messages page
+  useEffect(() => {
+    if (pathname === '/messages') {
+      setUnreadChat(null)
+      const now = new Date().toISOString()
+      localStorage.setItem('ELEMENT_MSG_LAST_SEEN', now)
+      localStorage.setItem('ELEMENT_APPS_LAST_SEEN', now)
+      localStorage.setItem('ELEMENT_REQ_LAST_SEEN', now)
+    }
+  }, [pathname])
 
   if (status === 'loading' || status === 'noauth') {
     return <div style={{ background: '#000', minHeight: '100vh' }} />
@@ -408,6 +528,16 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         .nav-t{font-weight:600;font-size:13px;color:rgba(255,255,255,.85);display:block;letter-spacing:.01em;}
         .nav-s{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.28);display:block;margin-top:1px;}
         .nav-item.active .nav-t{color:#fff;}
+
+        @keyframes msgPulse {
+          0%, 100% { box-shadow: 0 0 0 rgba(var(--pulse-rgb), 0); }
+          50% { box-shadow: 0 0 14px rgba(var(--pulse-rgb), .75); }
+        }
+        .nav-ico.has-unread {
+          animation: msgPulse 2.4s ease-in-out infinite;
+          border-color: var(--pulse-color) !important;
+          background: var(--pulse-bg) !important;
+        }
 
         /* User bar */
         .user-bar{
@@ -587,6 +717,9 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
           <nav className="nav">
             {visibleNav.map(item => {
               const active = pathname === item.href
+              const hasUnread = item.id === 'messages' && !!unreadChat && !active
+              const pc = unreadChat || '#d7ecff'
+              const r = parseInt(pc.slice(1,3),16)||215, g = parseInt(pc.slice(3,5),16)||236, b = parseInt(pc.slice(5,7),16)||255
               return (
                 <Link
                   key={item.id}
@@ -594,11 +727,14 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
                   onClick={() => setSidebarOpen(false)}
                   className={`nav-item${active ? ' active' : ''}`}
                 >
-                  <div className="nav-ico">
-                    <Icon id={item.id} color={active ? 'rgba(255,255,255,.90)' : 'rgba(255,255,255,.45)'} />
+                  <div
+                    className={`nav-ico${hasUnread ? ' has-unread' : ''}`}
+                    style={hasUnread ? { '--pulse-rgb': `${r},${g},${b}`, '--pulse-color': `rgba(${r},${g},${b},.55)`, '--pulse-bg': `rgba(${r},${g},${b},.12)` } as React.CSSProperties : undefined}
+                  >
+                    <Icon id={item.id} color={hasUnread ? pc : active ? 'rgba(255,255,255,.90)' : 'rgba(255,255,255,.45)'} />
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <span className="nav-t">{item.label}</span>
+                    <span className="nav-t" style={hasUnread ? { color: pc } : undefined}>{item.label}</span>
                     <span className="nav-s">{item.sub}</span>
                   </div>
                 </Link>

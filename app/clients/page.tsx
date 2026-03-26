@@ -8,13 +8,14 @@ const API_KEY = 'R1403ss81fxrx*rx1403'
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Client {
   id: string; name: string; phone?: string; email?: string; notes?: string
-  status?: string; tags?: string[]; preferred_barber?: string; barber?: string
+  status?: string; client_status?: string; tags?: string[]; preferred_barber?: string; barber?: string
   last_visit?: string; visits?: number; spend?: number; no_shows?: number
-  bookings?: Booking[]
+  bookings?: Booking[]; photos?: string[]
 }
 interface Booking {
   id: string; service_name?: string; service?: string; barber_name?: string; barber?: string
   start_at?: string; date?: string; paid?: boolean; is_paid?: boolean; status?: string
+  reference_photo_url?: string; client_photo_url?: string
 }
 interface Barber { id: string; name: string }
 
@@ -22,12 +23,13 @@ interface Barber { id: string; name: string }
 const fmtDate = (iso: string) => { try { return new Date(iso.includes('T') ? iso : iso+'T00:00:00').toLocaleDateString([], { month:'short', day:'numeric', year:'numeric' }) } catch { return iso } }
 const initials = (name: string) => { const p=(name||'').split(' '); return ((p[0]?.[0]||'')+(p[1]?.[0]||'')).toUpperCase() || '?' }
 const STATUS_STYLE: Record<string, React.CSSProperties> = {
-  vip:    { borderColor:'rgba(255,207,63,.45)', background:'rgba(255,207,63,.10)', color:'#ffe9a3' },
-  active: { borderColor:'rgba(143,240,177,.40)', background:'rgba(143,240,177,.10)', color:'#c9ffe1' },
-  new:    { borderColor:'rgba(10,132,255,.45)', background:'rgba(10,132,255,.10)', color:'#d7ecff' },
-  risk:   { borderColor:'rgba(255,107,107,.40)', background:'rgba(255,107,107,.10)', color:'#ffd0d0' },
+  vip:     { borderColor:'rgba(255,207,63,.45)', background:'rgba(255,207,63,.10)', color:'#ffe9a3' },
+  active:  { borderColor:'rgba(143,240,177,.40)', background:'rgba(143,240,177,.10)', color:'#c9ffe1' },
+  new:     { borderColor:'rgba(10,132,255,.45)', background:'rgba(10,132,255,.10)', color:'#d7ecff' },
+  risk:    { borderColor:'rgba(255,107,107,.40)', background:'rgba(255,107,107,.10)', color:'#ffd0d0' },
+  at_risk: { borderColor:'rgba(255,107,107,.40)', background:'rgba(255,107,107,.10)', color:'#ffd0d0' },
 }
-const STATUS_LABELS: Record<string,string> = { vip:'VIP', active:'Active', new:'New', risk:'At risk' }
+const STATUS_LABELS: Record<string,string> = { vip:'VIP', active:'Active', new:'New', risk:'At risk', at_risk:'At risk' }
 
 // Phone masking — shows +1 ***-***-1234, full number on click for owner/admin
 function maskPhone(phone: string): string {
@@ -113,6 +115,8 @@ function ClientProfile({ clientId, clients, onUpdate }: { clientId: string; clie
   const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({})
   const [phoneLoading, setPhoneLoading] = useState<string | null>(null)
   const [phoneError, setPhoneError] = useState('')
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const [userRole] = useState(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}').role || '' } catch { return '' }
   })
@@ -163,6 +167,46 @@ function ClientProfile({ clientId, clients, onUpdate }: { clientId: string; clie
     setNotesSaving(false)
   }
 
+  function compressImage(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const img = new Image()
+        img.onload = () => {
+          const MAX = 900
+          let w = img.width, h = img.height
+          if (w > MAX || h > MAX) {
+            const ratio = Math.min(MAX / w, MAX / h)
+            w = Math.round(w * ratio); h = Math.round(h * ratio)
+          }
+          const canvas = document.createElement('canvas')
+          canvas.width = w; canvas.height = h
+          const ctx = canvas.getContext('2d')!
+          ctx.drawImage(img, 0, 0, w, h)
+          resolve(canvas.toDataURL('image/jpeg', 0.8))
+        }
+        img.onerror = reject
+        img.src = reader.result as string
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoUploading(true)
+    try {
+      const dataUrl = await compressImage(file)
+      const photos = [...(detailed?.photos || []), dataUrl]
+      await patch({ photos })
+      setDetailed(prev => prev ? { ...prev, photos } : prev)
+    } catch (err) { console.error('Photo upload failed', err) }
+    setPhotoUploading(false)
+    e.target.value = ''
+  }
+
   async function addTag(tag: string) {
     if (!tag.trim()) return
     const newTags = [...new Set([tag.trim().toLowerCase(), ...(detailed?.tags||[])])]
@@ -201,10 +245,21 @@ function ClientProfile({ clientId, clients, onUpdate }: { clientId: string; clie
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontWeight:900, fontSize:15 }}>{c.name}</div>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-            <Chip status={c.status||'new'} />
+            <Chip status={c.client_status||c.status||'new'} />
             <span style={{ fontSize:11, color:'rgba(255,255,255,.40)' }}>{barber}</span>
           </div>
         </div>
+        {isOwner && (
+          <button onClick={async () => {
+            if (!window.confirm(`Delete client "${c.name}"? This cannot be undone.`)) return
+            try {
+              await apiFetch(`/api/clients/${encodeURIComponent(clientId)}`, { method: 'DELETE' })
+              window.location.reload()
+            } catch (e: any) { alert(e?.message || 'Delete failed') }
+          }} style={{ width:32, height:32, borderRadius:10, border:'1px solid rgba(255,107,107,.30)', background:'rgba(255,107,107,.06)', color:'#ffd0d0', cursor:'pointer', fontSize:13, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }} title="Delete client">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          </button>
+        )}
       </div>
 
       {/* KPIs */}
@@ -286,20 +341,86 @@ function ClientProfile({ clientId, clients, onUpdate }: { clientId: string; clie
         </div>
       </div>
 
-      {/* Recent bookings */}
+      {/* Photos gallery */}
+      {(() => {
+        const bookingPhotos = (c.bookings || [])
+          .map(b => b.reference_photo_url || b.client_photo_url)
+          .filter(Boolean) as string[]
+        const clientPhotos = c.photos || []
+        const allPhotos = [...clientPhotos, ...bookingPhotos]
+        return (
+          <div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+              <div style={{ fontSize:10, letterSpacing:'.14em', textTransform:'uppercase', color:'rgba(255,255,255,.40)' }}>Photos ({allPhotos.length})</div>
+              <label style={{ height:28, padding:'0 10px', borderRadius:999, border:'1px solid rgba(10,132,255,.45)', background:'rgba(10,132,255,.10)', color:'#d7ecff', cursor:'pointer', fontWeight:700, fontSize:10, fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}>
+                {photoUploading ? 'Uploading…' : '📷 Add photo'}
+                <input type="file" accept="image/*" capture="environment" onChange={handlePhotoUpload} style={{ display:'none' }} disabled={photoUploading} />
+              </label>
+            </div>
+            {allPhotos.length > 0 ? (
+              <div style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:4 }}>
+                {allPhotos.map((url, i) => (
+                  <img key={i} src={url} alt="" onClick={() => setLightboxUrl(url)}
+                    style={{ width:56, height:56, borderRadius:10, objectFit:'cover', border:'1px solid rgba(255,255,255,.12)', flexShrink:0, cursor:'pointer', background:'rgba(255,255,255,.04)' }} />
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize:11, color:'rgba(255,255,255,.25)', padding:'8px 0' }}>No photos yet</div>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Photo lightbox */}
+      {lightboxUrl && (
+        <div onClick={() => setLightboxUrl(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', backdropFilter:'blur(12px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, cursor:'pointer' }}>
+          <img src={lightboxUrl} alt="" style={{ maxWidth:'90vw', maxHeight:'85vh', borderRadius:14, border:'1px solid rgba(255,255,255,.15)', objectFit:'contain' }} />
+        </div>
+      )}
+
+      {/* Visit history timeline */}
       {(c.bookings||[]).length > 0 && (
         <div>
-          <div style={{ fontSize:10, letterSpacing:'.14em', textTransform:'uppercase', color:'rgba(255,255,255,.40)', marginBottom:8 }}>Recent visits ({(c.bookings||[]).length})</div>
+          <div style={{ fontSize:10, letterSpacing:'.14em', textTransform:'uppercase', color:'rgba(255,255,255,.40)', marginBottom:8 }}>Visit history ({(c.bookings||[]).length})</div>
           <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-            {(c.bookings||[]).slice(0,5).map((b,i) => (
-              <div key={i} style={{ padding:'9px 12px', borderRadius:12, border:'1px solid rgba(255,255,255,.07)', background:'rgba(0,0,0,.14)' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
-                  <span style={{ fontWeight:700, fontSize:13 }}>{b.service_name||b.service||'Service'}</span>
-                  <span style={{ fontSize:9, padding:'3px 7px', borderRadius:999, border:`1px solid ${b.paid||b.is_paid ? 'rgba(143,240,177,.40)' : 'rgba(255,255,255,.12)'}`, background:b.paid||b.is_paid ? 'rgba(143,240,177,.10)' : 'rgba(0,0,0,.12)', color:b.paid||b.is_paid ? '#c9ffe1' : 'rgba(255,255,255,.55)', letterSpacing:'.06em', textTransform:'uppercase' }}>{b.paid||b.is_paid ? 'Paid' : 'Unpaid'}</span>
+            {(c.bookings||[]).map((b,i) => {
+              const photo = b.reference_photo_url || b.client_photo_url
+              const st = b.status || (b.paid || b.is_paid ? 'completed' : 'pending')
+              const statusColors: Record<string, { border: string; bg: string; color: string }> = {
+                completed: { border:'rgba(143,240,177,.40)', bg:'rgba(143,240,177,.10)', color:'#c9ffe1' },
+                cancelled: { border:'rgba(255,107,107,.40)', bg:'rgba(255,107,107,.10)', color:'#ffd0d0' },
+                noshow:    { border:'rgba(255,165,0,.40)',   bg:'rgba(255,165,0,.10)',   color:'#ffe0b2' },
+                pending:   { border:'rgba(255,255,255,.12)', bg:'rgba(0,0,0,.12)',       color:'rgba(255,255,255,.55)' },
+              }
+              const sc = statusColors[st] || statusColors.pending
+              return (
+                <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', padding:'9px 12px', borderRadius:12, border:'1px solid rgba(255,255,255,.07)', background:'rgba(0,0,0,.14)' }}>
+                  {/* Timeline dot */}
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', paddingTop:4, flexShrink:0 }}>
+                    <div style={{ width:8, height:8, borderRadius:999, background:sc.color, flexShrink:0 }} />
+                    {i < (c.bookings||[]).length - 1 && <div style={{ width:1, height:28, background:'rgba(255,255,255,.08)', marginTop:4 }} />}
+                  </div>
+                  {/* Content */}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:6 }}>
+                      <span style={{ fontWeight:700, fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.service_name||b.service||'Service'}</span>
+                      <span style={{ fontSize:9, padding:'3px 7px', borderRadius:999, border:`1px solid ${sc.border}`, background:sc.bg, color:sc.color, letterSpacing:'.06em', textTransform:'uppercase', flexShrink:0 }}>
+                        {st === 'noshow' ? 'No-show' : st}
+                      </span>
+                    </div>
+                    <div style={{ fontSize:11, color:'rgba(255,255,255,.45)', marginTop:3 }}>
+                      {b.barber_name||b.barber||'—'} · {fmtDate(b.start_at||b.date||'')}
+                      {b.start_at && (() => { try { return ' · ' + new Date(b.start_at).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) } catch { return '' } })()}
+                    </div>
+                  </div>
+                  {/* Reference photo thumbnail */}
+                  {photo && (
+                    <img src={photo} alt="" onClick={() => setLightboxUrl(photo)}
+                      style={{ width:38, height:38, borderRadius:8, objectFit:'cover', border:'1px solid rgba(255,255,255,.10)', flexShrink:0, cursor:'pointer' }} />
+                  )}
                 </div>
-                <div style={{ fontSize:11, color:'rgba(255,255,255,.45)', marginTop:3 }}>{b.barber_name||b.barber||'—'} · {fmtDate(b.start_at||b.date||'')}</div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -318,6 +439,7 @@ export default function ClientsPage() {
   const [q, setQ] = useState('')
   const [filterBarber, setFilterBarber] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterClientStatus, setFilterClientStatus] = useState('')
   const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({})
   const [phoneLoading, setPhoneLoading] = useState<string | null>(null)
   const [phoneError, setPhoneError] = useState('')
@@ -374,12 +496,13 @@ export default function ClientsPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); const interval = setInterval(load, 30000); return () => clearInterval(interval) }, [load])
 
   const ql = q.toLowerCase()
   const visible = clients.filter(c => {
     if (filterBarber && (c.preferred_barber||c.barber) !== filterBarber) return false
     if (filterStatus && c.status !== filterStatus) return false
+    if (filterClientStatus && (c.client_status || 'new') !== filterClientStatus) return false
     if (ql) {
       const hay = [c.name, c.phone, c.email, c.notes, ...(c.tags||[])].join(' ').toLowerCase()
       if (!hay.includes(ql)) return false
@@ -417,15 +540,17 @@ export default function ClientsPage() {
 
         {/* Topbar */}
         <div style={{ padding:'12px 18px', background:'rgba(0,0,0,.80)', backdropFilter:'blur(14px)', borderBottom:'1px solid rgba(255,255,255,.08)', position:'sticky', top:0, zIndex:20 }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap' as const, marginBottom:10 }}>
-            <div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap' as const, marginBottom:10, position:'relative' }}>
+            <div style={{ position:'absolute', left:0, right:0, textAlign:'center', pointerEvents:'none' }}>
               <h2 className="page-title" style={{ margin:0, fontFamily:'"Julius Sans One",sans-serif', letterSpacing:'.18em', textTransform:'uppercase', fontSize:15 }}>Clients</h2>
               <p style={{ margin:'3px 0 0', color:'rgba(255,255,255,.40)', fontSize:11, letterSpacing:'.08em' }}>
                 {visible.length} of {clients.length} clients
               </p>
             </div>
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap' as const, alignItems:'center' }}>
-              <button onClick={load} style={{ height:40, width:40, borderRadius:999, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.05)', color:'#fff', cursor:'pointer', fontSize:16 }}>↻</button>
+            <div style={{ visibility:'hidden', pointerEvents:'none' }}>
+              <div style={{ height:40 }}>placeholder</div>
+            </div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' as const, alignItems:'center', position:'relative', zIndex:1 }}>
               <button onClick={() => setShowAdd(true)}
                 style={{ height:40, padding:'0 16px', borderRadius:999, border:'1px solid rgba(10,132,255,.75)', background:'rgba(0,0,0,.75)', color:'#d7ecff', cursor:'pointer', fontWeight:900, fontSize:13, fontFamily:'inherit', boxShadow:'0 0 18px rgba(10,132,255,.25)' }}>
                 + Add client
@@ -443,6 +568,14 @@ export default function ClientsPage() {
               <option value="">All statuses</option>
               {Object.entries(STATUS_LABELS).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+          </div>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center', marginTop:8 }}>
+            {[{v:'',l:'All'},{v:'vip',l:'VIP'},{v:'active',l:'Active'},{v:'new',l:'New'},{v:'at_risk',l:'At Risk'}].map(f => (
+              <button key={f.v} onClick={() => setFilterClientStatus(f.v)}
+                style={{ height:30, padding:'0 12px', borderRadius:999, border:`1px solid ${filterClientStatus===f.v ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.12)'}`, background:filterClientStatus===f.v ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.04)', color:filterClientStatus===f.v ? '#d7ecff' : 'rgba(255,255,255,.55)', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', letterSpacing:'.04em' }}>
+                {f.l}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -492,7 +625,7 @@ export default function ClientsPage() {
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)' }}><Chip status={c.status||'new'} /></td>
+                        <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)' }}><Chip status={c.client_status||c.status||'new'} /></td>
                         <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)', fontSize:12, color:'rgba(255,255,255,.55)' }}>{c.last_visit ? fmtDate(c.last_visit) : '—'}</td>
                         <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)', fontSize:12, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.preferred_barber||c.barber||'—'}</td>
                         <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)' }}>
