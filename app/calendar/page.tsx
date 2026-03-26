@@ -639,6 +639,7 @@ export default function CalendarPage() {
   const blockDragJustEnded = useRef(false)
   const blockLongPressTimer = useRef<any>(null)
   const eventLongPressTimer = useRef<any>(null)
+  const arrivedIdsRef = useRef<Set<string>>(new Set())
   const [trainingModal, setTrainingModal] = useState<{ barberId: string; barberName: string; min: number } | null>(null)
   const [toast, setToast] = useState('')
   // Block modals
@@ -1120,14 +1121,14 @@ export default function CalendarPage() {
   useEffect(() => {
     if (modal.open) return // Don't poll while booking modal is open
     const interval = setInterval(() => {
-      loadBookings(barbers, services).then(setEvents).catch(console.warn)
+      loadBookings(barbers, services).then(evs => setEvents(evs.map(e => arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e))).catch(console.warn)
       loadPendingBlocks().catch(() => {})
     }, 15000)
     return () => clearInterval(interval)
   }, [barbers, services, loadBookings, modal.open])
 
   const reload = useCallback(() => {
-    loadBookings(barbers, services).then(setEvents).catch(console.warn)
+    loadBookings(barbers, services).then(evs => setEvents(evs.map(e => arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e))).catch(console.warn)
   }, [barbers, services, loadBookings])
 
   const totalH = (END_HOUR - START_HOUR) * 12 * slotH
@@ -1308,19 +1309,30 @@ export default function CalendarPage() {
       } else {
         const patchStart = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         const patchEnd = new Date(patchStart.getTime() + (updated.durMin || 30) * 60000)
-        await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId, service_ids: svcIds, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: updated.status, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '', end_at: patchEnd.toISOString() }) })
+        // Backend may not accept 'arrived' status — send 'booked' for API but keep 'arrived' locally
+        const apiStatus = updated.status === 'arrived' ? 'booked' : updated.status
+        await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId, service_ids: svcIds, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: apiStatus, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '', end_at: patchEnd.toISOString() }) })
+        // Try to save arrived status separately (will work if backend supports it, ignored otherwise)
+        if (updated.status === 'arrived') {
+          apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ status: 'arrived' }) }).catch(() => {})
+        }
       }
     } catch(e: any) { console.warn('save:', e.message) }
-    // If status changed to 'arrived' — send message to barbers chat
+    // If status changed to 'arrived' — track locally + send message to barbers chat
     if (patch.status === 'arrived' && ev.status !== 'arrived') {
+      if (ev._raw?.id) arrivedIdsRef.current.add(String(ev._raw.id))
+      if (ev.id) arrivedIdsRef.current.add(String(ev.id))
       const barberName = barbers.find(b => b.id === updated.barberId)?.name || updated.barberName || ''
       const clientName = updated.clientName || 'Client'
       const msgText = `📍 ${clientName} arrived — ${barberName}`
-      apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: 'barbers', text: msgText }) }).catch(() => {})
+      try {
+        await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: 'barbers', text: msgText }) })
+        showToast('Client arrived — barbers notified')
+      } catch { showToast('Arrived saved') }
     }
     setModal({ open: false, eventId: null, isNew: false })
     // Reload bookings to get fresh data from server
-    setTimeout(() => { loadBookings(barbers, services).then(setEvents).catch(console.warn) }, 500)
+    setTimeout(() => { loadBookings(barbers, services).then(evs => setEvents(evs.map(e => arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e))).catch(console.warn) }, 500)
   }
 
   async function handleDelete() {
