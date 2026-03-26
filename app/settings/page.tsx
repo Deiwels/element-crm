@@ -544,7 +544,7 @@ export default function SettingsPage() {
     { id: 'fees', label: 'Fees & Charges' },
     { id: 'booking', label: 'Booking & SMS' },
     { id: 'payroll', label: 'Payroll' },
-    { id: 'square', label: 'Square' },
+    // { id: 'square', label: 'Square' }, // hidden — not used
     { id: 'users', label: 'Accounts' },
   ] as const
 
