@@ -2162,6 +2162,7 @@ export default function CalendarPage() {
           allEvents={events.map(e => ({ id: e.id, barberId: e.barberId, startMin: e.startMin, durMin: e.durMin, status: e.status, paid: e.paid, clientName: e.clientName, paymentStatus: (e._raw as any)?.payment_status || '' }))}
           onClose={() => { if (modal.isNew) setEvents(prev => prev.filter(e => e.id !== modal.eventId)); setModal({ open: false, eventId: null, isNew: false }) }}
           onSave={handleSave} onDelete={handleDelete} onPayment={handlePayment}
+          onOpenEvent={(eventId) => { setModal({ open: false, eventId: null, isNew: false }); setTimeout(() => setModal({ open: true, eventId, isNew: false }), 100) }}
         />
       )}
 
