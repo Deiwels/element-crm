@@ -8,7 +8,7 @@ const API_KEY = 'R1403ss81fxrx*rx1403'
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Client {
   id: string; name: string; phone?: string; email?: string; notes?: string
-  status?: string; tags?: string[]; preferred_barber?: string; barber?: string
+  status?: string; client_status?: string; tags?: string[]; preferred_barber?: string; barber?: string
   last_visit?: string; visits?: number; spend?: number; no_shows?: number
   bookings?: Booking[]; photos?: string[]
 }
@@ -23,12 +23,13 @@ interface Barber { id: string; name: string }
 const fmtDate = (iso: string) => { try { return new Date(iso.includes('T') ? iso : iso+'T00:00:00').toLocaleDateString([], { month:'short', day:'numeric', year:'numeric' }) } catch { return iso } }
 const initials = (name: string) => { const p=(name||'').split(' '); return ((p[0]?.[0]||'')+(p[1]?.[0]||'')).toUpperCase() || '?' }
 const STATUS_STYLE: Record<string, React.CSSProperties> = {
-  vip:    { borderColor:'rgba(255,207,63,.45)', background:'rgba(255,207,63,.10)', color:'#ffe9a3' },
-  active: { borderColor:'rgba(143,240,177,.40)', background:'rgba(143,240,177,.10)', color:'#c9ffe1' },
-  new:    { borderColor:'rgba(10,132,255,.45)', background:'rgba(10,132,255,.10)', color:'#d7ecff' },
-  risk:   { borderColor:'rgba(255,107,107,.40)', background:'rgba(255,107,107,.10)', color:'#ffd0d0' },
+  vip:     { borderColor:'rgba(255,207,63,.45)', background:'rgba(255,207,63,.10)', color:'#ffe9a3' },
+  active:  { borderColor:'rgba(143,240,177,.40)', background:'rgba(143,240,177,.10)', color:'#c9ffe1' },
+  new:     { borderColor:'rgba(10,132,255,.45)', background:'rgba(10,132,255,.10)', color:'#d7ecff' },
+  risk:    { borderColor:'rgba(255,107,107,.40)', background:'rgba(255,107,107,.10)', color:'#ffd0d0' },
+  at_risk: { borderColor:'rgba(255,107,107,.40)', background:'rgba(255,107,107,.10)', color:'#ffd0d0' },
 }
-const STATUS_LABELS: Record<string,string> = { vip:'VIP', active:'Active', new:'New', risk:'At risk' }
+const STATUS_LABELS: Record<string,string> = { vip:'VIP', active:'Active', new:'New', risk:'At risk', at_risk:'At risk' }
 
 // Phone masking — shows +1 ***-***-1234, full number on click for owner/admin
 function maskPhone(phone: string): string {
@@ -244,7 +245,7 @@ function ClientProfile({ clientId, clients, onUpdate }: { clientId: string; clie
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontWeight:900, fontSize:15 }}>{c.name}</div>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-            <Chip status={c.status||'new'} />
+            <Chip status={c.client_status||c.status||'new'} />
             <span style={{ fontSize:11, color:'rgba(255,255,255,.40)' }}>{barber}</span>
           </div>
         </div>
@@ -427,6 +428,7 @@ export default function ClientsPage() {
   const [q, setQ] = useState('')
   const [filterBarber, setFilterBarber] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterClientStatus, setFilterClientStatus] = useState('')
   const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({})
   const [phoneLoading, setPhoneLoading] = useState<string | null>(null)
   const [phoneError, setPhoneError] = useState('')
@@ -489,6 +491,7 @@ export default function ClientsPage() {
   const visible = clients.filter(c => {
     if (filterBarber && (c.preferred_barber||c.barber) !== filterBarber) return false
     if (filterStatus && c.status !== filterStatus) return false
+    if (filterClientStatus && (c.client_status || 'new') !== filterClientStatus) return false
     if (ql) {
       const hay = [c.name, c.phone, c.email, c.notes, ...(c.tags||[])].join(' ').toLowerCase()
       if (!hay.includes(ql)) return false
@@ -555,6 +558,14 @@ export default function ClientsPage() {
               {Object.entries(STATUS_LABELS).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </div>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center', marginTop:8 }}>
+            {[{v:'',l:'All'},{v:'vip',l:'VIP'},{v:'active',l:'Active'},{v:'new',l:'New'},{v:'at_risk',l:'At Risk'}].map(f => (
+              <button key={f.v} onClick={() => setFilterClientStatus(f.v)}
+                style={{ height:30, padding:'0 12px', borderRadius:999, border:`1px solid ${filterClientStatus===f.v ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.12)'}`, background:filterClientStatus===f.v ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.04)', color:filterClientStatus===f.v ? '#d7ecff' : 'rgba(255,255,255,.55)', cursor:'pointer', fontWeight:700, fontSize:11, fontFamily:'inherit', letterSpacing:'.04em' }}>
+                {f.l}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Main grid */}
@@ -603,7 +614,7 @@ export default function ClientsPage() {
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)' }}><Chip status={c.status||'new'} /></td>
+                        <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)' }}><Chip status={c.client_status||c.status||'new'} /></td>
                         <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)', fontSize:12, color:'rgba(255,255,255,.55)' }}>{c.last_visit ? fmtDate(c.last_visit) : '—'}</td>
                         <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)', fontSize:12, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.preferred_barber||c.barber||'—'}</td>
                         <td style={{ padding:'11px 14px', borderBottom:'1px solid rgba(255,255,255,.06)' }}>
