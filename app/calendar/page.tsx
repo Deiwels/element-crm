@@ -44,6 +44,12 @@ const DAY_DEFAULTS: DaySchedule[] = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const minToHHMM = (min: number) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
+const minToAMPM = (min: number) => {
+  const h = Math.floor(min / 60), m = min % 60
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return m === 0 ? `${h12} ${period}` : `${h12}:${pad2(m)} ${period}`
+}
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`
 const uid = () => 'e_' + Math.random().toString(16).slice(2)
 const clamp = (min: number) => Math.max(START_HOUR * 60, Math.min(min, END_HOUR * 60 - 5))
@@ -1583,7 +1589,7 @@ export default function CalendarPage() {
                               {/* Label */}
                               {sy > 32 && (
                                 <div style={{ position: 'absolute', bottom: 18, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-                                  <span style={TIME_PILL}>{minToHHMM(startMin)}</span>
+                                  <span style={TIME_PILL}>{minToAMPM(startMin)}</span>
                                 </div>
                               )}
                               {/* Handle zone — owner/admin/barber(own column) can drag */}
@@ -1615,7 +1621,7 @@ export default function CalendarPage() {
                               {/* Label */}
                               {(totalPx - ey) > 32 && (
                                 <div style={{ position: 'absolute', top: 16, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-                                  <span style={TIME_PILL}>{minToHHMM(endMin)}</span>
+                                  <span style={TIME_PILL}>{minToAMPM(endMin)}</span>
                                 </div>
                               )}
                             </div>
@@ -1636,14 +1642,14 @@ export default function CalendarPage() {
                     {/* Ghost */}
                     {drag?.ghostBarberIdx===bi && (() => {
                       const dragEv = events.find(e => e.id === drag.eventId); if (!dragEv) return null
-                      return <div style={{ position: 'absolute', left: 8, right: 8, top: minToY(drag.ghostMin), height: Math.max(slotH*6, (dragEv.durMin/5)*slotH)-2, borderRadius: 14, border: '2px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.12)', pointerEvents: 'none', zIndex: 40 }}><div style={{ padding: '6px 10px', fontWeight: 900, fontSize: 11, color: '#d7ecff' }}>{dragEv.clientName} — {minToHHMM(drag.ghostMin)}</div></div>
+                      return <div style={{ position: 'absolute', left: 8, right: 8, top: minToY(drag.ghostMin), height: Math.max(slotH*6, (dragEv.durMin/5)*slotH)-2, borderRadius: 14, border: '2px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.12)', pointerEvents: 'none', zIndex: 40 }}><div style={{ padding: '6px 10px', fontWeight: 900, fontSize: 11, color: '#d7ecff' }}>{dragEv.clientName} — {minToAMPM(drag.ghostMin)}</div></div>
                     })()}
                     {/* Block drag ghost */}
                     {blockDrag?.barberIdx === bi && (() => {
                       const h = minToY(blockDrag.endMin) - minToY(blockDrag.startMin)
                       return <div style={{ position: 'absolute', left: 4, right: 4, top: minToY(blockDrag.startMin), height: Math.max(slotH * 2, h), borderRadius: 10, border: '2px dashed rgba(255,107,107,.65)', background: 'repeating-linear-gradient(45deg,rgba(255,107,107,.08) 0px,rgba(255,107,107,.08) 6px,rgba(255,107,107,.03) 6px,rgba(255,107,107,.03) 12px)', pointerEvents: 'none', zIndex: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                        <span style={{ fontSize: 10, fontWeight: 900, color: 'rgba(255,107,107,.80)', textTransform: 'uppercase' }}>{minToHHMM(blockDrag.startMin)}–{minToHHMM(blockDrag.endMin)}</span>
+                        <span style={{ fontSize: 10, fontWeight: 900, color: 'rgba(255,107,107,.80)', textTransform: 'uppercase' }}>{minToAMPM(blockDrag.startMin)}–{minToAMPM(blockDrag.endMin)}</span>
                         <span style={{ fontSize: 9, color: 'rgba(255,107,107,.55)' }}>{blockDrag.endMin - blockDrag.startMin}min</span>
                       </div>
                     })()}
@@ -1669,7 +1675,7 @@ export default function CalendarPage() {
                           <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                              <span style={{ fontSize: 10, textTransform: 'uppercase', color: isPending ? 'rgba(255,107,107,.90)' : 'rgba(255,107,107,.80)', fontWeight: 900 }}>{isPending ? 'Pending approval' : hasPendingExtension ? 'Blocked + Pending' : 'Blocked'} {minToHHMM(ev.startMin)}–{minToHHMM(ev.startMin+ev.durMin)}</span>
+                              <span style={{ fontSize: 10, textTransform: 'uppercase', color: isPending ? 'rgba(255,107,107,.90)' : 'rgba(255,107,107,.80)', fontWeight: 900 }}>{isPending ? 'Pending approval' : hasPendingExtension ? 'Blocked + Pending' : 'Blocked'} {minToAMPM(ev.startMin)}–{minToAMPM(ev.startMin+ev.durMin)}</span>
                             </div>
                             {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setEvents(prev => prev.filter(x => x.id!==ev.id)); if (ev._raw?.id) apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'DELETE'}).catch(console.warn) }} style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: 'rgba(255,107,107,.90)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontFamily: 'inherit' }}>✕</button>}
                           </div>
@@ -1738,7 +1744,7 @@ export default function CalendarPage() {
                               )}
                             </div>
                           </div>
-                          {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToHHMM(ev.startMin)} · {ev.serviceName}</div>}
+                          {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToAMPM(ev.startMin)} · {ev.serviceName}</div>}
                         </div>
                       )
                     })}
@@ -1753,7 +1759,7 @@ export default function CalendarPage() {
                         <div key={`pblock-${r.id}`} className="block-pending-pulse" style={{ position: 'absolute', left: 4, right: 4, top, height, borderRadius: 10, zIndex: 3, padding: '5px 8px', overflow: 'hidden', pointerEvents: 'none' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'rgba(255,107,107,.85)', fontWeight: 900 }}>Pending {minToHHMM(reqStartMin)}–{minToHHMM(reqStartMin + reqDur)}</span>
+                            <span style={{ fontSize: 9, textTransform: 'uppercase', color: 'rgba(255,107,107,.85)', fontWeight: 900 }}>Pending {minToAMPM(reqStartMin)}–{minToAMPM(reqStartMin + reqDur)}</span>
                           </div>
                         </div>
                       )
@@ -1784,7 +1790,7 @@ export default function CalendarPage() {
                         <div key={`wl-${w.id}`} className="wl-ghost-pulse" style={{ position: 'absolute', left: 8, right: 8, top, height, borderRadius: 14, border: '1px solid rgba(10,132,255,.35)', background: 'rgba(10,132,255,.08)', zIndex: 3, padding: '6px 10px', cursor: 'pointer', overflow: 'hidden', boxShadow: '0 0 12px rgba(10,132,255,.20), inset 0 0 0 1px rgba(10,132,255,.15)' }}
                           onClick={() => setWlConfirm({ w, barberId: barber.id, barberName: barber.name, slotMin, dur })}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: '#bfe0ff' }}>{w.client_name || 'Waitlist'}</div>
-                          <div style={{ fontSize: 9, color: 'rgba(10,132,255,.70)', marginTop: 1 }}>{minToHHMM(slotMin)} · {dur}min · {prefStart !== wh.startMin || prefEnd !== wh.endMin ? `${minToHHMM(prefStart)}-${minToHHMM(prefEnd)}` : 'WAITLIST'}</div>
+                          <div style={{ fontSize: 9, color: 'rgba(10,132,255,.70)', marginTop: 1 }}>{minToAMPM(slotMin)} · {dur}min · {prefStart !== wh.startMin || prefEnd !== wh.endMin ? `${minToAMPM(prefStart)}-${minToAMPM(prefEnd)}` : 'WAITLIST'}</div>
                         </div>
                       )
                     })}
@@ -1829,7 +1835,7 @@ export default function CalendarPage() {
           <div style={{ position: 'fixed', left, top, zIndex: 151, borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 16px 40px rgba(0,0,0,.65), inset 0 0 0 0.5px rgba(255,255,255,.06)', padding: '10px 10px 8px', fontFamily: 'Inter,sans-serif' }} onClick={e => e.stopPropagation()}>
             {/* Time + barber */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{minToHHMM(contextMenu.min)}</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{minToAMPM(contextMenu.min)}</span>
               <span style={{ fontSize: 10, color: 'rgba(255,255,255,.35)' }}>{cmBarber?.name}</span>
             </div>
             {/* Buttons in a row */}
@@ -1855,7 +1861,7 @@ export default function CalendarPage() {
               <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: 'rgba(255,255,255,.70)', marginBottom: 14 }}>Move booking</div>
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.08em' }}>{dragConfirm.newBarberName}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{minToHHMM(dragConfirm.newMin)}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{minToAMPM(dragConfirm.newMin)}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)' }}>{ev.clientName} · {ev.serviceName}</div>
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -1906,7 +1912,7 @@ export default function CalendarPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
                   <div style={{ ...mLbl, marginBottom: 2 }}>Time</div>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>{minToHHMM(trainingModal.min)} — {minToHHMM(trainingModal.min + tt.durMin)}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{minToAMPM(trainingModal.min)} — {minToAMPM(trainingModal.min + tt.durMin)}</div>
                 </div>
                 <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
                   <div style={{ ...mLbl, marginBottom: 2 }}>Duration</div>
@@ -1971,8 +1977,7 @@ export default function CalendarPage() {
         const { barberId, barberName, dow, startMin, endMin } = scheduleConfirm
         const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
         const dayName = dayNames[dow]
-        const pad2 = (n: number) => String(n).padStart(2,'0')
-        const fmt = (m: number) => `${pad2(Math.floor(m/60))}:${pad2(m%60)}`
+        const fmt = minToAMPM
         async function confirm() {
           setScheduleConfirm(null)
           try {
@@ -2131,7 +2136,7 @@ export default function CalendarPage() {
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', cursor: 'pointer', color: '#e9e9e9', fontFamily: 'inherit', textAlign: 'left', width: '100%' }}
                   onMouseEnter={e => (e.currentTarget.style.background='rgba(168,107,255,.12)')} onMouseLeave={e => (e.currentTarget.style.background='rgba(255,255,255,.04)')}>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 800 }}>{minToHHMM(slot.min)} — {minToHHMM(slot.min + 90)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800 }}>{minToAMPM(slot.min)} — {minToAMPM(slot.min + 90)}</div>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 2 }}>with {slot.mentorName}</div>
                   </div>
                   <div style={{ fontSize: 11, color: 'rgba(168,107,255,.80)', fontWeight: 700 }}>90 min</div>
@@ -2186,7 +2191,7 @@ export default function CalendarPage() {
 
               {isCreate ? (<>
                 {/* Create: duration picker */}
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', textAlign: 'center', marginBottom: 16 }}>Starting at {minToHHMM(bm.startMin)}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', textAlign: 'center', marginBottom: 16 }}>Starting at {minToAMPM(bm.startMin)}</div>
                 <div style={{ textAlign: 'center', marginBottom: 16 }}>
                   <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 6 }}>Duration (minutes)</div>
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
@@ -2195,13 +2200,13 @@ export default function CalendarPage() {
                     ))}
                   </div>
                   <input type="number" value={blockDurInput} onChange={e => setBlockDurInput(e.target.value)} min={5} max={480} step={5} style={{ width: 80, height: 40, borderRadius: 10, border: '1px solid rgba(255,255,255,.18)', background: 'rgba(255,255,255,.06)', color: '#fff', textAlign: 'center', fontSize: 18, fontWeight: 900, outline: 'none', fontFamily: 'inherit' }} />
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 4 }}>{minToHHMM(bm.startMin)} — {minToHHMM(bm.startMin + (Number(blockDurInput) || 30))}</div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 4 }}>{minToAMPM(bm.startMin)} — {minToAMPM(bm.startMin + (Number(blockDurInput) || 30))}</div>
                 </div>
                 <div style={{ fontSize: 11, color: 'rgba(255,107,107,.60)', textAlign: 'center', marginBottom: 16 }}>This will be sent for owner/admin approval</div>
               </>) : (<>
                 {/* Resize confirm: show old → new */}
                 <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{minToHHMM(bm.startMin)} — {minToHHMM(bm.startMin + bm.currentDur)}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{minToAMPM(bm.startMin)} — {minToAMPM(bm.startMin + bm.currentDur)}</div>
                   <div style={{ fontSize: 13, color: 'rgba(255,255,255,.50)' }}>{bm.originalDur}min → <span style={{ color: '#ffd0d0', fontWeight: 700 }}>{bm.currentDur}min</span></div>
                 </div>
                 {isResizeConfirm && <div style={{ fontSize: 11, color: 'rgba(255,107,107,.60)', textAlign: 'center', marginBottom: 16 }}>Extended time will be sent for approval</div>}
@@ -2239,7 +2244,7 @@ export default function CalendarPage() {
               notes: 'From waitlist', source: 'waitlist',
             })})
             await apiFetch(`/api/waitlist/${encodeURIComponent(w.id)}`, { method: 'PATCH', body: JSON.stringify({ action: 'confirm' }) })
-            showToast(`${w.client_name || 'Client'} booked at ${minToHHMM(slotMin)}`)
+            showToast(`${w.client_name || 'Client'} booked at ${minToAMPM(slotMin)}`)
             setWlConfirm(null); loadWaitlist(); reloadAll()
           } catch (e: any) { showToast('Error: ' + e.message) }
           setWlConfirming(false)
@@ -2268,7 +2273,7 @@ export default function CalendarPage() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Time</span>
-                  <span style={{ fontSize: 14, fontWeight: 700 }}>{minToHHMM(slotMin)} — {minToHHMM(slotMin + dur)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{minToAMPM(slotMin)} — {minToAMPM(slotMin + dur)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: svcNames.length ? 8 : 0 }}>
                   <span style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Duration</span>
