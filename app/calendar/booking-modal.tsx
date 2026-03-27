@@ -825,6 +825,37 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
           border: `1px solid ${hintType==='success' ? 'rgba(143,240,177,.20)' : hintType==='error' ? 'rgba(255,107,107,.20)' : hintType==='warning' ? 'rgba(255,207,63,.20)' : 'rgba(255,255,255,.08)'}`,
         }}>{hint}</div>
       )}
+
+      {/* Fullscreen terminal waiting overlay */}
+      {polling && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 350, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.80)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', animation: 'bmOrbitFadeIn .3s ease-out' }}>
+          <div style={{ position: 'relative', width: 140, height: 140, marginBottom: 28 }}>
+            <div style={{ position: 'absolute', inset: 14, borderRadius: '50%', border: '1px solid rgba(10,132,255,.15)', animation: 'bmOrbitGlow 2.5s ease-in-out infinite' }} />
+            <div style={{ position: 'absolute', inset: 30, borderRadius: '50%', border: '1px solid rgba(10,132,255,.06)' }} />
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ position: 'absolute', width: 10, height: 10, borderRadius: '50%', background: '#0a84ff', boxShadow: '0 0 14px rgba(10,132,255,.70), 0 0 30px rgba(10,132,255,.30)', animation: 'bmOrbit 2s linear infinite' }} />
+              <div style={{ position: 'absolute', width: 6, height: 6, borderRadius: '50%', background: 'rgba(10,132,255,.50)', animation: 'bmOrbitTrail 2s linear infinite', animationDelay: '-.15s' }} />
+              <div style={{ position: 'absolute', width: 4, height: 4, borderRadius: '50%', background: 'rgba(10,132,255,.25)', animation: 'bmOrbitTrail 2s linear infinite', animationDelay: '-.3s' }} />
+            </div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '.02em' }}>${price.toFixed(2)}</div>
+              <div style={{ fontSize: 9, color: 'rgba(255,255,255,.30)', textTransform: 'uppercase', letterSpacing: '.14em', marginTop: 3 }}>Terminal</div>
+            </div>
+          </div>
+          <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: 'rgba(255,255,255,.65)', marginBottom: 6 }}>
+            Waiting for payment
+          </div>
+          <div style={{ fontSize: 18, color: 'rgba(255,255,255,.30)', marginBottom: 32, letterSpacing: 4 }}>
+            <span style={{ display: 'inline-block', animation: 'bmDots 1.4s infinite', animationDelay: '0s' }}>.</span>
+            <span style={{ display: 'inline-block', animation: 'bmDots 1.4s infinite', animationDelay: '.2s' }}>.</span>
+            <span style={{ display: 'inline-block', animation: 'bmDots 1.4s infinite', animationDelay: '.4s' }}>.</span>
+          </div>
+          <button onClick={handleCancelTerminal}
+            style={{ height: 46, padding: '0 30px', borderRadius: 999, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', letterSpacing: '.02em' }}>
+            Cancel payment
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -1023,6 +1054,27 @@ export function BookingModal({
           background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.04) 40%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 60%, transparent 100%);
           background-size: 200% 100%;
           animation: bmShimmer 3s ease-in-out infinite;
+        }
+        @keyframes bmOrbit {
+          0% { transform: rotate(0deg) translateX(52px) rotate(0deg) }
+          100% { transform: rotate(360deg) translateX(52px) rotate(-360deg) }
+        }
+        @keyframes bmOrbitTrail {
+          0% { transform: rotate(0deg) translateX(52px) rotate(0deg); opacity: .6 }
+          100% { transform: rotate(360deg) translateX(52px) rotate(-360deg); opacity: 0 }
+        }
+        @keyframes bmOrbitGlow {
+          0%, 100% { box-shadow: 0 0 20px rgba(10,132,255,.15); }
+          50% { box-shadow: 0 0 35px rgba(10,132,255,.30); }
+        }
+        @keyframes bmOrbitFadeIn {
+          0% { opacity: 0; transform: scale(.9) }
+          100% { opacity: 1; transform: scale(1) }
+        }
+        @keyframes bmDots {
+          0%, 20% { opacity: .2 }
+          50% { opacity: 1 }
+          80%, 100% { opacity: .2 }
         }
         @keyframes bmSuccessIn {
           0% { opacity:0; transform:scale(.3) }
