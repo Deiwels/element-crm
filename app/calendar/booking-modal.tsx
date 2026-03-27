@@ -844,6 +844,7 @@ export function BookingModal({
   const [notes, setNotes] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
   const [lightbox, setLightbox] = useState(false)
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
   const [shopSettings, setShopSettings] = useState<any>(null)
   useEffect(() => { getShopSettings().then(setShopSettings) }, [])
   const [saving, setSaving] = useState(false)
@@ -984,6 +985,38 @@ export function BookingModal({
           background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.04) 40%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 60%, transparent 100%);
           background-size: 200% 100%;
           animation: bmShimmer 3s ease-in-out infinite;
+        }
+        @keyframes bmSuccessIn {
+          0% { opacity:0; transform:scale(.3) }
+          50% { opacity:1; transform:scale(1.08) }
+          70% { transform:scale(.96) }
+          100% { transform:scale(1) }
+        }
+        @keyframes bmCheckDraw {
+          0% { stroke-dashoffset: 48 }
+          100% { stroke-dashoffset: 0 }
+        }
+        @keyframes bmCircleDraw {
+          0% { stroke-dashoffset: 200 }
+          100% { stroke-dashoffset: 0 }
+        }
+        @keyframes bmSuccessGlow {
+          0% { box-shadow: 0 0 0 rgba(143,240,177,0) }
+          50% { box-shadow: 0 0 60px rgba(143,240,177,.25) }
+          100% { box-shadow: 0 0 0 rgba(143,240,177,0) }
+        }
+        @keyframes bmSuccessFade {
+          0%,70% { opacity:1 }
+          100% { opacity:0 }
+        }
+        .bm-success-overlay {
+          animation: bmSuccessIn .5s cubic-bezier(.16,1.2,.3,1) both, bmSuccessFade 1.8s ease-in-out both;
+        }
+        .bm-success-ring {
+          animation: bmCircleDraw .6s ease-out .15s both, bmSuccessGlow 1.2s ease-out .2s both;
+        }
+        .bm-success-check {
+          animation: bmCheckDraw .4s ease-out .4s both;
         }
       `}</style>
       <div className="bm-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.50)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 'clamp(8px,3vw,16px)' }}
@@ -1173,7 +1206,7 @@ export function BookingModal({
 
             {/* Payment — owner/admin only, NOT for new bookings or model/training */}
             {isOwnerOrAdmin && existingEvent && !isNew && !isModelEvent && (
-              <PaymentPanel ev={existingEvent} services={services} onPayment={onPayment} allEvents={allEvents} barberId={barberId} onOpenEvent={onOpenEvent} date={date} />
+              <PaymentPanel ev={existingEvent} services={services} onPayment={(method, tip) => { onPayment(method, tip); setPaymentSuccess(true); setTimeout(() => onClose(), 1800) }} allEvents={allEvents} barberId={barberId} onOpenEvent={onOpenEvent} date={date} />
             )}
 
             {/* Form error */}
@@ -1194,6 +1227,19 @@ export function BookingModal({
           </div>
         </div>
       </div>
+
+      {/* Payment success overlay */}
+      {paymentSuccess && (
+        <div className="bm-success-overlay" style={{ position: 'fixed', inset: 0, zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.70)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <circle className="bm-success-ring" cx="60" cy="60" r="50" fill="none" stroke="rgba(143,240,177,.70)" strokeWidth="3" strokeDasharray="200" strokeDashoffset="200" strokeLinecap="round" />
+              <polyline className="bm-success-check" points="38,62 52,76 82,46" fill="none" stroke="#8ff0b1" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="48" strokeDashoffset="48" />
+            </svg>
+            <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 14, color: '#c9ffe1' }}>Payment complete</div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
