@@ -643,18 +643,23 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
   ) : null
 
   const methodStyle = (m: string): React.CSSProperties => ({
-    flex: 1, height: 38, borderRadius: 999, cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit',
+    flex: 1, height: 40, borderRadius: 12, cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit',
+    transition: 'all .18s ease',
     border: method === m ? {
       terminal: '1px solid rgba(10,132,255,.75)', cash: '1px solid rgba(143,240,177,.65)',
       zelle: '1px solid rgba(106,0,255,.75)', other: '1px solid rgba(255,207,63,.65)'
-    }[m]! : '1px solid rgba(255,255,255,.12)',
+    }[m]! : '1px solid rgba(255,255,255,.10)',
     background: method === m ? {
       terminal: 'rgba(10,132,255,.14)', cash: 'rgba(143,240,177,.10)',
       zelle: 'rgba(106,0,255,.14)', other: 'rgba(255,207,63,.10)'
-    }[m]! : 'rgba(255,255,255,.04)',
+    }[m]! : 'rgba(255,255,255,.03)',
     color: method === m ? {
       terminal: '#d7ecff', cash: '#c9ffe1', zelle: '#d8b4fe', other: '#fff3b0'
-    }[m]! : 'rgba(255,255,255,.70)',
+    }[m]! : 'rgba(255,255,255,.50)',
+    boxShadow: method === m ? {
+      terminal: '0 0 12px rgba(10,132,255,.15)', cash: '0 0 12px rgba(143,240,177,.12)',
+      zelle: '0 0 12px rgba(106,0,255,.12)', other: '0 0 12px rgba(255,207,63,.10)'
+    }[m]! : 'none',
   })
 
   async function handleTerminal() {
@@ -753,9 +758,10 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
   }
 
   return (
-    <div style={{ padding: '14px', borderRadius: 18, border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.04)', marginTop: 4 }}>
-      <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 8 }}>
-        Accept payment {price > 0 && <span style={{ color: '#e9e9e9', fontWeight: 900 }}> — ${price.toFixed(2)}</span>}
+    <div className="bm-section" style={{ padding: '16px', borderRadius: 18, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)', marginTop: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', fontWeight: 600 }}>Payment</div>
+        {price > 0 && <div style={{ fontSize: 16, fontWeight: 900, color: '#e9e9e9', letterSpacing: '.02em' }}>${price.toFixed(2)}</div>}
       </div>
       <PriceBreakdown />
       {/* Tip options preview for terminal */}
@@ -792,7 +798,7 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
         <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(143,240,177,.06)', border: '1px solid rgba(143,240,177,.18)', fontSize: 12, color: 'rgba(143,240,177,.85)', marginBottom: 8 }}>Cash collected by barber directly</div>
       )}
       {method !== 'terminal' && (
-        <button onClick={handleManual} style={{ width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.22)', background: 'rgba(255,255,255,.10)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
+        <button onClick={handleManual} className="bm-footer-btn" style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.40)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', boxShadow: '0 0 16px rgba(10,132,255,.10)' }}>
           Confirm {method} payment
         </button>
       )}
@@ -891,7 +897,9 @@ export function BookingModal({
   const durMin = isModelEvent ? 90 : (selectedSvcs.length > 0 ? selectedSvcs.reduce((sum, s) => sum + (s.durationMin || 30), 0) : 30)
   const barberServices = (() => {
     const filtered = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId))
-    return filtered.length > 0 ? filtered : services
+    const list = filtered.length > 0 ? filtered : services
+    // Sort by duration: longest first
+    return [...list].sort((a, b) => (b.durationMin || 30) - (a.durationMin || 30))
   })()
 
   // Time slots 5min
