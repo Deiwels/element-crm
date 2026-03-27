@@ -1377,8 +1377,17 @@ export default function CalendarPage() {
 
   function handlePayment(method: string, tip: number) {
     const ev = events.find(e => e.id === modal.eventId)
-    if (ev) { clearArrived(ev.id); if (ev._raw?.id) clearArrived(String(ev._raw.id)) }
-    setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, status: 'booked', paymentMethod: method, tipAmount: tip } : e))
+    if (ev) {
+      clearArrived(ev.id)
+      if (ev._raw?.id) clearArrived(String(ev._raw.id))
+      // Update status to done on backend
+      if (ev._raw?.id) {
+        apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, {
+          method: 'PATCH', body: JSON.stringify({ status: 'completed' })
+        }).catch(() => {})
+      }
+    }
+    setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, status: 'done', paymentMethod: method, tipAmount: tip } : e))
   }
 
   return (
