@@ -42,14 +42,30 @@ function getScheduleStartMin(barber: Barber | undefined, dayOfWeek: number): num
   return null
 }
 
+// Convert Date to Chicago timezone hours/minutes/dayOfWeek
+function toChicago(d: Date): { hours: number; minutes: number; dow: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', weekday: 'short', hour12: false
+  }).formatToParts(d)
+  const obj: Record<string, string> = {}
+  parts.forEach(p => { obj[p.type] = p.value })
+  const dowMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return {
+    hours: Number(obj.hour || 0),
+    minutes: Number(obj.minute || 0),
+    dow: dowMap[(obj.weekday || '').slice(0, 3)] ?? d.getDay()
+  }
+}
+
 function getLateMinutes(clockIn: string | null, barber: Barber | undefined): number {
   if (!clockIn) return 0
   const d = new Date(clockIn)
   if (isNaN(d.getTime())) return 0
-  const dow = d.getDay()
-  const schedStart = getScheduleStartMin(barber, dow)
+  // Convert to Chicago timezone (shop timezone)
+  const chi = toChicago(d)
+  const schedStart = getScheduleStartMin(barber, chi.dow)
   if (schedStart === null) return 0
-  const clockMinOfDay = d.getHours() * 60 + d.getMinutes()
+  const clockMinOfDay = chi.hours * 60 + chi.minutes
   const late = clockMinOfDay - schedStart
   return late > 2 ? late : 0 // 2 min grace
 }
@@ -193,7 +209,7 @@ export default function AttendancePage() {
                     {dayRecords.map(r => {
                       const barber = r.barber_id ? barberMap[r.barber_id] : userBarberMap[r.user_id]
                       const late = getLateMinutes(r.clock_in, barber)
-                      const schedStart = barber ? getScheduleStartMin(barber, r.clock_in ? new Date(r.clock_in).getDay() : 0) : null
+                      const schedStart = barber && r.clock_in ? getScheduleStartMin(barber, toChicago(new Date(r.clock_in)).dow) : null
                       return (
                         <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 12, background: late > 0 ? 'rgba(255,107,107,.06)' : 'rgba(255,255,255,.03)', border: `1px solid ${late > 0 ? 'rgba(255,107,107,.15)' : 'rgba(255,255,255,.06)'}` }}>
                           {/* Clock icon */}
