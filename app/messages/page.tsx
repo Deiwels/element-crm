@@ -494,10 +494,19 @@ export default function MessagesPage() {
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
+  const [voiceSupported, setVoiceSupported] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+
+  // Check voice recording support on mount (client-side only)
+  useEffect(() => {
+    try {
+      const supported = !!(typeof window !== 'undefined' && navigator?.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined')
+      setVoiceSupported(supported)
+    } catch { setVoiceSupported(false) }
+  }, [])
 
   useEffect(() => {
     try { setUser(JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null')) } catch {}
@@ -626,51 +635,37 @@ export default function MessagesPage() {
 
   // Voice recording functions
   async function startRecording() {
+    if (!voiceSupported) return
     try {
-      // Check if audio recording is supported
-      if (!navigator?.mediaDevices?.getUserMedia) {
-        alert('Voice recording is not supported in this browser. Please use Safari or Chrome.')
-        return
-      }
-      if (typeof MediaRecorder === 'undefined') {
-        alert('Voice recording is not supported on this device.')
-        return
-      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
-      // Try supported MIME types
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
-        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
-        : MediaRecorder.isTypeSupported('audio/aac') ? 'audio/aac'
-        : ''
+      let mimeType = ''
+      try {
+        mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+          : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
+          : MediaRecorder.isTypeSupported('audio/aac') ? 'audio/aac'
+          : ''
+      } catch { mimeType = '' }
       const mediaRecorder = mimeType
         ? new MediaRecorder(stream, { mimeType })
         : new MediaRecorder(stream)
       mediaRecorderRef.current = mediaRecorder
       audioChunksRef.current = []
-
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+        try { if (e.data.size > 0) audioChunksRef.current.push(e.data) } catch {}
       }
-
-      mediaRecorder.onerror = () => {
-        cancelRecording()
-      }
-
+      mediaRecorder.onerror = () => { try { cancelRecording() } catch {} }
       mediaRecorder.start()
       setIsRecording(true)
       setRecordingDuration(0)
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1)
-      }, 1000)
+      recordingTimerRef.current = setInterval(() => setRecordingDuration(prev => prev + 1), 1000)
     } catch (err: any) {
-      console.warn('Microphone access denied:', err)
-      if (err?.name === 'NotAllowedError') {
-        alert('Microphone access was denied. Please allow microphone access in Settings.')
-      } else {
-        alert('Could not start recording: ' + (err?.message || 'Unknown error'))
-      }
+      console.warn('Recording error:', err)
+      try { streamRef.current?.getTracks().forEach(t => t.stop()) } catch {}
+      streamRef.current = null
+      setIsRecording(false)
+      setVoiceSupported(false) // Hide mic button if it fails
     }
   }
 
@@ -720,10 +715,13 @@ export default function MessagesPage() {
   }
 
   function cancelRecording() {
-    const mr = mediaRecorderRef.current
-    if (mr && mr.state !== 'inactive') mr.stop()
-    streamRef.current?.getTracks().forEach(t => t.stop())
+    try {
+      const mr = mediaRecorderRef.current
+      if (mr && mr.state !== 'inactive') mr.stop()
+    } catch {}
+    try { streamRef.current?.getTracks().forEach(t => t.stop()) } catch {}
     streamRef.current = null
+    mediaRecorderRef.current = null
     setIsRecording(false)
     if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null }
     audioChunksRef.current = []
@@ -950,9 +948,9 @@ export default function MessagesPage() {
             )}
             {/* Input Bar — glass style */}
             <div style={{ padding: '4px 10px', paddingBottom: 'max(6px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(18,18,18,.50)', backdropFilter: 'blur(30px) saturate(180%)', WebkitBackdropFilter: 'blur(30px) saturate(180%)', borderTop: '1px solid rgba(255,255,255,.04)' } as React.CSSProperties}>
-              {isRecording ? (
+              {isRecording && voiceSupported ? (
                 /* Recording UI */
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, height: 44 }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, height: 36 }}>
                   <button onClick={cancelRecording} style={{ width: 36, height: 36, borderRadius: 999, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.10)', color: '#ffd0d0', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                   <div className="rec-pulse" style={{ width: 8, height: 8, borderRadius: 999, background: '#ff3b30', flexShrink: 0 }} />
                   <span style={{ fontSize: 13, color: '#ff6b6b', fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>{fmtDur(recordingDuration)}</span>
@@ -981,13 +979,13 @@ export default function MessagesPage() {
                       style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: 'linear-gradient(135deg, rgba(10,132,255,.85), rgba(10,100,220,.90))', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                     </button>
-                  ) : (
-                    /* Mic button */
+                  ) : voiceSupported ? (
+                    /* Mic button — only shown if device supports recording */
                     <button onClick={handleVoiceToggle}
                       style={{ width: 34, height: 34, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="1" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                     </button>
-                  )}
+                  ) : null}
                 </>
               )}
             </div>
