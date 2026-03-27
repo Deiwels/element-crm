@@ -177,10 +177,18 @@ export default function CashPage() {
         @keyframes cashSlide { 0%{opacity:0;transform:translateY(12px)} 100%{opacity:1;transform:translateY(0)} }
         @keyframes kpiPulse { 0%{box-shadow:0 0 0 0 rgba(10,132,255,0)} 50%{box-shadow:0 0 16px 0 rgba(10,132,255,.12)} 100%{box-shadow:0 0 0 0 rgba(10,132,255,0)} }
         @keyframes toastIn { 0%{opacity:0;transform:translateX(-50%) translateY(16px)} 100%{opacity:1;transform:translateX(-50%) translateY(0)} }
+        @keyframes kpiGlow {
+          0%, 100% { box-shadow: 0 0 0 0 var(--kpi-glow-color, rgba(255,255,255,0)); }
+          50% { box-shadow: 0 0 18px 0 var(--kpi-glow-color, rgba(255,255,255,.12)); }
+        }
+        @keyframes kpiGlowPerfect {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(143,240,177,0); }
+          50% { box-shadow: 0 0 22px 2px rgba(143,240,177,.25); }
+        }
         .cash-day { animation: cashSlide .35s ease both; }
         .cash-card { transition: border-color .25s ease, box-shadow .25s ease; }
         .cash-card:hover { border-color: rgba(255,255,255,.18) !important; box-shadow: 0 2px 12px rgba(255,255,255,.03); }
-        .cash-kpi { animation: cashSlide .4s ease both; }
+        .cash-kpi { animation: cashSlide .4s ease both, kpiGlow 3s ease-in-out infinite; }
         .cash-toast { animation: toastIn .25s ease both; }
         .cash-preset { transition: all .2s ease; }
         .cash-preset:active { transform: scale(.95); }
@@ -228,12 +236,12 @@ export default function CashPage() {
         {/* KPIs */}
         <div className="cash-kpi-grid cash-page-pad" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, padding: '14px 20px' }}>
           {[
-            { label: 'Cash', value: usd(totalExpectedCash), color: '#ffe9a3', border: 'rgba(255,207,63,.18)', bg: 'rgba(255,207,63,.04)', delay: '0s' },
-            { label: 'Zelle', value: usd(totalExpectedZelle), color: '#d7ecff', border: 'rgba(10,132,255,.18)', bg: 'rgba(10,132,255,.04)', delay: '.05s' },
-            { label: 'Counted', value: reportsCount > 0 ? usd(totalActual) : '—', color: '#c9ffe1', border: 'rgba(143,240,177,.18)', bg: 'rgba(143,240,177,.04)', delay: '.1s' },
-            { label: 'Diff', value: reportsCount > 0 ? (totalDiff >= 0 ? '+' : '') + usd(totalDiff) : '—', color: totalDiff >= 0 ? '#c9ffe1' : '#ffd0d0', border: totalDiff >= 0 ? 'rgba(143,240,177,.18)' : 'rgba(255,107,107,.18)', bg: totalDiff >= 0 ? 'rgba(143,240,177,.04)' : 'rgba(255,107,107,.04)', delay: '.15s' },
+            { label: 'Cash', value: usd(totalExpectedCash), color: '#ffe9a3', border: 'rgba(255,207,63,.18)', bg: 'rgba(255,207,63,.04)', delay: '0s', glow: 'rgba(255,207,63,.12)', perfectGlow: false },
+            { label: 'Zelle', value: usd(totalExpectedZelle), color: '#d7ecff', border: 'rgba(10,132,255,.18)', bg: 'rgba(10,132,255,.04)', delay: '.05s', glow: 'rgba(10,132,255,.12)', perfectGlow: false },
+            { label: 'Counted', value: reportsCount > 0 ? usd(totalActual) : '—', color: '#c9ffe1', border: 'rgba(143,240,177,.18)', bg: 'rgba(143,240,177,.04)', delay: '.1s', glow: 'rgba(143,240,177,.12)', perfectGlow: reportsCount > 0 && totalDiff === 0 },
+            { label: 'Diff', value: reportsCount > 0 ? (totalDiff >= 0 ? '+' : '') + usd(totalDiff) : '—', color: totalDiff >= 0 ? '#c9ffe1' : '#ffd0d0', border: totalDiff >= 0 ? 'rgba(143,240,177,.18)' : 'rgba(255,107,107,.18)', bg: totalDiff >= 0 ? 'rgba(143,240,177,.04)' : 'rgba(255,107,107,.04)', delay: '.15s', glow: totalDiff >= 0 ? 'rgba(143,240,177,.12)' : 'rgba(255,107,107,.12)', perfectGlow: false },
           ].map(kpi => (
-            <div key={kpi.label} className="cash-kpi" style={{ padding: '12px 12px', borderRadius: 16, border: `1px solid ${kpi.border}`, background: kpi.bg, animationDelay: kpi.delay }}>
+            <div key={kpi.label} className="cash-kpi" style={{ padding: '12px 12px', borderRadius: 16, border: `1px solid ${kpi.border}`, background: kpi.bg, animationDelay: kpi.delay, '--kpi-glow-color': kpi.glow, ...(kpi.perfectGlow ? { animation: 'cashSlide .4s ease both, kpiGlowPerfect 2s ease-in-out infinite' } : {}) } as React.CSSProperties}>
               <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 4, fontWeight: 700 }}>{kpi.label}</div>
               <div style={{ fontSize: 18, fontWeight: 900, color: kpi.color, letterSpacing: '.02em' }}>{kpi.value}</div>
             </div>
@@ -249,7 +257,7 @@ export default function CashPage() {
             </div>
           ) : days.length === 0 ? (
             <div style={{ padding: 50, textAlign: 'center', color: 'rgba(255,255,255,.25)' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>💵</div>
+              <div style={{ marginBottom: 8 }}><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.25)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><circle cx="12" cy="12" r="3"/><line x1="1" y1="10" x2="4" y2="10"/><line x1="20" y1="10" x2="23" y2="10"/><line x1="1" y1="14" x2="4" y2="14"/><line x1="20" y1="14" x2="23" y2="14"/></svg></div>
               <div style={{ fontSize: 13 }}>No data for selected period</div>
             </div>
           ) : days.map((day, i) => {
@@ -274,7 +282,7 @@ export default function CashPage() {
                     <div style={{ fontWeight: 900, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
                       {dayLabel}
                       {isToday && <span style={{ fontSize: 9, padding: '2px 8px', borderRadius: 999, border: '1px solid rgba(10,132,255,.35)', background: 'rgba(10,132,255,.10)', color: '#d7ecff', fontWeight: 800, letterSpacing: '.06em' }}>TODAY</span>}
-                      {day.report && diff === 0 && <span style={{ fontSize: 12, color: '#8ff0b1' }}>✓</span>}
+                      {day.report && diff === 0 && <span style={{ display: 'inline-flex', alignItems: 'center' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8ff0b1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg></span>}
                     </div>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', marginTop: 2 }}>
                       {day.cashCount} cash · {day.zelleCount} zelle
@@ -308,7 +316,7 @@ export default function CashPage() {
                         <>
                           <div style={{ fontSize: 17, fontWeight: 900, color: diff !== null && diff >= 0 ? '#c9ffe1' : '#ffd0d0', marginTop: 3 }}>{usd(day.report.actual_cash)}</div>
                           <div style={{ fontSize: 9, fontWeight: 800, color: diff !== null && diff >= 0 ? '#8ff0b1' : '#ff6b6b', marginTop: 2 }}>
-                            {diff !== null ? (diff >= 0 ? '+' : '') + usd(diff) : ''}{diff === 0 ? ' ✓' : ''}
+                            {diff !== null ? (diff >= 0 ? '+' : '') + usd(diff) : ''}{diff === 0 ? <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: 3, verticalAlign: 'middle' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8ff0b1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg></span> : ''}
                           </div>
                         </>
                       ) : (

@@ -223,7 +223,7 @@ function ProfileModal({ user, onClose, onUpdated }: {
       <div style={modalBox}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13 }}>My Profile</div>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontSize: 15, fontFamily: 'inherit' }}>✕</button>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontSize: 15, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
 
         <div style={{ display: 'flex', gap: 6, padding: '12px 18px 0' }}>
@@ -604,14 +604,10 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
           background:transparent;
           color:#fff;cursor:pointer;
           align-items:center;justify-content:center;
-          flex-direction:column;gap:3px;padding:0;
+          padding:0;
           transition:background .15s;
         }
         .burger-btn:hover{background:rgba(255,255,255,.10);}
-        .burger-dot{
-          display:block;width:3.5px;height:3.5px;
-          border-radius:999px;background:rgba(255,255,255,.70);
-        }
         @media(max-width:768px){
           .burger-btn.open{ opacity:0; pointer-events:none; }
         }
@@ -670,9 +666,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
           onClick={() => setSidebarOpen(v => !v)}
           aria-label="Menu"
         >
-          <span className="burger-dot" />
-          <span className="burger-dot" />
-          <span className="burger-dot" />
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
 
         {/* Backdrop */}

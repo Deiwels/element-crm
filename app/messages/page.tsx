@@ -417,7 +417,7 @@ function NewRequestModal({ onClose, onCreated }: { onClose: () => void; onCreate
       <div style={{ width: 'min(440px,100%)', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
         <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13 }}>New request</div>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16 }}>✕</button>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Type selector */}
@@ -773,6 +773,12 @@ export default function MessagesPage() {
           50% { height: 16px; }
         }
         .wave-bar { animation: waveBar .6s ease-in-out infinite; }
+        @media(max-width:640px) {
+          .msg-tabs { gap: 6px !important; }
+          .msg-tab { font-size: 11px !important; padding: 0 12px !important; height: 34px !important; }
+        }
+        .msg-tabs-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+        .msg-tabs-scroll::-webkit-scrollbar { display: none; }
       `}</style>
 
       <div className="msg-container" style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Inter,sans-serif', color: '#e9e9e9' }}>
@@ -782,11 +788,11 @@ export default function MessagesPage() {
           <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 2, letterSpacing: '.06em' }}>Team communication</div>
 
           {/* Tabs — pill shape, frosted glass */}
-          <div style={{ display: 'flex', gap: 6, padding: '14px 0 12px', overflowX: 'auto', flexShrink: 0 }}>
+          <div className="msg-tabs msg-tabs-scroll" style={{ display: 'flex', gap: 6, padding: '14px 0 12px', overflowX: 'auto', flexShrink: 0 }}>
             {visibleTabs.map(t => {
               const isActive = activeTab === t.id
               return (
-                <button key={t.id} onClick={() => setActiveTab(t.id)}
+                <button key={t.id} className="msg-tab" onClick={() => setActiveTab(t.id)}
                   style={{
                     height: 36, padding: '0 14px', borderRadius: 999,
                     border: isActive ? '1px solid rgba(10,132,255,.40)' : '1px solid rgba(255,255,255,.08)',
@@ -907,7 +913,7 @@ export default function MessagesPage() {
             {imagePreview && (
               <div style={{ padding: '8px 16px 0', flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
                 <img src={imagePreview} alt="" style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)' }} />
-                <button onClick={() => setImagePreview('')} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                <button onClick={() => setImagePreview('')} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
               </div>
             )}
             {/* Input Bar — glass style */}
@@ -915,7 +921,7 @@ export default function MessagesPage() {
               {isRecording ? (
                 /* Recording UI */
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, height: 44 }}>
-                  <button onClick={cancelRecording} style={{ width: 36, height: 36, borderRadius: 999, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.10)', color: '#ffd0d0', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+                  <button onClick={cancelRecording} style={{ width: 36, height: 36, borderRadius: 999, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.10)', color: '#ffd0d0', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                   <div className="rec-pulse" style={{ width: 8, height: 8, borderRadius: 999, background: '#ff3b30', flexShrink: 0 }} />
                   <span style={{ fontSize: 13, color: '#ff6b6b', fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>{fmtDur(recordingDuration)}</span>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, height: 24 }}>
@@ -963,7 +969,7 @@ export default function MessagesPage() {
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, cursor: 'zoom-out', padding: 16 }}>
           <img src={lightboxUrl} alt="" style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 16, objectFit: 'contain', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }} />
           <button onClick={() => setLightboxUrl('')}
-            style={{ position: 'absolute', top: 20, right: 20, width: 40, height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(0,0,0,.50)', color: '#fff', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            style={{ position: 'absolute', top: 20, right: 20, width: 40, height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(0,0,0,.50)', color: '#fff', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
       )}
 

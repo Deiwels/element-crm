@@ -126,8 +126,12 @@ export default function PortfolioPage() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&family=Julius+Sans+One&display=swap');
         ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
         @keyframes photoIn { 0% { opacity:0; transform:scale(.9) } 100% { opacity:1; transform:scale(1) } }
-        .port-photo { animation: photoIn .3s ease both; }
+        @keyframes emptyFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .port-photo { animation: photoIn .3s ease both; transition: transform .25s ease; }
+        .port-photo:hover { transform: scale(1.03); }
         .port-photo:hover .port-overlay { opacity: 1 !important; }
+        .port-shimmer { background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 75%); background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; }
         @media(max-width:640px) { .port-grid { grid-template-columns: repeat(2,1fr) !important; } }
       `}</style>
 
@@ -162,18 +166,21 @@ export default function PortfolioPage() {
             <div style={{ padding: 60, textAlign: 'center', color: 'rgba(255,255,255,.30)' }}>Loading…</div>
           ) : !barberId ? (
             <div style={{ padding: 60, textAlign: 'center', color: 'rgba(255,255,255,.30)' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📸</div>
+              <div style={{ marginBottom: 12, animation: 'emptyFloat 3s ease-in-out infinite' }}><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.30)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
               <div style={{ fontSize: 14 }}>No barber profile linked</div>
               <div style={{ fontSize: 12, marginTop: 4, color: 'rgba(255,255,255,.20)' }}>Ask admin to link your account to a barber profile</div>
             </div>
           ) : photos.length === 0 ? (
             <div style={{ padding: 60, textAlign: 'center', color: 'rgba(255,255,255,.30)' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>✂️</div>
+              <div style={{ marginBottom: 12, animation: 'emptyFloat 3s ease-in-out infinite' }}><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.30)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></div>
               <div style={{ fontSize: 14 }}>No photos yet</div>
               <div style={{ fontSize: 12, marginTop: 4, color: 'rgba(255,255,255,.20)' }}>Add your best work to show on the website</div>
             </div>
           ) : (
             <div className="port-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {uploading && (
+                <div className="port-shimmer" style={{ borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', aspectRatio: '1' }} />
+              )}
               {photos.map((url, i) => (
                 <div key={i} className="port-photo" style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,.08)', aspectRatio: '1', animationDelay: `${i * 0.05}s` }}>
                   <img src={url} alt={`Work ${i + 1}`} onClick={() => setLightbox(url)}
@@ -185,15 +192,15 @@ export default function PortfolioPage() {
                     <div style={{ display: 'flex', gap: 4 }}>
                       {i > 0 && (
                         <button onClick={e => { e.stopPropagation(); movePhoto(i, i - 1) }}
-                          style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>←</button>
+                          style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                       )}
                       {i < photos.length - 1 && (
                         <button onClick={e => { e.stopPropagation(); movePhoto(i, i + 1) }}
-                          style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>→</button>
+                          style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
                       )}
                     </div>
                     <button onClick={e => { e.stopPropagation(); removePhoto(i) }}
-                      style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.15)', color: '#ffd0d0', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                      style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.15)', color: '#ffd0d0', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                   </div>
                 </div>
               ))}
@@ -202,7 +209,7 @@ export default function PortfolioPage() {
 
           {photos.length > 0 && (
             <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)', fontSize: 11, color: 'rgba(255,255,255,.30)', lineHeight: 1.6 }}>
-              💡 Hover over photos to reorder or delete. Photos show on the public website in your ABOUT section. Max 50 photos.
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.40)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }}><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>Hover over photos to reorder or delete. Photos show on the public website in your ABOUT section. Max 50 photos.
             </div>
           )}
         </div>
