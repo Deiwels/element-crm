@@ -934,36 +934,56 @@ export function BookingModal({
 
   if (!isOpen) return null
 
-  const inp: React.CSSProperties = { width: '100%', height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
-  const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', display: 'block', marginBottom: 5 }
+  const inp: React.CSSProperties = { width: '100%', height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }
+  const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 6, fontWeight: 600 }
 
   return (
     <>
       <style>{`
         @keyframes slideDown { from { opacity:0; transform:translateY(-8px) } to { opacity:1; transform:translateY(0) } }
         @keyframes spin { to { transform:rotate(360deg) } }
-        .bm-scroll::-webkit-scrollbar { width:5px } 
+        @keyframes bmFadeIn { from { opacity:0; transform:scale(.97) translateY(12px) } to { opacity:1; transform:scale(1) translateY(0) } }
+        @keyframes bmShimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+        .bm-scroll::-webkit-scrollbar { width:5px }
         .bm-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:3px }
         select option { background:#111 }
+        .bm-card { animation: bmFadeIn .3s ease-out }
+        .bm-section { animation: slideDown .25s ease-out both }
+        .bm-section:nth-child(2) { animation-delay: .05s }
+        .bm-section:nth-child(3) { animation-delay: .10s }
+        .bm-section:nth-child(4) { animation-delay: .15s }
+        .bm-section:nth-child(5) { animation-delay: .20s }
+        .bm-section:nth-child(6) { animation-delay: .25s }
+        .bm-svc-btn { transition: all .18s ease; }
+        .bm-svc-btn:active { transform: scale(.95) }
+        .bm-footer-btn { transition: all .15s ease; }
+        .bm-footer-btn:active { transform: scale(.96) }
+        .bm-input { transition: border-color .2s ease, box-shadow .2s ease; }
+        .bm-input:focus { border-color: rgba(10,132,255,.50) !important; box-shadow: 0 0 0 3px rgba(10,132,255,.12) !important; }
+        .bm-header-shimmer {
+          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.04) 40%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 60%, transparent 100%);
+          background-size: 200% 100%;
+          animation: bmShimmer 3s ease-in-out infinite;
+        }
       `}</style>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 'clamp(8px,3vw,16px)' }}
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.50)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 'clamp(8px,3vw,16px)' }}
         onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-        <div className="bm-scroll" style={{ width: 'min(580px,100%)', height: 'min(720px,calc(100dvh - 16px))', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60), inset 0 0 0 0.5px rgba(255,255,255,.07)', overflowY: 'auto', display: 'flex', flexDirection: 'column', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+        <div className="bm-scroll bm-card" style={{ width: 'min(580px,100%)', height: 'min(720px,calc(100dvh - 16px))', borderRadius: 24, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(8,8,12,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 40px 100px rgba(0,0,0,.70), inset 0 1px 0 rgba(255,255,255,.06)', overflowY: 'auto', display: 'flex', flexDirection: 'column', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
 
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 14px', borderBottom: '1px solid rgba(255,255,255,.07)', background: 'rgba(255,255,255,.03)' }}>
+          <div className="bm-header-shimmer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px 16px', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
             <div>
-              <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: '#e9e9e9' }}>
+              <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 13, color: '#e9e9e9' }}>
                 {isNew ? (isModelEvent ? 'New model appointment' : 'New appointment') : (isModelEvent ? `Model — ${existingEvent?.clientName}` : `Edit — ${existingEvent?.clientName}`)}
               </div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 3, letterSpacing: '.08em' }}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 4, letterSpacing: '.08em' }}>
                 {date} · {barberName} · {minToHHMM(selStartMin)}
               </div>
             </div>
-            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontFamily: 'inherit' }}>✕</button>
+            <button onClick={onClose} className="bm-footer-btn" style={{ width: 34, height: 34, borderRadius: 10, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontFamily: 'inherit' }}>✕</button>
           </div>
 
-          <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ padding: '18px 22px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Client search — hidden for student (model appointment = student is the client) */}
             {isModelEvent ? (
@@ -1019,34 +1039,38 @@ export function BookingModal({
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div style={{ gridColumn: '1 / 2' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Barber */}
+                <div className="bm-section">
                   <label style={lbl}>Barber</label>
                   <select value={selBarberId} onChange={e => setSelBarberId(e.target.value)}
                     disabled={!isOwnerOrAdmin}
-                    style={{ ...inp, opacity: isOwnerOrAdmin ? 1 : 0.6, cursor: isOwnerOrAdmin ? 'auto' : 'not-allowed' }}>
+                    className="bm-input"
+                    style={{ ...inp, opacity: isOwnerOrAdmin ? 1 : 0.6, cursor: isOwnerOrAdmin ? 'auto' : 'not-allowed', maxWidth: 220 }}>
                     {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={lbl}>Services {serviceIds.length > 0 && <span style={{ color: 'rgba(255,255,255,.30)', fontWeight: 400 }}>({serviceIds.length} selected)</span>}</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
+
+                {/* Services */}
+                <div className="bm-section" style={{ padding: '14px 16px', borderRadius: 16, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)' }}>
+                  <label style={{ ...lbl, marginBottom: 10 }}>Services {serviceIds.length > 0 && <span style={{ color: 'rgba(10,132,255,.60)', fontWeight: 600 }}>({serviceIds.length} selected)</span>}</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 7 }}>
                     {barberServices.map(s => {
                       const active = serviceIds.includes(s.id)
                       const bp = s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0
                       const calc = calcTotal(bp, shopSettings)
                       const priceLabel = bp > 0 ? `$${calc.total.toFixed(2)}` : ''
                       return (
-                        <button key={s.id} type="button"
+                        <button key={s.id} type="button" className="bm-svc-btn"
                           onClick={() => setServiceIds(prev => active ? prev.filter(id => id !== s.id) : [...prev, s.id])}
                           style={{
-                            height: 36, padding: '0 12px', borderRadius: 10,
-                            border: `1px solid ${active ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.12)'}`,
-                            background: active ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.04)',
-                            color: active ? '#d7ecff' : 'rgba(255,255,255,.65)',
+                            height: 38, padding: '0 14px', borderRadius: 12,
+                            border: `1px solid ${active ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.10)'}`,
+                            background: active ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.03)',
+                            color: active ? '#d7ecff' : 'rgba(255,255,255,.55)',
                             cursor: 'pointer', fontSize: 12, fontWeight: active ? 800 : 500,
                             fontFamily: 'inherit', whiteSpace: 'nowrap' as const,
-                            transition: 'all .15s',
+                            boxShadow: active ? '0 0 12px rgba(10,132,255,.15)' : 'none',
                           }}>
                           {s.name}{priceLabel ? ` · ${priceLabel}` : ''}{active ? ' ✓' : ''}
                         </button>
@@ -1058,36 +1082,44 @@ export function BookingModal({
                     for (const s of selectedSvcs) { totalBase += s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0 }
                     const calc = calcTotal(totalBase, shopSettings)
                     return (
-                      <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,.50)' }}>
+                      <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: 'rgba(10,132,255,.06)', border: '1px solid rgba(10,132,255,.15)', fontSize: 12, color: 'rgba(10,132,255,.80)', fontWeight: 700 }}>
                         Total: {durMin}min · ${calc.total.toFixed(2)}
                       </div>
                     )
                   })()}
                 </div>
-                <div>
-                  <label style={lbl}>Time</label>
-                  <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} style={inp}>
-                    {slots.map(m => <option key={m} value={m}>{minToHHMM(m)}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={lbl}>Duration → end time</label>
-                  <div style={{ height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', padding: '0 12px', display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,.60)' }}>
-                    {durMin}min → {minToHHMM(selStartMin + durMin)}
-                  </div>
-                </div>
-                {!isNew && (
+
+                {/* Time & Duration */}
+                <div className="bm-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
-                    <label style={lbl}>Status</label>
-                    <select value={status} onChange={e => setStatus(e.target.value)} style={inp}>
-                      {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                    <label style={lbl}>Time</label>
+                    <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} className="bm-input" style={inp}>
+                      {slots.map(m => <option key={m} value={m}>{minToHHMM(m)}</option>)}
                     </select>
                   </div>
-                )}
-                <div style={{ gridColumn: !isNew ? '2 / 3' : '1 / -1' }}>
-                  <label style={lbl}>Notes</label>
-                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes…" rows={2}
-                    style={{ ...inp, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
+                  <div>
+                    <label style={lbl}>Duration → end</label>
+                    <div style={{ height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', padding: '0 12px', display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,.50)', fontWeight: 600 }}>
+                      {durMin}min → {minToHHMM(selStartMin + durMin)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status & Notes */}
+                <div className="bm-section" style={{ display: 'grid', gridTemplateColumns: !isNew ? '1fr 1fr' : '1fr', gap: 10 }}>
+                  {!isNew && (
+                    <div>
+                      <label style={lbl}>Status</label>
+                      <select value={status} onChange={e => setStatus(e.target.value)} className="bm-input" style={inp}>
+                        {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label style={lbl}>Notes</label>
+                    <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes…" rows={2} className="bm-input"
+                      style={{ ...inp, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
+                  </div>
                 </div>
               </div>
             )}
@@ -1130,12 +1162,12 @@ export function BookingModal({
             )}
 
             {/* Footer */}
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: '1px solid rgba(255,255,255,.08)', flexWrap: 'wrap' as const }}>
+            <div className="bm-section" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 14, marginTop: 4, borderTop: '1px solid rgba(255,255,255,.06)', flexWrap: 'wrap' as const }}>
               {!isNew && (
-                <button onClick={onDelete} style={{ height: 42, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13 }}>Delete</button>
+                <button onClick={onDelete} className="bm-footer-btn" style={{ height: 44, padding: '0 18px', borderRadius: 999, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, letterSpacing: '.02em' }}>Delete</button>
               )}
-              <button onClick={onClose} style={{ height: 42, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Close</button>
-              <button onClick={handleSave} disabled={saving} style={{ height: 42, padding: '0 20px', borderRadius: 999, border: isModelEvent ? '1px solid rgba(168,107,255,.55)' : '1px solid rgba(255,255,255,.25)', background: isModelEvent ? 'rgba(168,107,255,.18)' : 'rgba(255,255,255,.12)', color: isModelEvent ? '#d4b8ff' : '#fff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: saving ? .5 : 1 }}>
+              <button onClick={onClose} className="bm-footer-btn" style={{ height: 44, padding: '0 18px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.70)', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Close</button>
+              <button onClick={handleSave} disabled={saving} className="bm-footer-btn" style={{ height: 44, padding: '0 24px', borderRadius: 999, border: isModelEvent ? '1px solid rgba(168,107,255,.50)' : '1px solid rgba(10,132,255,.40)', background: isModelEvent ? 'rgba(168,107,255,.14)' : 'rgba(10,132,255,.12)', color: isModelEvent ? '#d4b8ff' : '#d7ecff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: saving ? .5 : 1, boxShadow: saving ? 'none' : isModelEvent ? '0 0 16px rgba(168,107,255,.15)' : '0 0 16px rgba(10,132,255,.15)' }}>
                 {saving ? 'Saving…' : isModelEvent ? (isNew ? 'Book model' : 'Save') : 'Save'}
               </button>
             </div>
