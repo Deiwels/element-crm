@@ -2008,7 +2008,7 @@ export default function CalendarPage() {
           )
         })()}
 
-        {loading && <div style={{ position: 'fixed', bottom: 20, right: 20, padding: '8px 16px', borderRadius: 999, background: 'rgba(10,132,255,.20)', border: '1px solid rgba(10,132,255,.40)', color: '#d7ecff', fontSize: 12, zIndex: 99 }}>Loading…</div>}
+        {loading && dayTransition === 'idle' && !isMobile && <div style={{ position: 'fixed', bottom: 20, right: 20, padding: '8px 16px', borderRadius: 999, background: 'rgba(10,132,255,.20)', border: '1px solid rgba(10,132,255,.40)', color: '#d7ecff', fontSize: 12, zIndex: 99 }}>Loading…</div>}
       </div>
 
       {/* Context menu */}
