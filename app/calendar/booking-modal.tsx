@@ -1415,6 +1415,12 @@ export function BookingModal({
                             setStatus(status) // revert
                           }
                         }
+                        // Auto-save arrived immediately (sends notification to barbers chat)
+                        if (newStatus === 'arrived') {
+                          setTimeout(() => {
+                            try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: 'arrived', notes, photoUrl }) } catch {}
+                          }, 50)
+                        }
                       }} className="bm-input" style={inp}>
                         {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
