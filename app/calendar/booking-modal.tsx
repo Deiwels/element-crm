@@ -565,7 +565,9 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
   const evSvcs = services.filter(s => evServiceIds.includes(s.id))
   const basePrice = evSvcs.reduce((sum, s) => sum + (s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0), 0)
   const priceCalc = calcTotal(basePrice, shopSettings)
-  const price = priceCalc.total  // total with tax + fees
+  // Terminal gets full price with tax+fees; cash/zelle/other get base price only
+  const isTerminal = method === 'terminal'
+  const price = isTerminal ? priceCalc.total : basePrice
 
   // Find blocking event — same barber, same day, earlier start, not resolved
   // Exclude block events (clientName 'BLOCKED') — they don't need payment
@@ -746,11 +748,11 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
     try {
       await apiFetch('/api/payments/terminal', {
         method: 'POST',
-        body: JSON.stringify({ booking_id: backendId ? String(backendId) : '', amount: priceCalc.total, tip, tip_amount: tip, source: method, payment_method: method, currency: 'USD', client_name: ev?._raw?.client_name || '', service_name: evSvcs.map(s => s.name).join(' + ') || '', service_amount: basePrice, tax_amount: priceCalc.tax, fee_amount: priceCalc.fees })
+        body: JSON.stringify({ booking_id: backendId ? String(backendId) : '', amount: basePrice, tip, tip_amount: tip, source: method, payment_method: method, currency: 'USD', client_name: ev?._raw?.client_name || '', service_name: evSvcs.map(s => s.name).join(' + ') || '', service_amount: basePrice, tax_amount: 0, fee_amount: 0 })
       })
       if (backendId) {
         await apiFetch('/api/bookings/' + encodeURIComponent(String(backendId)), {
-          method: 'PATCH', body: JSON.stringify({ paid: true, payment_method: method, tip, service_amount: basePrice, tax_amount: priceCalc.tax, fee_amount: priceCalc.fees, total_amount: priceCalc.total })
+          method: 'PATCH', body: JSON.stringify({ paid: true, payment_method: method, tip, service_amount: basePrice, tax_amount: 0, fee_amount: 0, total_amount: basePrice })
         })
       }
       setHint(`${method} payment recorded ✓`); onPayment(method, tip)
@@ -761,9 +763,9 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
     <div className="bm-section" style={{ padding: '16px', borderRadius: 18, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)', marginTop: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', fontWeight: 600 }}>Payment</div>
-        {price > 0 && <div style={{ fontSize: 16, fontWeight: 900, color: '#e9e9e9', letterSpacing: '.02em' }}>${price.toFixed(2)}</div>}
+        {price > 0 && <div style={{ fontSize: 16, fontWeight: 900, color: '#e9e9e9', letterSpacing: '.02em' }}>${price.toFixed(2)}{!isTerminal && priceCalc.breakdown.length > 0 ? <span style={{ fontSize: 10, color: 'rgba(255,255,255,.30)', fontWeight: 400, marginLeft: 6 }}>no tax/fees</span> : ''}</div>}
       </div>
-      <PriceBreakdown />
+      {isTerminal && <PriceBreakdown />}
       {/* Tip options preview for terminal */}
       {method === 'terminal' && (() => {
         const opts: number[] = shopSettings?.payroll?.tip_options || [15, 20, 25]
