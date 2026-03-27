@@ -183,21 +183,21 @@ export default function PortfolioPage() {
   async function handleUpload(files: FileList | null) {
     if (!files || !files.length || !barberId) return
     setUploading(true)
+    let added = 0
     try {
-      const newPhotos = [...photos]
       for (let i = 0; i < Math.min(files.length, 10); i++) {
         const file = files[i]
         if (!file.type.startsWith('image/')) continue
         if (file.size > 10 * 1024 * 1024) { showToast('Max 10MB per photo'); continue }
         const dataUrl = await compressImage(file)
-        newPhotos.push(dataUrl)
+        // Upload to Cloud Storage via dedicated endpoint
+        const res = await apiFetch(`/api/barbers/${encodeURIComponent(barberId)}/portfolio/upload`, {
+          method: 'POST', body: JSON.stringify({ data_url: dataUrl })
+        })
+        if (res.portfolio) { setPhotos(res.portfolio); added++ }
+        else if (res.url) { setPhotos(prev => [...prev, res.url]); added++ }
       }
-      setPhotos(newPhotos)
-      // Save to server
-      await apiFetch(`/api/barbers/${encodeURIComponent(barberId)}`, {
-        method: 'PATCH', body: JSON.stringify({ portfolio: newPhotos })
-      })
-      showToast(`${files.length} photo${files.length > 1 ? 's' : ''} added ✓`)
+      if (added > 0) showToast(`${added} photo${added > 1 ? 's' : ''} added ✓`)
     } catch (e: any) { showToast('Error: ' + e.message) }
     setUploading(false)
   }
@@ -351,11 +351,16 @@ export default function PortfolioPage() {
           src={editingPhoto.src}
           onClose={() => setEditingPhoto(null)}
           onSave={async (dataUrl) => {
-            const newPhotos = [...photos]
-            newPhotos[editingPhoto.index] = dataUrl
-            setPhotos(newPhotos)
             setEditingPhoto(null)
             try {
+              // Upload edited photo to GCS
+              const res = await apiFetch(`/api/barbers/${encodeURIComponent(barberId)}/portfolio/upload`, {
+                method: 'POST', body: JSON.stringify({ data_url: dataUrl })
+              })
+              // Remove old photo and use the new URL
+              const newPhotos = [...photos]
+              newPhotos[editingPhoto.index] = res.url || dataUrl
+              setPhotos(newPhotos)
               await apiFetch(`/api/barbers/${encodeURIComponent(barberId)}`, {
                 method: 'PATCH', body: JSON.stringify({ portfolio: newPhotos })
               })
