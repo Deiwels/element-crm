@@ -37,6 +37,7 @@ interface Message {
   senderPhoto?: string
   text: string
   imageUrl?: string
+  audioUrl?: string
   createdAt: string
   reactions?: Record<string, string[]>
 }
@@ -102,8 +103,74 @@ const ROLE_COLORS: Record<string, string> = {
   owner: '#ffe9a3', admin: '#c9ffe1', barber: '#d7ecff', student: '#d4b8ff'
 }
 
+const ROLE_GRADIENTS: Record<string, string> = {
+  owner: 'linear-gradient(135deg, #ffe9a3, #f0c040)',
+  admin: 'linear-gradient(135deg, #c9ffe1, #4ade80)',
+  barber: 'linear-gradient(135deg, #d7ecff, #60a5fa)',
+  student: 'linear-gradient(135deg, #d4b8ff, #a78bfa)',
+}
+
 // ─── Reaction emojis ─────────────────────────────────────────────────────────
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🔥', '👏', '😢']
+
+// ─── AudioPlayer ─────────────────────────────────────────────────────────────
+function AudioPlayer({ src, isOwn }: { src: string; isOwn: boolean }) {
+  const [playing, setPlaying] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const rafRef = useRef<number>(0)
+
+  useEffect(() => {
+    const a = new Audio(src)
+    audioRef.current = a
+    a.addEventListener('loadedmetadata', () => setDuration(a.duration))
+    a.addEventListener('ended', () => { setPlaying(false); setProgress(0); cancelAnimationFrame(rafRef.current) })
+    return () => { a.pause(); a.src = ''; cancelAnimationFrame(rafRef.current) }
+  }, [src])
+
+  function tick() {
+    const a = audioRef.current
+    if (a && a.duration) setProgress(a.currentTime / a.duration)
+    rafRef.current = requestAnimationFrame(tick)
+  }
+
+  function toggle() {
+    const a = audioRef.current
+    if (!a) return
+    if (playing) { a.pause(); cancelAnimationFrame(rafRef.current) }
+    else { a.play(); rafRef.current = requestAnimationFrame(tick) }
+    setPlaying(!playing)
+  }
+
+  function fmt(s: number) { const m = Math.floor(s / 60); const sec = Math.floor(s % 60); return `${m}:${sec.toString().padStart(2, '0')}` }
+
+  // Generate deterministic "waveform" bars from audioUrl hash
+  const bars = Array.from({ length: 24 }, (_, i) => 0.2 + 0.8 * Math.abs(Math.sin(i * 1.7 + 3.14)))
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180, padding: '2px 0' }}>
+      <button onClick={toggle} style={{ width: 32, height: 32, borderRadius: 999, border: 'none', background: isOwn ? 'rgba(255,255,255,.20)' : 'rgba(10,132,255,.25)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {playing ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polygon points="6,4 20,12 6,20"/></svg>
+        )}
+      </button>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 22 }}>
+          {bars.map((h, i) => {
+            const filled = progress > i / bars.length
+            return <div key={i} style={{ flex: 1, height: `${h * 100}%`, borderRadius: 1, background: filled ? (isOwn ? 'rgba(255,255,255,.80)' : 'rgba(10,132,255,.80)') : (isOwn ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.15)'), transition: 'background .15s' }} />
+          })}
+        </div>
+        <div style={{ fontSize: 10, color: isOwn ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.30)' }}>
+          {duration > 0 ? fmt(playing ? (audioRef.current?.currentTime || 0) : duration) : '0:00'}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ─── MessageBubble ───────────────────────────────────────────────────────────
 function MessageBubble({ msg, isOwn, onImageClick, isGrouped, onReaction, myUid }: { msg: Message; isOwn: boolean; onImageClick?: (url: string) => void; isGrouped?: boolean; onReaction?: (msgId: string, emoji: string) => void; myUid?: string }) {
@@ -134,36 +201,29 @@ function MessageBubble({ msg, isOwn, onImageClick, isGrouped, onReaction, myUid 
       {/* Avatar — hidden when grouped */}
       {!isGrouped ? (
         msg.senderPhoto ? (
-          <img src={msg.senderPhoto} alt="" style={{ width: 30, height: 30, borderRadius: 10, objectFit: 'cover', border: `1px solid ${isOwn ? 'rgba(10,132,255,.25)' : 'rgba(255,255,255,.08)'}`, flexShrink: 0 }} />
+          <img src={msg.senderPhoto} alt="" style={{ width: 32, height: 32, borderRadius: 999, objectFit: 'cover', border: '1.5px solid rgba(255,255,255,.15)', flexShrink: 0 }} />
         ) : (
-          <div style={{ width: 30, height: 30, borderRadius: 10, background: isOwn ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.06)', border: `1px solid ${isOwn ? 'rgba(10,132,255,.25)' : 'rgba(255,255,255,.08)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: isOwn ? '#d7ecff' : roleColor, flexShrink: 0 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 999, background: ROLE_GRADIENTS[msg.senderRole] || 'rgba(255,255,255,.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#1a1a2e', flexShrink: 0 }}>
             {initials(msg.senderName)}
           </div>
         )
-      ) : <div style={{ width: 30, flexShrink: 0 }} />}
-      {/* Bubble with tail */}
+      ) : <div style={{ width: 32, flexShrink: 0 }} />}
+      {/* Bubble — iMessage / Instagram style */}
       <div style={{ maxWidth: '72%', position: 'relative' }}
         onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerLeave={onPointerLeave}
         onContextMenu={e => { e.preventDefault(); setShowReactions(true) }}>
-        {/* Tail — only on last message (not grouped) */}
-        {!isGrouped && (
-          <div style={{
-            position: 'absolute', bottom: 6,
-            ...(isOwn ? { right: -6 } : { left: -6 }),
-            width: 12, height: 12,
-            background: isOwn ? 'rgba(10,132,255,.12)' : 'rgba(255,255,255,.05)',
-            clipPath: isOwn ? 'polygon(0 0, 100% 50%, 0 100%)' : 'polygon(100% 0, 0 50%, 100% 100%)',
-          }} />
-        )}
         <div style={{
           padding: '9px 14px',
           borderRadius: isOwn
-            ? (isGrouped ? '14px' : '16px 16px 4px 16px')
-            : (isGrouped ? '14px' : '16px 16px 16px 4px'),
-          background: isOwn ? 'rgba(10,132,255,.12)' : 'rgba(255,255,255,.05)',
-          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-          border: `1px solid ${isOwn ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.06)'}`,
-          boxShadow: '0 2px 8px rgba(0,0,0,.15)',
+            ? (isGrouped ? '18px' : '20px 20px 4px 20px')
+            : (isGrouped ? '18px' : '20px 20px 20px 4px'),
+          background: isOwn
+            ? 'linear-gradient(135deg, rgba(10,132,255,.85), rgba(10,100,220,.90))'
+            : 'rgba(255,255,255,.08)',
+          backdropFilter: isOwn ? 'none' : 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: isOwn ? 'none' : 'blur(20px) saturate(180%)',
+          border: isOwn ? 'none' : '0.5px solid rgba(255,255,255,.12)',
+          boxShadow: '0 2px 12px rgba(0,0,0,.15)',
           userSelect: 'none' as const, WebkitUserSelect: 'none' as const,
         }}>
           {!isOwn && !isGrouped && (
@@ -171,13 +231,14 @@ function MessageBubble({ msg, isOwn, onImageClick, isGrouped, onReaction, myUid 
               {msg.senderName} <span style={{ color: 'rgba(255,255,255,.20)', fontWeight: 400 }}>· {msg.senderRole}</span>
             </div>
           )}
-          {msg.text && <div style={{ fontSize: 13, lineHeight: 1.5, color: '#e9e9e9', wordBreak: 'break-word' }}>{msg.text}</div>}
+          {msg.text && <div style={{ fontSize: 13, lineHeight: 1.5, color: isOwn ? '#fff' : '#e9e9e9', wordBreak: 'break-word' }}>{msg.text}</div>}
           {msg.imageUrl && (
             <img src={msg.imageUrl} alt="" onClick={() => { if (!didLongPress.current) onImageClick?.(msg.imageUrl!) }}
               style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 10, marginTop: msg.text ? 6 : 0, cursor: 'pointer', objectFit: 'cover', border: '1px solid rgba(255,255,255,.08)' }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
           )}
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,.20)', marginTop: 3, textAlign: isOwn ? 'right' : 'left' }}>{timeAgo(msg.createdAt)}</div>
+          {msg.audioUrl && <AudioPlayer src={msg.audioUrl} isOwn={isOwn} />}
+          <div style={{ fontSize: 9, color: isOwn ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.20)', marginTop: 3, textAlign: isOwn ? 'right' : 'left' }}>{timeAgo(msg.createdAt)}</div>
         </div>
 
         {/* Reaction badges under bubble */}
@@ -430,6 +491,14 @@ export default function MessagesPage() {
   const listRef = useRef<HTMLDivElement>(null)
   const wasAtBottom = useRef(true)
 
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingDuration, setRecordingDuration] = useState(0)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
   useEffect(() => {
     try { setUser(JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null')) } catch {}
     // Re-read after Shell may have updated photo from API
@@ -555,6 +624,79 @@ export default function MessagesPage() {
     setSending(false)
   }
 
+  // Voice recording functions
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const mediaRecorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      mediaRecorder.start()
+      setIsRecording(true)
+      setRecordingDuration(0)
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1)
+      }, 1000)
+    } catch (err) {
+      console.warn('Microphone access denied:', err)
+    }
+  }
+
+  async function stopRecording() {
+    return new Promise<string | null>((resolve) => {
+      const mr = mediaRecorderRef.current
+      if (!mr || mr.state === 'inactive') { resolve(null); return }
+
+      mr.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(blob)
+        // Clean up stream
+        streamRef.current?.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+      mr.stop()
+      setIsRecording(false)
+      if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null }
+    })
+  }
+
+  async function handleVoiceToggle() {
+    if (isRecording) {
+      const audioUrl = await stopRecording()
+      if (audioUrl) {
+        setSending(true)
+        try {
+          let userPhoto = user?.photo || ''
+          try { const fresh = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); userPhoto = fresh?.photo || userPhoto } catch {}
+          await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: activeTab, text: '', senderPhoto: userPhoto, audioUrl }) })
+          wasAtBottom.current = true
+          await loadMessages()
+        } catch (e: any) { console.warn(e.message) }
+        setSending(false)
+      }
+    } else {
+      startRecording()
+    }
+  }
+
+  function cancelRecording() {
+    const mr = mediaRecorderRef.current
+    if (mr && mr.state !== 'inactive') mr.stop()
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    setIsRecording(false)
+    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null }
+    audioChunksRef.current = []
+  }
+
   function handleImageAttach(file: File | null) {
     if (!file) return
     const reader = new FileReader()
@@ -596,6 +738,9 @@ export default function MessagesPage() {
     } catch (e: any) { alert(e.message) }
   }
 
+  const hasContent = input.trim() || imagePreview
+  const fmtDur = (s: number) => { const m = Math.floor(s / 60); const sec = s % 60; return `${m}:${sec.toString().padStart(2, '0')}` }
+
   return (
     <Shell page="Messages">
       <style>{`
@@ -603,38 +748,60 @@ export default function MessagesPage() {
         .msg-input:focus { border-color: rgba(10,132,255,.40) !important; box-shadow: 0 0 0 3px rgba(10,132,255,.10) !important; }
         .msg-list::-webkit-scrollbar { width: 4px; }
         .msg-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 2px; }
-        @keyframes msgPopIn {
-          0% { opacity: 0; transform: scale(.85) translateY(8px) }
-          60% { transform: scale(1.02) translateY(-1px) }
-          100% { opacity: 1; transform: scale(1) translateY(0) }
+        @keyframes msgSlideUp {
+          0% { opacity: 0; transform: translateY(16px) scale(.97) }
+          60% { transform: translateY(-2px) scale(1.01) }
+          100% { opacity: 1; transform: translateY(0) scale(1) }
         }
-        .msg-bubble-wrap { animation: msgPopIn .25s cubic-bezier(.16,1.2,.3,1) both }
-        @keyframes sendPulse {
+        .msg-bubble-wrap { animation: msgSlideUp .35s cubic-bezier(.16,1.2,.3,1) both }
+        @keyframes sendGlow {
           0%, 100% { box-shadow: 0 0 0 0 rgba(10,132,255,0); }
-          50% { box-shadow: 0 0 12px 3px rgba(10,132,255,.35); }
+          50% { box-shadow: 0 0 16px 4px rgba(10,132,255,.40); }
         }
-        .msg-send-pulse { animation: sendPulse 1.8s ease-in-out infinite; }
+        .msg-send-glow { animation: sendGlow 1.8s ease-in-out infinite; }
         @keyframes reactionPopIn {
           0% { opacity: 0; transform: scale(.6) translateY(8px); }
           100% { opacity: 1; transform: scale(1) translateY(0); }
         }
+        @keyframes recPulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: .5; transform: scale(1.3); }
+        }
+        .rec-pulse { animation: recPulse 1s ease-in-out infinite; }
+        @keyframes waveBar {
+          0%, 100% { height: 4px; }
+          50% { height: 16px; }
+        }
+        .wave-bar { animation: waveBar .6s ease-in-out infinite; }
       `}</style>
 
       <div className="msg-container" style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Inter,sans-serif', color: '#e9e9e9' }}>
-        {/* Header */}
-        <div style={{ padding: '18px 20px 0', flexShrink: 0 }}>
+        {/* Header — glass morphism */}
+        <div style={{ padding: '18px 20px 0', flexShrink: 0, background: 'rgba(0,0,0,.60)', backdropFilter: 'blur(30px) saturate(200%)', WebkitBackdropFilter: 'blur(30px) saturate(200%)' } as React.CSSProperties}>
           <h2 style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 'clamp(16px,3vw,20px)', margin: 0, fontWeight: 400, textAlign: 'center' }}>Messages</h2>
           <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 2, letterSpacing: '.06em' }}>Team communication</div>
-        </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 6, padding: '14px 16px 8px', overflowX: 'auto', flexShrink: 0 }}>
-          {visibleTabs.map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)}
-              style={{ height: 36, padding: '0 14px', borderRadius: 999, border: `1px solid ${activeTab === t.id ? (TAB_COLORS[t.id] || 'rgba(255,255,255,.25)').replace(')', ',.35)').replace('rgb', 'rgba') : 'rgba(255,255,255,.08)'}`, background: activeTab === t.id ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.03)', color: activeTab === t.id ? '#fff' : 'rgba(255,255,255,.50)', cursor: 'pointer', fontWeight: 800, fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <TabIcon id={t.id} color={activeTab === t.id ? (TAB_COLORS[t.id] || '#fff') : 'rgba(255,255,255,.35)'} /> {t.label}
-            </button>
-          ))}
+          {/* Tabs — pill shape, frosted glass */}
+          <div style={{ display: 'flex', gap: 6, padding: '14px 0 12px', overflowX: 'auto', flexShrink: 0 }}>
+            {visibleTabs.map(t => {
+              const isActive = activeTab === t.id
+              return (
+                <button key={t.id} onClick={() => setActiveTab(t.id)}
+                  style={{
+                    height: 36, padding: '0 14px', borderRadius: 999,
+                    border: isActive ? '1px solid rgba(10,132,255,.40)' : '1px solid rgba(255,255,255,.08)',
+                    background: isActive ? 'rgba(10,132,255,.20)' : 'rgba(255,255,255,.06)',
+                    boxShadow: isActive ? '0 0 12px rgba(10,132,255,.15)' : 'none',
+                    color: isActive ? '#fff' : 'rgba(255,255,255,.50)',
+                    cursor: 'pointer', fontWeight: 800, fontSize: 12, fontFamily: 'inherit',
+                    whiteSpace: 'nowrap', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+                    transition: 'all .2s ease',
+                  }}>
+                  <TabIcon id={t.id} color={isActive ? (TAB_COLORS[t.id] || '#fff') : 'rgba(255,255,255,.35)'} /> {t.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* Content */}
@@ -743,18 +910,48 @@ export default function MessagesPage() {
                 <button onClick={() => setImagePreview('')} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
               </div>
             )}
-            <div style={{ padding: '8px 16px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(0,0,0,.60)', backdropFilter: 'saturate(180%) blur(20px)', WebkitBackdropFilter: 'saturate(180%) blur(20px)', borderTop: '1px solid rgba(255,255,255,.05)', boxShadow: '0 -4px 20px rgba(0,0,0,.30)' } as React.CSSProperties}>
-              <label style={{ width: 40, height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.40)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { handleImageAttach(e.target.files?.[0] || null); e.target.value = '' }} />
-              </label>
-              <input className="msg-input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }} placeholder="Type a message..."
-                style={{ flex: 1, height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#fff', padding: '0 16px', outline: 'none', fontSize: 13, fontFamily: 'inherit', transition: 'border-color .2s, box-shadow .2s' }} />
-              <button onClick={sendMessage} disabled={sending || (!input.trim() && !imagePreview)}
-                className={(input.trim() || imagePreview) ? 'msg-send-pulse' : ''}
-                style={{ width: 40, height: 40, borderRadius: 999, border: `1px solid ${(input.trim() || imagePreview) ? 'rgba(10,132,255,.50)' : 'rgba(255,255,255,.08)'}`, background: (input.trim() || imagePreview) ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.03)', color: (input.trim() || imagePreview) ? '#d7ecff' : 'rgba(255,255,255,.20)', cursor: (input.trim() || imagePreview) ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-              </button>
+            {/* Input Bar — glass style */}
+            <div style={{ padding: '8px 16px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(18,18,18,.60)', backdropFilter: 'blur(30px) saturate(180%)', WebkitBackdropFilter: 'blur(30px) saturate(180%)', borderTop: '1px solid rgba(255,255,255,.05)', boxShadow: '0 -4px 20px rgba(0,0,0,.30)' } as React.CSSProperties}>
+              {isRecording ? (
+                /* Recording UI */
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, height: 44 }}>
+                  <button onClick={cancelRecording} style={{ width: 36, height: 36, borderRadius: 999, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.10)', color: '#ffd0d0', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+                  <div className="rec-pulse" style={{ width: 8, height: 8, borderRadius: 999, background: '#ff3b30', flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: '#ff6b6b', fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 36 }}>{fmtDur(recordingDuration)}</span>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, height: 24 }}>
+                    {Array.from({ length: 20 }, (_, i) => (
+                      <div key={i} className="wave-bar" style={{ width: 3, borderRadius: 2, background: 'rgba(255,59,48,.60)', animationDelay: `${i * 0.08}s` }} />
+                    ))}
+                  </div>
+                  <button onClick={handleVoiceToggle} style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: 'linear-gradient(135deg, rgba(10,132,255,.85), rgba(10,100,220,.90))', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 12px rgba(10,132,255,.30)' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </button>
+                </div>
+              ) : (
+                /* Normal input UI */
+                <>
+                  <label style={{ width: 40, height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.40)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { handleImageAttach(e.target.files?.[0] || null); e.target.value = '' }} />
+                  </label>
+                  <input className="msg-input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }} placeholder="Type a message..."
+                    style={{ flex: 1, height: 44, borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.08)', color: '#fff', padding: '0 18px', outline: 'none', fontSize: 13, fontFamily: 'inherit', transition: 'border-color .2s, box-shadow .2s' }} />
+                  {hasContent ? (
+                    /* Send button with glow */
+                    <button onClick={sendMessage} disabled={sending}
+                      className="msg-send-glow"
+                      style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: 'linear-gradient(135deg, rgba(10,132,255,.85), rgba(10,100,220,.90))', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                  ) : (
+                    /* Mic button */
+                    <button onClick={handleVoiceToggle}
+                      style={{ width: 44, height: 44, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="1" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </>
         )}
