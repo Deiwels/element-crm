@@ -94,8 +94,8 @@ function DatePickerModal({ current, onSelect, onClose }: {
   for (let i = 0; i < 42; i++) { const d = new Date(start); d.setDate(start.getDate() + i); days.push(d) }
   const btn: React.CSSProperties = { height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ width: 'min(460px,100%)', borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.65)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', padding: 18, color: '#e9e9e9', fontFamily: 'Inter,sans-serif', boxShadow: '0 32px 80px rgba(0,0,0,.55), inset 0 0 0 0.5px rgba(255,255,255,.06)' }}>
+    <div className="cal-picker-bg" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.50)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100, padding: '16px 12px max(16px, env(safe-area-inset-bottom, 16px))' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="cal-picker-card" style={{ width: 'min(460px,100%)', borderRadius: 24, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(8,8,12,.85)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', padding: 18, color: '#e9e9e9', fontFamily: 'Inter,sans-serif', boxShadow: '0 -8px 60px rgba(0,0,0,.50), inset 0 1px 0 rgba(255,255,255,.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,.10)' }}>
           <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 13 }}>Choose date</div>
           <button onClick={onClose} style={{ height: 32, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: 12 }}>Close</button>
@@ -1400,6 +1400,28 @@ export default function CalendarPage() {
           animation: arrivedShimmer 2.4s ease-in-out infinite;
           box-shadow: 0 0 10px rgba(10,132,255,.12), inset 0 0 8px rgba(10,132,255,.06);
         }
+        /* Date dot morph + glow animations */
+        @keyframes dotPillGlow {
+          0%, 100% { box-shadow: 0 2px 8px rgba(255,255,255,.15); }
+          50% { box-shadow: 0 2px 16px rgba(255,255,255,.35), 0 0 24px rgba(255,255,255,.10); }
+        }
+        .date-dot {
+          transition: width .3s cubic-bezier(.4,0,.2,1), min-width .3s cubic-bezier(.4,0,.2,1), padding .3s cubic-bezier(.4,0,.2,1), background .3s ease, color .3s ease, font-size .2s ease, font-weight .2s ease, box-shadow .3s ease, transform .15s ease;
+        }
+        .date-dot:active { transform: scale(.9) }
+        .date-dot-current {
+          animation: dotPillGlow 2.8s ease-in-out infinite;
+        }
+        @keyframes calPickerIn {
+          0% { opacity:0; transform:translateY(40px) scale(.85) }
+          100% { opacity:1; transform:translateY(0) scale(1) }
+        }
+        @keyframes calPickerBgIn {
+          0% { opacity:0 }
+          100% { opacity:1 }
+        }
+        .cal-picker-bg { animation: calPickerBgIn .2s ease-out }
+        .cal-picker-card { animation: calPickerIn .35s cubic-bezier(.16,1.1,.3,1) }
         /* Desktop: hide mobile-only elements */
         .cal-search-icon{ display:none !important; }
         .cal-settings-icon{ display:none !important; }
@@ -1928,30 +1950,32 @@ export default function CalendarPage() {
           return (
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 15, padding: '8px 0 max(8px, env(safe-area-inset-bottom, 8px))', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, pointerEvents: 'auto' }}>
               {dots.map((dot, i) => (
-                <button key={i}
-                  onClick={() => { const d = new Date(dot.date); d.setHours(0,0,0,0); setAnchor(d) }}
+                <button key={dot.day + '-' + dot.date.getMonth()}
+                  className={`date-dot${dot.isCurrent ? ' date-dot-current' : ''}`}
+                  onClick={() => {
+                    if (dot.isCurrent) { setDatePickerOpen(true); return }
+                    const d = new Date(dot.date); d.setHours(0,0,0,0); setAnchor(d)
+                  }}
                   style={{
-                    height: 28,
-                    padding: dot.isCurrent ? '0 12px' : '0',
-                    width: dot.isCurrent ? 'auto' : 28,
-                    minWidth: dot.isCurrent ? 70 : 28,
+                    height: 30,
+                    padding: dot.isCurrent ? '0 14px' : '0',
+                    width: dot.isCurrent ? 'auto' : 30,
+                    minWidth: dot.isCurrent ? 76 : 30,
                     borderRadius: 999,
                     border: 'none',
-                    background: dot.isCurrent ? 'rgba(255,255,255,.92)' : 'rgba(255,255,255,.15)',
-                    color: dot.isCurrent ? '#000' : 'rgba(0,0,0,.70)',
+                    background: dot.isCurrent ? 'rgba(255,255,255,.92)' : 'rgba(255,255,255,.12)',
+                    color: dot.isCurrent ? '#000' : 'rgba(255,255,255,.55)',
                     cursor: 'pointer',
                     fontWeight: dot.isCurrent ? 800 : 600,
-                    fontSize: dot.isCurrent ? 11 : 10,
+                    fontSize: dot.isCurrent ? 11 : 11,
                     fontFamily: 'inherit',
                     letterSpacing: dot.isCurrent ? '.02em' : 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0,
-                    transition: 'all .2s ease',
-                    boxShadow: dot.isCurrent ? '0 2px 8px rgba(0,0,0,.3)' : 'none',
                     position: 'relative',
                   }}>
                   {dot.isCurrent ? dot.label : dot.day}
-                  {dot.isToday && !dot.isCurrent && <div style={{ position: 'absolute', bottom: 2, width: 3, height: 3, borderRadius: 999, background: 'rgba(10,132,255,.80)' }} />}
+                  {dot.isToday && !dot.isCurrent && <div style={{ position: 'absolute', bottom: 3, width: 3, height: 3, borderRadius: 999, background: 'rgba(10,132,255,.90)' }} />}
                 </button>
               ))}
             </div>
