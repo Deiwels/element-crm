@@ -92,6 +92,8 @@ export default function DashboardPage() {
   const [todayMinutes, setTodayMinutes] = useState(0)
   const [clockLoading, setClockLoading] = useState(false)
   const [clockError, setClockError] = useState('')
+  const [clockSuccess, setClockSuccess] = useState<'in'|'out'|null>(null)
+  const [elapsedStr, setElapsedStr] = useState('')
   const [staffOnClock, setStaffOnClock] = useState<any[]>([])
   const [attHistory, setAttHistory] = useState<any[]>([])
   const [attSummary, setAttSummary] = useState<any>(null)
@@ -298,9 +300,24 @@ export default function DashboardPage() {
   const fmtMins = (m: number) => { const h = Math.floor(m / 60); const mm = m % 60; return h > 0 ? `${h}h ${mm}m` : `${mm}m` }
   const clockInSince = clockInTime ? new Date(clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : ''
 
+  // Live elapsed timer
+  useEffect(() => {
+    if (!clockedIn || !clockInTime) { setElapsedStr(''); return }
+    function tick() {
+      const ms = Date.now() - new Date(clockInTime!).getTime()
+      const h = Math.floor(ms / 3600000)
+      const m = Math.floor((ms % 3600000) / 60000)
+      setElapsedStr(h > 0 ? `${h}h ${m}m` : `${m}m`)
+    }
+    tick()
+    const t = setInterval(tick, 30000)
+    return () => clearInterval(t)
+  }, [clockedIn, clockInTime])
+
   async function handleClockAction() {
     setClockLoading(true)
     setClockError('')
+    const wasClocked = clockedIn
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
@@ -315,7 +332,9 @@ export default function DashboardPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
-      loadAll()
+      // Show success animation
+      setClockSuccess(wasClocked ? 'out' : 'in')
+      setTimeout(() => { setClockSuccess(null); loadAll() }, 1400)
     } catch (err: any) {
       if (err?.code === 1) setClockError('Location access denied. Enable GPS in your browser settings.')
       else if (err?.code === 2 || err?.code === 3) setClockError('Could not get location. Try again.')
@@ -367,6 +386,34 @@ export default function DashboardPage() {
             0%, 100% { opacity: .4; }
             50% { opacity: 1; }
           }
+          @keyframes clockCheckIn {
+            0% { opacity:0; transform:scale(.3) }
+            50% { opacity:1; transform:scale(1.1) }
+            70% { transform:scale(.95) }
+            100% { transform:scale(1) }
+          }
+          @keyframes clockCheckDraw {
+            0% { stroke-dashoffset: 32 }
+            100% { stroke-dashoffset: 0 }
+          }
+          @keyframes clockRingDraw {
+            0% { stroke-dashoffset: 160 }
+            100% { stroke-dashoffset: 0 }
+          }
+          @keyframes clockSuccessGlow {
+            0% { box-shadow: 0 0 0 rgba(143,240,177,0) }
+            40% { box-shadow: 0 0 30px rgba(143,240,177,.40) }
+            100% { box-shadow: 0 0 0 rgba(143,240,177,0) }
+          }
+          @keyframes clockOutGlow {
+            0% { box-shadow: 0 0 0 rgba(255,107,107,0) }
+            40% { box-shadow: 0 0 30px rgba(255,107,107,.35) }
+            100% { box-shadow: 0 0 0 rgba(255,107,107,0) }
+          }
+          .clock-success-card { animation: clockCheckIn .45s cubic-bezier(.16,1.2,.3,1) both, clockSuccessGlow 1.4s ease-out both; }
+          .clock-out-success-card { animation: clockCheckIn .45s cubic-bezier(.16,1.2,.3,1) both, clockOutGlow 1.4s ease-out both; }
+          .clock-btn-morph { transition: all .4s cubic-bezier(.4,0,.2,1); }
+          .clock-btn-morph:active { transform: scale(.92) }
           @media (max-width: 768px) {
             .dash-topbar-row { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; }
             .dash-search { width: 100% !important; }
@@ -376,19 +423,32 @@ export default function DashboardPage() {
             .dash-container { padding: 12px 10px 40px !important; }
           }
         `}</style>
-        <div style={{ borderRadius: 18, border: `1px solid ${clockedIn ? 'rgba(143,240,177,.25)' : 'rgba(255,255,255,.10)'}`, background: clockedIn ? 'linear-gradient(180deg,rgba(143,240,177,.06),rgba(143,240,177,.01))' : 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', boxShadow: '0 10px 40px rgba(0,0,0,.35)', padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-          {/* Status icon */}
-          <div style={{ width: 44, height: 44, borderRadius: 14, background: clockedIn ? 'rgba(143,240,177,.12)' : 'rgba(255,255,255,.06)', border: `1px solid ${clockedIn ? 'rgba(143,240,177,.30)' : 'rgba(255,255,255,.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={clockedIn ? '#8ff0b1' : 'rgba(255,255,255,.45)'} strokeWidth="2" strokeLinecap="round">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-          </div>
+        <div className={clockSuccess === 'in' ? 'clock-success-card' : clockSuccess === 'out' ? 'clock-out-success-card' : ''} style={{ borderRadius: 18, border: `1px solid ${clockSuccess === 'in' ? 'rgba(143,240,177,.50)' : clockSuccess === 'out' ? 'rgba(255,107,107,.40)' : clockedIn ? 'rgba(143,240,177,.25)' : 'rgba(255,255,255,.10)'}`, background: clockSuccess === 'in' ? 'linear-gradient(180deg,rgba(143,240,177,.14),rgba(143,240,177,.04))' : clockSuccess === 'out' ? 'linear-gradient(180deg,rgba(255,107,107,.10),rgba(255,107,107,.02))' : clockedIn ? 'linear-gradient(180deg,rgba(143,240,177,.06),rgba(143,240,177,.01))' : 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', boxShadow: '0 10px 40px rgba(0,0,0,.35)', padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', transition: 'border-color .4s, background .4s' }}>
+          {/* Status icon / Success checkmark */}
+          {clockSuccess ? (
+            <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="32" height="32" viewBox="0 0 60 60">
+                <circle cx="30" cy="30" r="24" fill="none" stroke={clockSuccess === 'in' ? 'rgba(143,240,177,.70)' : 'rgba(255,107,107,.60)'} strokeWidth="2.5" strokeDasharray="160" strokeDashoffset="160" strokeLinecap="round" style={{ animation: 'clockRingDraw .5s ease-out .1s forwards' }} />
+                {clockSuccess === 'in' ? (
+                  <polyline points="20,32 27,39 40,24" fill="none" stroke="#8ff0b1" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="32" strokeDashoffset="32" style={{ animation: 'clockCheckDraw .3s ease-out .35s forwards' }} />
+                ) : (
+                  <polyline points="20,32 27,39 40,24" fill="none" stroke="#ff6b6b" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="32" strokeDashoffset="32" style={{ animation: 'clockCheckDraw .3s ease-out .35s forwards' }} />
+                )}
+              </svg>
+            </div>
+          ) : (
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: clockedIn ? 'rgba(143,240,177,.12)' : 'rgba(255,255,255,.06)', border: `1px solid ${clockedIn ? 'rgba(143,240,177,.30)' : 'rgba(255,255,255,.12)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .4s' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={clockedIn ? '#8ff0b1' : 'rgba(255,255,255,.45)'} strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+          )}
           {/* Text */}
           <div style={{ flex: 1, minWidth: 120 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {clockedIn && <span style={{ width: 8, height: 8, borderRadius: 999, background: '#8ff0b1', display: 'inline-block', animation: 'clockDot 2s ease-in-out infinite' }} />}
-              <span style={{ fontWeight: 800, fontSize: 14, color: clockedIn ? '#c9ffe1' : 'rgba(255,255,255,.70)' }}>
-                {clockedIn ? `Clocked in since ${clockInSince}` : 'Not clocked in'}
+              {clockedIn && !clockSuccess && <span style={{ width: 8, height: 8, borderRadius: 999, background: '#8ff0b1', display: 'inline-block', animation: 'clockDot 2s ease-in-out infinite' }} />}
+              <span style={{ fontWeight: 800, fontSize: 14, color: clockSuccess === 'in' ? '#8ff0b1' : clockSuccess === 'out' ? '#ffd0d0' : clockedIn ? '#c9ffe1' : 'rgba(255,255,255,.70)', transition: 'color .3s' }}>
+                {clockSuccess === 'in' ? 'Clocked in!' : clockSuccess === 'out' ? 'Clocked out!' : clockedIn ? `Clocked in since ${clockInSince}` : 'Not clocked in'}
               </span>
             </div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
@@ -397,19 +457,24 @@ export default function DashboardPage() {
             {clockError && <div style={{ fontSize: 11, color: '#ff6b6b', marginTop: 4 }}>{clockError}</div>}
           </div>
           {/* Button */}
-          <button onClick={handleClockAction} disabled={clockLoading}
-            style={{
-              height: 44, padding: '0 22px', borderRadius: 999, cursor: clockLoading ? 'wait' : 'pointer',
-              fontWeight: 900, fontSize: 13, fontFamily: 'inherit', letterSpacing: '.04em', textTransform: 'uppercase',
-              border: `1px solid ${clockedIn ? 'rgba(255,107,107,.45)' : 'rgba(143,240,177,.45)'}`,
-              background: clockedIn ? 'rgba(255,107,107,.12)' : 'rgba(143,240,177,.12)',
-              color: clockedIn ? '#ffd0d0' : '#c9ffe1',
-              opacity: clockLoading ? .5 : 1,
-              animation: !clockLoading && !clockedIn ? 'clockPulse 2.6s ease-in-out infinite' : 'none',
-              flexShrink: 0,
-            }}>
-            {clockLoading ? 'Locating…' : clockedIn ? 'Clock Out' : 'Clock In'}
-          </button>
+          {!clockSuccess && (
+            <button onClick={handleClockAction} disabled={clockLoading} className="clock-btn-morph"
+              style={{
+                height: 44, padding: clockedIn ? '0 16px' : '0 22px', borderRadius: 999, cursor: clockLoading ? 'wait' : 'pointer',
+                fontWeight: 900, fontSize: 13, fontFamily: 'inherit', letterSpacing: '.04em', textTransform: 'uppercase',
+                border: `1px solid ${clockedIn ? 'rgba(255,107,107,.45)' : 'rgba(143,240,177,.45)'}`,
+                background: clockedIn ? 'rgba(255,107,107,.12)' : 'rgba(143,240,177,.12)',
+                color: clockedIn ? '#ffd0d0' : '#c9ffe1',
+                opacity: clockLoading ? .5 : 1,
+                animation: !clockLoading && !clockedIn ? 'clockPulse 2.6s ease-in-out infinite' : 'none',
+                flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+              {clockLoading ? 'Locating…' : clockedIn ? (
+                <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>{elapsedStr || 'Clock Out'}</>
+              ) : 'Clock In'}
+            </button>
+          )}
         </div>
 
         {/* Staff on clock — admin/owner only */}
