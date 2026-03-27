@@ -639,7 +639,17 @@ export default function CalendarPage() {
   const blockDragJustEnded = useRef(false)
   const blockLongPressTimer = useRef<any>(null)
   const eventLongPressTimer = useRef<any>(null)
+  // Persist arrived IDs in localStorage so they survive reload (cleared when paid)
+  const ARRIVED_KEY = 'ELEMENT_ARRIVED_IDS'
   const arrivedIdsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    try { arrivedIdsRef.current = new Set(JSON.parse(localStorage.getItem(ARRIVED_KEY) || '[]')) } catch {}
+  }, [])
+  function saveArrivedIds() {
+    try { localStorage.setItem(ARRIVED_KEY, JSON.stringify([...arrivedIdsRef.current])) } catch {}
+  }
+  function markArrived(id: string) { arrivedIdsRef.current.add(id); saveArrivedIds() }
+  function clearArrived(id: string) { arrivedIdsRef.current.delete(id); saveArrivedIds() }
   const [trainingModal, setTrainingModal] = useState<{ barberId: string; barberName: string; min: number } | null>(null)
   const [toast, setToast] = useState('')
   // Block modals
@@ -1121,14 +1131,14 @@ export default function CalendarPage() {
   useEffect(() => {
     if (modal.open) return // Don't poll while booking modal is open
     const interval = setInterval(() => {
-      loadBookings(barbers, services).then(evs => setEvents(evs.map(e => arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e))).catch(console.warn)
+      loadBookings(barbers, services).then(evs => setEvents(evs.map(e => { if (e.paid && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !e.paid && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e }))).catch(console.warn)
       loadPendingBlocks().catch(() => {})
     }, 15000)
     return () => clearInterval(interval)
   }, [barbers, services, loadBookings, modal.open])
 
   const reload = useCallback(() => {
-    loadBookings(barbers, services).then(evs => setEvents(evs.map(e => arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e))).catch(console.warn)
+    loadBookings(barbers, services).then(evs => setEvents(evs.map(e => { if (e.paid && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !e.paid && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e }))).catch(console.warn)
   }, [barbers, services, loadBookings])
 
   const totalH = (END_HOUR - START_HOUR) * 12 * slotH
@@ -1328,8 +1338,8 @@ export default function CalendarPage() {
     }
     // If status changed to 'arrived' — track locally + send message to barbers chat
     if (patch.status === 'arrived' && ev.status !== 'arrived') {
-      if (ev._raw?.id) arrivedIdsRef.current.add(String(ev._raw.id))
-      if (ev.id) arrivedIdsRef.current.add(String(ev.id))
+      if (ev._raw?.id) markArrived(String(ev._raw.id))
+      if (ev.id) markArrived(String(ev.id))
       const barberName = barbers.find(b => b.id === updated.barberId)?.name || updated.barberName || ''
       const clientName = updated.clientName || 'Client'
       const msgText = `📍 ${clientName} arrived — ${barberName}`
@@ -1340,7 +1350,7 @@ export default function CalendarPage() {
     }
     setModal({ open: false, eventId: null, isNew: false })
     // Reload bookings to get fresh data from server
-    setTimeout(() => { loadBookings(barbers, services).then(evs => setEvents(evs.map(e => arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e))).catch(console.warn) }, 500)
+    setTimeout(() => { loadBookings(barbers, services).then(evs => setEvents(evs.map(e => { if (e.paid && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !e.paid && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e }))).catch(console.warn) }, 500)
   }
 
   async function handleDelete() {
@@ -1352,7 +1362,9 @@ export default function CalendarPage() {
   }
 
   function handlePayment(method: string, tip: number) {
-    setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, paymentMethod: method, tipAmount: tip } : e))
+    const ev = events.find(e => e.id === modal.eventId)
+    if (ev) { clearArrived(ev.id); if (ev._raw?.id) clearArrived(String(ev._raw.id)) }
+    setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, status: 'booked', paymentMethod: method, tipAmount: tip } : e))
   }
 
   return (
