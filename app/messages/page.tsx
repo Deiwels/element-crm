@@ -500,16 +500,9 @@ export default function MessagesPage() {
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  // Check voice recording support on mount (client-side only)
-  // Works in Element Team iOS app (WKWebView with mic permission) and desktop browsers
-  useEffect(() => {
-    try {
-      if (typeof window === 'undefined') { setVoiceSupported(false); return }
-      // Test that both APIs exist
-      const hasGetUserMedia = !!(navigator?.mediaDevices?.getUserMedia)
-      const hasMediaRecorder = typeof MediaRecorder !== 'undefined'
-      setVoiceSupported(hasGetUserMedia && hasMediaRecorder)
-    } catch { setVoiceSupported(false) }
+  // Voice recording OFF — crashes iOS WebView/PWA even with try/catch
+  // AudioPlayer still works for playback of voice messages sent from desktop
+  useEffect(() => { setVoiceSupported(false)
   }, [])
 
   useEffect(() => {
