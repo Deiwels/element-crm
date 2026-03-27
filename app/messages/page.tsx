@@ -38,6 +38,8 @@ interface Message {
   text: string
   imageUrl?: string
   audioUrl?: string
+  fileUrl?: string
+  fileName?: string
   createdAt: string
   reactions?: Record<string, string[]>
 }
@@ -238,6 +240,17 @@ function MessageBubble({ msg, isOwn, onImageClick, isGrouped, onReaction, myUid 
               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
           )}
           {msg.audioUrl && <AudioPlayer src={msg.audioUrl} isOwn={isOwn} />}
+          {msg.fileUrl && (
+            <a href={msg.fileUrl} download={msg.fileName || 'file'} onClick={e => e.stopPropagation()}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginTop: msg.text ? 6 : 0, borderRadius: 10, background: isOwn ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.08)', textDecoration: 'none', color: '#e9e9e9' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isOwn ? '#fff' : 'rgba(255,255,255,.50)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.fileName || 'File'}</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,.35)', marginTop: 1 }}>Tap to download</div>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </a>
+          )}
           <div style={{ fontSize: 9, color: isOwn ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.20)', marginTop: 3, textAlign: isOwn ? 'right' : 'left' }}>{timeAgo(msg.createdAt)}</div>
         </div>
 
@@ -488,6 +501,8 @@ export default function MessagesPage() {
   const [showNewRequest, setShowNewRequest] = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState('')
   const [imagePreview, setImagePreview] = useState('')
+  const [filePreview, setFilePreview] = useState<{ name: string; dataUrl: string } | null>(null)
+  const [showAttachMenu, setShowAttachMenu] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const wasAtBottom = useRef(true)
 
@@ -615,15 +630,25 @@ export default function MessagesPage() {
     if (el) wasAtBottom.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 40
   }
 
+  function handleFileAttach(file: File | null) {
+    if (!file) return
+    if (file.size > 10 * 1024 * 1024) { console.warn('Max 10MB'); return }
+    const reader = new FileReader()
+    reader.onload = () => { setFilePreview({ name: file.name, dataUrl: reader.result as string }) }
+    reader.readAsDataURL(file)
+  }
+
   async function sendMessage() {
-    if ((!input.trim() && !imagePreview) || sending) return
+    if ((!input.trim() && !imagePreview && !filePreview) || sending) return
     setSending(true)
     try {
-      // Re-read photo from localStorage (Shell may have updated it after initial load)
       let userPhoto = user?.photo || ''
       try { const fresh = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); userPhoto = fresh?.photo || userPhoto } catch {}
-      await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: activeTab, text: input.trim(), senderPhoto: userPhoto, imageUrl: imagePreview || undefined }) })
-      setInput(''); setImagePreview('')
+      const body: any = { chatType: activeTab, text: input.trim(), senderPhoto: userPhoto }
+      if (imagePreview) body.imageUrl = imagePreview
+      if (filePreview) { body.fileUrl = filePreview.dataUrl; body.fileName = filePreview.name }
+      await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify(body) })
+      setInput(''); setImagePreview(''); setFilePreview(null)
       wasAtBottom.current = true
       await loadMessages()
     } catch (e: any) { console.warn(e.message) }
@@ -785,7 +810,7 @@ export default function MessagesPage() {
     } catch (e: any) { alert(e.message) }
   }
 
-  const hasContent = input.trim() || imagePreview
+  const hasContent = input.trim() || imagePreview || filePreview
   const fmtDur = (s: number) => { const m = Math.floor(s / 60); const sec = s % 60; return `${m}:${sec.toString().padStart(2, '0')}` }
 
   return (
@@ -957,10 +982,18 @@ export default function MessagesPage() {
                 return <MessageBubble key={msg.id} msg={msg} isOwn={msg.senderId === uid} onImageClick={url => setLightboxUrl(url)} isGrouped={isGrouped} onReaction={handleReaction} myUid={uid} />
               })}
             </div>
-            {imagePreview && (
+            {(imagePreview || filePreview) && (
               <div style={{ padding: '8px 16px 0', flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
-                <img src={imagePreview} alt="" style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)' }} />
-                <button onClick={() => setImagePreview('')} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                {imagePreview && <img src={imagePreview} alt="" style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.14)' }} />}
+                {filePreview && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.10)' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,207,63,.70)" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,.70)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{filePreview.name}</span>
+                  </div>
+                )}
+                <button onClick={() => { setImagePreview(''); setFilePreview(null) }} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
               </div>
             )}
             {/* Input Bar — glass style */}
@@ -983,10 +1016,31 @@ export default function MessagesPage() {
               ) : (
                 /* Normal input UI */
                 <>
-                  <label style={{ width: 34, height: 34, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.40)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { handleImageAttach(e.target.files?.[0] || null); e.target.value = '' }} />
-                  </label>
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <button onClick={() => setShowAttachMenu(v => !v)}
+                      style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${showAttachMenu ? 'rgba(10,132,255,.40)' : 'rgba(255,255,255,.08)'}`, background: showAttachMenu ? 'rgba(10,132,255,.10)' : 'rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .2s ease', transform: showAttachMenu ? 'rotate(45deg)' : 'none', color: showAttachMenu ? '#d7ecff' : 'rgba(255,255,255,.40)' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    {showAttachMenu && (
+                      <>
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowAttachMenu(false)} />
+                        <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: 8, zIndex: 99, display: 'flex', flexDirection: 'column', gap: 4, padding: '6px', borderRadius: 16, background: 'rgba(20,20,20,.92)', border: '1px solid rgba(255,255,255,.12)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(0,0,0,.5)', animation: 'reactionPopIn .2s ease', minWidth: 150 }}>
+                          <label onClick={() => setShowAttachMenu(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', background: 'transparent', border: 'none', color: '#e9e9e9', fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
+                            onPointerDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,.06)')} onPointerUp={e => (e.currentTarget.style.background = 'transparent')}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(10,132,255,.80)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                            Photo
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { handleImageAttach(e.target.files?.[0] || null); e.target.value = '' }} />
+                          </label>
+                          <label onClick={() => setShowAttachMenu(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', background: 'transparent', border: 'none', color: '#e9e9e9', fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
+                            onPointerDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,.06)')} onPointerUp={e => (e.currentTarget.style.background = 'transparent')}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,207,63,.80)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            File
+                            <input type="file" accept="*/*" style={{ display: 'none' }} onChange={e => { handleFileAttach(e.target.files?.[0] || null); e.target.value = '' }} />
+                          </label>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <input className="msg-input" value={input} onChange={e => setInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
                     onPaste={e => {

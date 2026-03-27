@@ -670,8 +670,8 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
     const tipAmount = Number(rawData.tip || rawData.tip_amount || 0)
     const serviceAmount = Number(rawData.service_amount || rawData.amount || 0)
     const totalAmount = Number(rawData.total_amount || serviceAmount)
-    const barberName = barbers.find(b => b.id === ev.barberId)?.name || ev.barberName || '—'
-    const svcNames = (ev.serviceIds || []).map((id: string) => services.find(s => s.id === id)?.name).filter(Boolean).join(', ') || ev.serviceName || '—'
+    const rawBarberName = (ev as any).barberName || (ev._raw as any)?.barber_name || (ev._raw as any)?.barber || '—'
+    const svcNames = (ev.serviceIds || []).map((id: string) => services.find(s => s.id === id)?.name).filter(Boolean).join(', ') || (ev as any).serviceName || (ev._raw as any)?.service_name || '—'
     const timeStr = `${pad2(Math.floor((ev.startMin || 0) / 60))}:${pad2((ev.startMin || 0) % 60)}`
 
     return (
@@ -689,7 +689,7 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
         <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.02)' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div><div style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 3 }}>Client</div><div style={{ fontSize: 13, fontWeight: 700 }}>{ev.clientName || '—'}</div></div>
-            <div><div style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 3 }}>Barber</div><div style={{ fontSize: 13, fontWeight: 700 }}>{barberName}</div></div>
+            <div><div style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 3 }}>Barber</div><div style={{ fontSize: 13, fontWeight: 700 }}>{rawBarberName}</div></div>
             <div><div style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 3 }}>Time</div><div style={{ fontSize: 13, fontWeight: 700 }}>{timeStr}</div></div>
             <div><div style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 3 }}>Services</div><div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,.70)' }}>{svcNames}</div></div>
           </div>
