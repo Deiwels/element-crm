@@ -978,13 +978,21 @@ export function BookingModal({
     }
   }, [isOpen, existingEvent?.id, barberId, startMin])
 
-  // When barber changes, drop services not available for that barber
+  // When barber changes, remap services to the new barber's equivalent (by name)
   useEffect(() => {
     if (!serviceIds.length) return
-    const available = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId)).map(s => s.id)
+    const newBarberSvcs = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId))
     setServiceIds(prev => {
-      const filtered = prev.filter(id => available.includes(id))
-      return filtered.length !== prev.length ? filtered : prev
+      const remapped = prev.map(id => {
+        // Already available for new barber? Keep it
+        if (newBarberSvcs.some(s => s.id === id)) return id
+        // Find equivalent by name
+        const oldSvc = services.find(s => s.id === id)
+        if (!oldSvc) return null
+        const match = newBarberSvcs.find(s => s.name.toLowerCase() === oldSvc.name.toLowerCase())
+        return match ? match.id : null
+      }).filter(Boolean) as string[]
+      return remapped
     })
   }, [selBarberId])
 
