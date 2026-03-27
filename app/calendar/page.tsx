@@ -1355,7 +1355,12 @@ export default function CalendarPage() {
     function onEnd() {
       const bd = blockDragRef.current
       if (bd && bd.endMin - bd.startMin >= 5) {
-        openCreateBlock(bd.barberId, bd.startMin, bd.endMin - bd.startMin)
+        const dur = bd.endMin - bd.startMin
+        const startTime = minToHHMM(bd.startMin)
+        const endTime = minToHHMM(bd.endMin)
+        if (window.confirm(`Block time ${startTime} – ${endTime} (${dur} min)?`)) {
+          openCreateBlock(bd.barberId, bd.startMin, dur)
+        }
       }
       blockDragRef.current = null
       setBlockDrag(null)
@@ -1835,21 +1840,28 @@ export default function CalendarPage() {
                   <div key={barber.id} ref={el => { colRefs.current[bi] = el }}
                     style={{ position: 'relative', borderRight: bi < visibleBarbers.length-1 ? '1px solid rgba(255,255,255,.08)' : 'none', background: blockDrag?.barberIdx === bi ? 'rgba(255,107,107,.03)' : drag?.ghostBarberIdx === bi ? 'rgba(10,132,255,.03)' : 'transparent', transition: 'background .15s', touchAction: (drag || blockDrag) ? 'none' : 'pan-y' }}
                     onMouseDown={e => {
-                      if (e.button !== 0 || !e.shiftKey) return
+                      if (e.button !== 0) return
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       if (isStudent) return
+                      const canBlock = isOwnerOrAdmin || (isBarber && barber.id === myBarberId)
+                      if (!canBlock) return
                       const min = Math.round((e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
-                      // Shift+click on empty space starts block drag
-                      if (isOwnerOrAdmin || (isBarber && barber.id === myBarberId)) { e.preventDefault(); startBlockDrag(barber.id, bi, min); return }
+                      const bId = barber.id
+                      // Long press to start block (desktop)
+                      clearTimeout(blockLongPressTimer.current)
+                      blockLongPressTimer.current = setTimeout(() => { e.preventDefault(); startBlockDrag(bId, bi, min) }, 400)
                     }}
+                    onMouseUp={() => { clearTimeout(blockLongPressTimer.current) }}
+                    onMouseLeave={() => { clearTimeout(blockLongPressTimer.current) }}
                     onTouchStart={e => {
                       clearTimeout(blockLongPressTimer.current)
                       if ((e.target as HTMLElement).closest('.cal-event')) return
-                      if (isBarber && !isOwnerOrAdmin && barber.id === myBarberId && e.touches.length === 1) {
-                        const min = Math.round((e.touches[0].clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
-                        const bId = barber.id
-                        blockLongPressTimer.current = setTimeout(() => { startBlockDrag(bId, bi, min) }, 400)
-                      }
+                      if (isStudent) return
+                      const canBlock = isOwnerOrAdmin || (isBarber && barber.id === myBarberId)
+                      if (!canBlock || e.touches.length !== 1) return
+                      const min = Math.round((e.touches[0].clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
+                      const bId = barber.id
+                      blockLongPressTimer.current = setTimeout(() => { startBlockDrag(bId, bi, min) }, 400)
                     }}
                     onTouchEnd={() => { clearTimeout(blockLongPressTimer.current) }}
                     onTouchMove={() => { clearTimeout(blockLongPressTimer.current) }}
@@ -1992,11 +2004,22 @@ export default function CalendarPage() {
                       const approvedDur = (ev as any)._approvedDur || (isPending ? 0 : ev.durMin)
                       const hasPendingExtension = !isPending && (ev as any)._pendingResize && approvedDur > 0 && ev.durMin > approvedDur
                       if (isBlock) return (
-                        <div key={ev.id} className={drag?.eventId===ev.id ? 'cal-event-dragging' : ''} style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'visible', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'grab') : 'default', userSelect: 'none', transition: 'transform .15s, box-shadow .15s' }}
+                        <div key={ev.id} className={drag?.eventId===ev.id ? 'cal-event-dragging' : ''} style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'visible', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'pointer') : 'pointer', userSelect: 'none', transition: 'transform .15s, box-shadow .15s' }}
                           onMouseDown={e => { if (!isOwnerOrAdmin || e.button!==0) return; e.stopPropagation(); startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); clearTimeout(eventLongPressTimer.current); const touch = e.touches[0]; const evCopy = ev; const biCopy = bi; eventLongPressTimer.current = setTimeout(() => { const fakeEvt = { preventDefault(){}, stopPropagation(){}, touches: [touch] } as any; startDrag(fakeEvt, evCopy, biCopy) }, 400) }}
                           onTouchEnd={() => clearTimeout(eventLongPressTimer.current)}
-                          onTouchMove={() => clearTimeout(eventLongPressTimer.current)}>
+                          onTouchMove={() => clearTimeout(eventLongPressTimer.current)}
+                          onClick={e => {
+                            e.stopPropagation()
+                            if (drag || blockDragJustEnded.current) return
+                            const canDelete = isOwnerOrAdmin || (isBarber && ev.barberId === myBarberId)
+                            if (!canDelete) return
+                            if (window.confirm(`Delete block ${minToAMPM(ev.startMin)}–${minToAMPM(ev.startMin+ev.durMin)}?`)) {
+                              setEvents(prev => prev.filter(x => x.id !== ev.id))
+                              if (ev._raw?.id) apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), { method: 'DELETE' }).catch(console.warn)
+                              showToast('Block removed')
+                            }
+                          }}>
                           {/* Approved part (moving stripes) */}
                           {!isPending && <div className="block-approved-stripes" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: hasPendingExtension ? (approvedDur / ev.durMin * 100) + '%' : '100%', borderRadius: hasPendingExtension ? '10px 10px 0 0' : 10, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.22)'}` }} />}
                           {/* Pending part (breathing red) */}
