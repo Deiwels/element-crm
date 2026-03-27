@@ -627,14 +627,35 @@ export default function MessagesPage() {
   // Voice recording functions
   async function startRecording() {
     try {
+      // Check if audio recording is supported
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        alert('Voice recording is not supported in this browser. Please use Safari or Chrome.')
+        return
+      }
+      if (typeof MediaRecorder === 'undefined') {
+        alert('Voice recording is not supported on this device.')
+        return
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
-      const mediaRecorder = new MediaRecorder(stream)
+      // Try supported MIME types
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
+        : MediaRecorder.isTypeSupported('audio/aac') ? 'audio/aac'
+        : ''
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
       mediaRecorderRef.current = mediaRecorder
       audioChunksRef.current = []
 
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      mediaRecorder.onerror = () => {
+        cancelRecording()
       }
 
       mediaRecorder.start()
@@ -643,8 +664,13 @@ export default function MessagesPage() {
       recordingTimerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1)
       }, 1000)
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Microphone access denied:', err)
+      if (err?.name === 'NotAllowedError') {
+        alert('Microphone access was denied. Please allow microphone access in Settings.')
+      } else {
+        alert('Could not start recording: ' + (err?.message || 'Unknown error'))
+      }
     }
   }
 
@@ -654,7 +680,8 @@ export default function MessagesPage() {
       if (!mr || mr.state === 'inactive') { resolve(null); return }
 
       mr.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const blobType = mr.mimeType || 'audio/webm'
+        const blob = new Blob(audioChunksRef.current, { type: blobType })
         const reader = new FileReader()
         reader.onloadend = () => resolve(reader.result as string)
         reader.readAsDataURL(blob)
@@ -669,21 +696,26 @@ export default function MessagesPage() {
   }
 
   async function handleVoiceToggle() {
-    if (isRecording) {
-      const audioUrl = await stopRecording()
-      if (audioUrl) {
-        setSending(true)
-        try {
-          let userPhoto = user?.photo || ''
-          try { const fresh = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); userPhoto = fresh?.photo || userPhoto } catch {}
-          await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: activeTab, text: '', senderPhoto: userPhoto, audioUrl }) })
-          wasAtBottom.current = true
-          await loadMessages()
-        } catch (e: any) { console.warn(e.message) }
-        setSending(false)
+    try {
+      if (isRecording) {
+        const audioUrl = await stopRecording()
+        if (audioUrl) {
+          setSending(true)
+          try {
+            let userPhoto = user?.photo || ''
+            try { const fresh = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); userPhoto = fresh?.photo || userPhoto } catch {}
+            await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: activeTab, text: '', senderPhoto: userPhoto, audioUrl }) })
+            wasAtBottom.current = true
+            await loadMessages()
+          } catch (e: any) { console.warn(e.message) }
+          setSending(false)
+        }
+      } else {
+        await startRecording()
       }
-    } else {
-      startRecording()
+    } catch (e) {
+      console.warn('Voice toggle error:', e)
+      setIsRecording(false)
     }
   }
 
