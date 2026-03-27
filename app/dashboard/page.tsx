@@ -434,60 +434,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Attendance history — admin/owner */}
-        {isOwnerOrAdmin && (
-          <div style={{ marginBottom: 14 }}>
-            <button onClick={() => { setAttOpen(o => !o); if (!attOpen) loadAttHistory() }}
-              style={{ height: 36, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.65)', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', letterSpacing: '.06em', textTransform: 'uppercase' }}>
-              {attOpen ? 'Hide' : 'Show'} Attendance History
-            </button>
-            {attOpen && (
-              <div style={{ marginTop: 10, borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: '14px 16px' }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-                  <input type="date" value={attFrom} onChange={e => setAttFrom(e.target.value)} style={{ height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 12, colorScheme: 'dark' as any }} />
-                  <span style={{ color: 'rgba(255,255,255,.35)', fontSize: 12 }}>to</span>
-                  <input type="date" value={attTo} onChange={e => setAttTo(e.target.value)} style={{ height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.22)', color: '#fff', padding: '0 10px', outline: 'none', fontSize: 12, colorScheme: 'dark' as any }} />
-                  <button onClick={loadAttHistory} disabled={attLoading} style={{ height: 36, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(10,132,255,.45)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', opacity: attLoading ? .5 : 1 }}>
-                    {attLoading ? 'Loading…' : 'Load'}
-                  </button>
-                </div>
-                {/* Summary */}
-                {attSummary && (
-                  <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 14, background: 'rgba(0,0,0,.14)', border: '1px solid rgba(255,255,255,.08)' }}>
-                    <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 8, fontWeight: 900 }}>Summary · {attSummary.total_hours || 0}h total</div>
-                    {Object.entries(attSummary.by_user || {}).map(([uid, u]: any) => (
-                      <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
-                        <span style={{ fontWeight: 700, fontSize: 13, color: '#e9e9e9', flex: 1 }}>{u.name}</span>
-                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.50)' }}>{u.role}</span>
-                        <span style={{ fontSize: 12, color: '#8ff0b1', fontWeight: 700 }}>{fmtMins(u.total_minutes)}</span>
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,.35)' }}>{u.shifts} shift{u.shifts !== 1 ? 's' : ''}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {/* Records */}
-                <div style={{ maxHeight: 340, overflowY: 'auto' }}>
-                  {attHistory.length === 0 && !attLoading && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.35)', padding: 8 }}>No records found.</div>}
-                  {attHistory.map((r: any) => {
-                    const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'
-                    const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Still in'
-                    return (
-                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,.06)', fontSize: 12 }}>
-                        <span style={{ fontWeight: 700, color: '#e9e9e9', flex: 1, minWidth: 80 }}>{r.user_name}</span>
-                        <span style={{ color: 'rgba(255,255,255,.40)', minWidth: 75 }}>{r.date}</span>
-                        <span style={{ color: 'rgba(255,255,255,.55)' }}>{inTime}</span>
-                        <span style={{ color: 'rgba(255,255,255,.30)' }}>→</span>
-                        <span style={{ color: r.clock_out ? 'rgba(255,255,255,.55)' : '#8ff0b1' }}>{outTime}</span>
-                        <span style={{ color: '#8ff0b1', fontWeight: 700, minWidth: 50, textAlign: 'right' as const }}>{r.duration_minutes ? fmtMins(r.duration_minutes) : '—'}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* KPIs — barber sees their own earnings, owner sees totals */}
         <div className="dash-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
           {isBarber ? <>
