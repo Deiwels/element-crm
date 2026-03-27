@@ -1130,6 +1130,7 @@ export default function CalendarPage() {
         radarValues: Array.isArray(b.radar_values) ? b.radar_values.map(Number) : [4.5,4.5,4.5,4.5,4.5],
         username: String(b.username || '').trim(),
         schedule: finalSchedule,
+        schedule_overrides: b.schedule_overrides || {},
       }
     }).filter((b: Barber) => b.id && b.name)
   }, [])
