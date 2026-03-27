@@ -16,6 +16,7 @@ const NAV = [
   { id: 'calendar',  href: '/calendar',  label: 'Calendar',   sub: 'Bookings grid' },
   { id: 'messages',  href: '/messages',  label: 'Messages',   sub: 'Team chat' },
   { id: 'waitlist',  href: '/waitlist',  label: 'Waitlist',   sub: 'Queue & notify' },
+  { id: 'portfolio',  href: '/portfolio',  label: 'Portfolio',  sub: 'My work',             barberOnly: true },
   { id: 'clients',   href: '/clients',   label: 'Clients',    sub: 'Search / notes',      ownerAdmin: true },
   { id: 'payments',  href: '/payments',  label: 'Payments',   sub: 'Square + Terminal',   ownerAdmin: true },
   { id: 'attendance', href: '/attendance', label: 'Attendance', sub: 'Hours & clock',       ownerAdmin: true },
@@ -453,6 +454,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   const visibleNav = NAV.filter(item => {
     if ((item as any).ownerOnly && role !== 'owner') return false
     if ((item as any).ownerAdmin && (isBarber || isStudent)) return false
+    if ((item as any).barberOnly && !isBarber) return false
     // Student sees ONLY calendar
     if (isStudent && item.id !== 'calendar' && item.id !== 'messages') return false
     return true
