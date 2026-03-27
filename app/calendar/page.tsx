@@ -147,6 +147,79 @@ function SchedGrid({ schedule, onChange }: { schedule: DaySchedule[]; onChange: 
   )
 }
 
+// ─── RadarEditor ─────────────────────────────────────────────────────────────
+function RadarEditor({ labelsStr, valuesStr, onLabelsChange, onValuesChange }: {
+  labelsStr: string; valuesStr: string; onLabelsChange: (s: string) => void; onValuesChange: (s: string) => void
+}) {
+  const labels = labelsStr.split(',').map(s => s.trim()).filter(Boolean)
+  const values = valuesStr.split(',').map(s => { const n = parseFloat(s.trim()); return isNaN(n) ? 0 : n })
+  // Pad values to match labels length
+  while (values.length < labels.length) values.push(0)
+
+  const [editingIdx, setEditingIdx] = React.useState<number | null>(null)
+  const [editText, setEditText] = React.useState('')
+
+  function updateValue(idx: number, val: number) {
+    const next = [...values]; next[idx] = val
+    onValuesChange(next.slice(0, labels.length).join(','))
+  }
+  function updateLabel(idx: number, newLabel: string) {
+    const next = [...labels]; next[idx] = newLabel || 'SKILL'
+    onLabelsChange(next.join(','))
+  }
+  function removeSkill(idx: number) {
+    const nl = labels.filter((_, i) => i !== idx)
+    const nv = values.filter((_, i) => i !== idx)
+    onLabelsChange(nl.join(',') || '')
+    onValuesChange(nv.join(',') || '')
+  }
+  function addSkill() {
+    onLabelsChange([...labels, 'NEW'].join(','))
+    onValuesChange([...values, 3].join(','))
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {labels.map((label, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)' }}>
+          {editingIdx === i ? (
+            <input
+              autoFocus
+              value={editText}
+              onChange={e => setEditText(e.target.value.toUpperCase())}
+              onBlur={() => { updateLabel(i, editText); setEditingIdx(null) }}
+              onKeyDown={e => { if (e.key === 'Enter') { updateLabel(i, editText); setEditingIdx(null) } }}
+              style={{ width: 70, height: 24, borderRadius: 6, border: '1px solid rgba(10,132,255,.50)', background: 'rgba(10,132,255,.10)', color: '#fff', padding: '0 6px', outline: 'none', fontSize: 10, fontWeight: 900, letterSpacing: '.08em', fontFamily: 'inherit' }}
+            />
+          ) : (
+            <span
+              onClick={() => { setEditingIdx(i); setEditText(label) }}
+              style={{ minWidth: 56, fontSize: 10, fontWeight: 900, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,.65)', cursor: 'pointer', userSelect: 'none' }}
+              title="Click to rename"
+            >{label}</span>
+          )}
+          <input
+            type="range"
+            min={0} max={5} step={0.5}
+            value={values[i] ?? 0}
+            onChange={e => updateValue(i, parseFloat(e.target.value))}
+            style={{ flex: 1, height: 4, accentColor: '#0a84ff', cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', minWidth: 24, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{(values[i] ?? 0).toFixed(1)}</span>
+          <button
+            onClick={() => removeSkill(i)}
+            style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontSize: 10, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}
+          >✕</button>
+        </div>
+      ))}
+      <button
+        onClick={addSkill}
+        style={{ height: 30, borderRadius: 10, border: '1px dashed rgba(255,255,255,.16)', background: 'rgba(255,255,255,.03)', color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}
+      >+ Add skill</button>
+    </div>
+  )
+}
+
 // ─── BarberEditCard ───────────────────────────────────────────────────────────
 function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
   b: Barber; onDelete?: (id: string, name: string) => void
@@ -250,7 +323,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 4 }
 
   return (
-    <div style={{ borderRadius: 16, border: `1px solid ${open ? 'rgba(10,132,255,.35)' : 'rgba(255,255,255,.10)'}`, background: open ? 'rgba(10,132,255,.08)' : 'rgba(255,255,255,.03)' }}>
+    <div className="barber-edit-card" style={{ borderRadius: 16, border: `1px solid ${open ? 'rgba(10,132,255,.35)' : 'rgba(255,255,255,.10)'}`, background: open ? 'rgba(10,132,255,.08)' : 'rgba(255,255,255,.03)', transition: 'border-color .25s ease, box-shadow .25s ease' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           {(photoPreview || b.photo)
@@ -259,7 +332,20 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
           }
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 900, fontSize: 14 }}>{b.name}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', letterSpacing: '.06em', marginTop: 2 }}>{b.level || 'Barber'}{b.basePrice ? ` · $${b.basePrice}` : ''}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', letterSpacing: '.06em', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+              {(() => {
+                const lvl = (b.level || 'Barber').toLowerCase()
+                const badgeColors = lvl.includes('ambassador')
+                  ? { border: 'rgba(255,207,63,.45)', bg: 'rgba(255,207,63,.10)', color: '#ffe9a3', shadow: '0 0 8px rgba(255,207,63,.20)' }
+                  : lvl.includes('senior')
+                  ? { border: 'rgba(10,132,255,.45)', bg: 'rgba(10,132,255,.10)', color: '#d7ecff', shadow: '0 0 8px rgba(10,132,255,.20)' }
+                  : lvl.includes('expert')
+                  ? { border: 'rgba(143,240,177,.45)', bg: 'rgba(143,240,177,.10)', color: '#c9ffe1', shadow: '0 0 8px rgba(143,240,177,.20)' }
+                  : { border: 'rgba(255,255,255,.16)', bg: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.55)', shadow: 'none' }
+                return <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', fontWeight: 900, border: `1px solid ${badgeColors.border}`, background: badgeColors.bg, color: badgeColors.color, boxShadow: badgeColors.shadow }}>{b.level || 'Barber'}</span>
+              })()}
+              {b.basePrice ? <span>· ${b.basePrice}</span> : null}
+            </div>
             {b.about && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>{b.about}</div>}
           </div>
         </div>
@@ -269,10 +355,10 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
         </div>
       </div>
 
-      {open && (
-        <div style={{ padding: '0 14px 14px', borderTop: '1px solid rgba(255,255,255,.08)', overflow: 'hidden' }}>
+      <div style={{ maxHeight: open ? 2000 : 0, opacity: open ? 1 : 0, overflow: 'hidden', transition: 'max-height .4s ease, opacity .3s ease' }}>
+        <div style={{ padding: '0 14px 14px', borderTop: open ? '1px solid rgba(255,255,255,.08)' : '1px solid transparent', overflow: 'hidden' }}>
           <div style={{ paddingTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, maxWidth: '100%' }}>
-            {[['Level / Rank', level, setLevel, 'Senior / Expert'], ['Base price ($)', price, setPrice, '55.99'], ['Public role', publicRole, setPublicRole, 'Ambassador'], ['Radar labels', radarLabels, setRadarLabels, 'FADE,LONG,BEARD,STYLE,DETAIL']].map(([lbText, val, setter, ph]) => (
+            {[['Level / Rank', level, setLevel, 'Senior / Expert'], ['Base price ($)', price, setPrice, '55.99'], ['Public role', publicRole, setPublicRole, 'Ambassador']].map(([lbText, val, setter, ph]) => (
               <div key={lbText as string}><label style={lbl}>{lbText as string}</label><input value={val as string} onChange={e => (setter as any)(e.target.value)} placeholder={ph as string} style={inp} /></div>
             ))}
             <div style={{ gridColumn: '1 / -1' }}>
@@ -280,8 +366,8 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
               <textarea value={about} onChange={e => setAbout(e.target.value)} rows={3} placeholder="Precision fades. Clean silhouette. Premium finish..." style={{ ...inp, height: 'auto', padding: '10px', resize: 'vertical' as const, lineHeight: 1.5 }} />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={lbl}>Radar values (0–5, comma separated)</label>
-              <input value={radarValues} onChange={e => setRadarValues(e.target.value)} placeholder="4.5,4.5,4.5,4.5,4.5" style={inp} />
+              <label style={lbl}>Skill radar</label>
+              <RadarEditor labelsStr={radarLabels} valuesStr={radarValues} onLabelsChange={setRadarLabels} onValuesChange={setRadarValues} />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={lbl}>Photo</label>
@@ -290,7 +376,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
                   {photoFile ? photoFile.name : 'Change photo…'}
                   <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handlePhoto(e.target.files?.[0] || null)} />
                 </label>
-                {(photoPreview || b.photo) && <img src={photoPreview || b.photo} alt="" style={{ width: 38, height: 38, borderRadius: 10, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)' }} onError={e => (e.currentTarget.style.display='none')} />}
+                {(photoPreview || b.photo) && <img src={photoPreview || b.photo} alt="" style={{ width: 80, height: 80, borderRadius: 14, objectFit: 'cover', border: '1px solid rgba(255,255,255,.12)', boxShadow: '0 4px 20px rgba(0,0,0,.5)' }} onError={e => (e.currentTarget.style.display='none')} />}
                 {photoPreview && <button onClick={() => { setPhotoFile(null); setPhotoPreview('') }} style={{ height: 30, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>}
               </div>
             </div>
@@ -303,7 +389,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
             {saving ? 'Saving…' : isBarberSelf ? 'Send for approval' : 'Save changes — update on website'}
           </button>
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -396,7 +482,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
 
         <div style={{ display: 'flex', gap: 6, padding: '14px 18px 0' }}>
           {tabs.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ height: 36, padding: '0 16px', borderRadius: 999, border: `1px solid ${tab === t ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.09)'}`, background: tab === t ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.03)', color: tab === t ? '#fff' : 'rgba(255,255,255,.55)', cursor: 'pointer', fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit' }}>{t}</button>
+            <button key={t} onClick={() => setTab(t)} style={{ height: 36, padding: '0 16px', borderRadius: 999, border: `1px solid ${tab === t ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.09)'}`, background: tab === t ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.03)', color: tab === t ? '#fff' : 'rgba(255,255,255,.55)', cursor: 'pointer', fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit', transition: 'all .25s ease', boxShadow: tab === t ? '0 0 16px rgba(10,132,255,.35)' : 'none' }}>{t}</button>
           ))}
         </div>
 
@@ -425,8 +511,10 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                     <label style={lbl}>About / Bio</label>
                     <textarea value={bAbout} onChange={e => setBAbout(e.target.value)} rows={2} placeholder="Precision fades. Clean silhouette..." style={{ ...inp, height: 'auto', padding: '8px 10px', resize: 'vertical' as const }} />
                   </div>
-                  <div><label style={lbl}>Radar labels</label><input value={bRadarLabels} onChange={e => setBRadarLabels(e.target.value)} style={inp} /></div>
-                  <div><label style={lbl}>Radar values</label><input value={bRadarValues} onChange={e => setBRadarValues(e.target.value)} style={inp} /></div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={lbl}>Skill radar</label>
+                    <RadarEditor labelsStr={bRadarLabels} valuesStr={bRadarValues} onLabelsChange={setBRadarLabels} onValuesChange={setBRadarValues} />
+                  </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={lbl}>Photo</label>
                     <label style={{ height: 38, padding: '0 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.70)', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: 12, fontFamily: 'inherit', gap: 8 }}>
@@ -1395,6 +1483,7 @@ export default function CalendarPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         .cal-event:hover { filter: brightness(1.12); }
+        .barber-edit-card:hover { border-color: rgba(255,255,255,.22) !important; box-shadow: 0 2px 16px rgba(255,255,255,.04); }
         @keyframes slideUp { from { opacity:0; transform:translateX(-50%) translateY(12px) } to { opacity:1; transform:translateX(-50%) translateY(0) } }
         @keyframes wlGhostPulse {
           0%, 100% { box-shadow: 0 0 8px rgba(10,132,255,.15), inset 0 0 0 1px rgba(10,132,255,.12); border-color: rgba(10,132,255,.25); background: rgba(10,132,255,.05); }
@@ -1555,6 +1644,9 @@ export default function CalendarPage() {
           /* Compact topbar on mobile — safe area for status bar */
           .cal-topbar-wrap{ padding:calc(env(safe-area-inset-top, 0px) + 6px) 8px 8px !important; }
         }
+        input[type=range] { -webkit-appearance: none; appearance: none; background: rgba(255,255,255,.12); border-radius: 4px; height: 4px; outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #0a84ff; cursor: pointer; border: 2px solid rgba(0,0,0,.40); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+        input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #0a84ff; cursor: pointer; border: 2px solid rgba(0,0,0,.40); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
         select option { background: #111; }
         input[type=date],input[type=time] { color-scheme: dark; }
       `}</style>

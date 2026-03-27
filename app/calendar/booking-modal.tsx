@@ -58,6 +58,7 @@ interface Client {
   phone?: string
   email?: string
   notes?: string
+  photo_url?: string
   visitCount?: number
 }
 
@@ -255,11 +256,47 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
   const [editingNotes, setEditingNotes] = useState(false)
   const [clientNotes, setClientNotes] = useState(selected?.notes || '')
   const [savingNotes, setSavingNotes] = useState(false)
+  const [clientPhoto, setClientPhoto] = useState(selected?.photo_url || '')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   useEffect(() => {
     setClientNotes(selected?.notes || '')
+    setClientPhoto(selected?.photo_url || '')
     setEditingNotes(false)
   }, [selected?.id])
+
+  async function handleClientPhoto(file: File | null) {
+    if (!file || !selected?.id || selected.id.startsWith('local_')) return
+    if (!file.type.startsWith('image/')) return
+    if (file.size > 8 * 1024 * 1024) return
+    setUploadingPhoto(true)
+    try {
+      const reader = new FileReader()
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      // Upload via GCS-backed endpoint or store as data URL
+      await apiFetch(`/api/clients/${encodeURIComponent(selected.id)}`, {
+        method: 'PATCH', body: JSON.stringify({ photo_url: dataUrl })
+      })
+      setClientPhoto(dataUrl)
+      setSelected(prev => prev ? { ...prev, photo_url: dataUrl } : prev)
+    } catch {}
+    setUploadingPhoto(false)
+  }
+
+  async function removeClientPhoto() {
+    if (!selected?.id || selected.id.startsWith('local_')) return
+    try {
+      await apiFetch(`/api/clients/${encodeURIComponent(selected.id)}`, {
+        method: 'PATCH', body: JSON.stringify({ photo_url: '' })
+      })
+      setClientPhoto('')
+      setSelected(prev => prev ? { ...prev, photo_url: '' } : prev)
+    } catch {}
+  }
 
   async function saveClientNotes() {
     if (!selected?.id || selected.id.startsWith('local_')) { setEditingNotes(false); return }
@@ -279,8 +316,12 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
         {/* Client header */}
         <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+              {clientPhoto ? (
+                <img src={clientPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d7ecff" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              )}
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 900, fontSize: 15 }}>{selected.name}</div>
@@ -291,6 +332,26 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
             </div>
           </div>
           <button onClick={clear} style={{ height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 }}>Change</button>
+        </div>
+
+        {/* Client photo */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,.06)', padding: '10px 14px', background: 'rgba(0,0,0,.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: clientPhoto ? 8 : 0 }}>
+            <span style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)' }}>Client photo</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <label style={{ height: 24, padding: '0 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,.10)', background: 'transparent', color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontSize: 10, fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center' }}>
+                {uploadingPhoto ? 'Uploading…' : (clientPhoto ? 'Change' : '+ Add photo')}
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleClientPhoto(e.target.files?.[0] || null)} />
+              </label>
+              {clientPhoto && (
+                <button onClick={removeClientPhoto}
+                  style={{ height: 24, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(255,107,107,.20)', background: 'transparent', color: 'rgba(255,107,107,.60)', cursor: 'pointer', fontSize: 10, fontFamily: 'inherit' }}>Remove</button>
+              )}
+            </div>
+          </div>
+          {clientPhoto && (
+            <img src={clientPhoto} alt="Client" style={{ width: '100%', maxWidth: 180, height: 'auto', borderRadius: 10, border: '1px solid rgba(255,255,255,.10)', display: 'block' }} />
+          )}
         </div>
 
         {/* Client notes */}
