@@ -15,12 +15,27 @@ async function apiFetch(path: string, opts?: RequestInit) {
   return data
 }
 
-// ─── Photo Editor Modal ──────────────────────────────────────────────────────
+// ─── Photo Editor Modal (full-featured) ─────────────────────────────────────
+type EditorTool = 'filter' | 'adjust' | 'draw' | 'dodge' | 'burn'
+
 function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: string) => void; onClose: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const mainCanvasRef = useRef<HTMLCanvasElement>(null)
+  const drawCanvasRef = useRef<HTMLCanvasElement>(null)
   const [filter, setFilter] = useState('none')
   const [rotation, setRotation] = useState(0)
+  const [brightness, setBrightness] = useState(100)
+  const [contrast, setContrast] = useState(100)
+  const [saturation, setSaturation] = useState(100)
+  const [tool, setTool] = useState<EditorTool>('filter')
+  const [brushSize, setBrushSize] = useState(20)
+  const [brushColor, setBrushColor] = useState('#ffffff')
+  const [brushOpacity, setBrushOpacity] = useState(80)
+  const [undoStack, setUndoStack] = useState<ImageData[]>([])
   const imgRef = useRef<HTMLImageElement | null>(null)
+  const drawing = useRef(false)
+  const lastPt = useRef<{ x: number; y: number } | null>(null)
+  const cw = useRef(0)
+  const ch = useRef(0)
 
   const FILTERS = [
     { id: 'none', label: 'Original', css: '' },
@@ -33,69 +48,198 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
     { id: 'fade', label: 'Fade', css: 'saturate(70%) brightness(110%) contrast(90%)' },
   ]
 
+  const COLORS = ['#ffffff','#000000','#ff3b30','#ff9500','#ffcc00','#34c759','#007aff','#af52de','#ff2d55','#8e8e93']
+
   useEffect(() => {
-    const img = new Image()
-    img.onload = () => { imgRef.current = img; drawCanvas() }
+    const img = new Image(); img.crossOrigin = 'anonymous'
+    img.onload = () => { imgRef.current = img; renderBase() }
     img.src = src
   }, [src])
 
-  useEffect(() => { drawCanvas() }, [filter, rotation])
+  useEffect(() => { renderBase() }, [filter, rotation, brightness, contrast, saturation])
 
-  function drawCanvas() {
-    const canvas = canvasRef.current; const img = imgRef.current
+  function renderBase() {
+    const canvas = mainCanvasRef.current; const img = imgRef.current
     if (!canvas || !img) return
     const ctx = canvas.getContext('2d')!
     const rotated = rotation % 180 !== 0
-    canvas.width = rotated ? img.height : img.width
-    canvas.height = rotated ? img.width : img.height
+    const w = rotated ? img.height : img.width
+    const h = rotated ? img.width : img.height
+    canvas.width = w; canvas.height = h; cw.current = w; ch.current = h
     ctx.save()
-    ctx.translate(canvas.width / 2, canvas.height / 2)
+    ctx.translate(w / 2, h / 2)
     ctx.rotate((rotation * Math.PI) / 180)
-    const f = FILTERS.find(f => f.id === filter)
-    if (f?.css) ctx.filter = f.css
+    const f = FILTERS.find(x => x.id === filter)
+    const cssFilter = [f?.css || '', `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`].filter(Boolean).join(' ')
+    if (cssFilter) ctx.filter = cssFilter
     ctx.drawImage(img, -img.width / 2, -img.height / 2)
+    ctx.restore()
+    // Sync draw canvas size
+    const dc = drawCanvasRef.current
+    if (dc && (dc.width !== w || dc.height !== h)) {
+      const oldData = dc.width > 0 ? dc.getContext('2d')!.getImageData(0, 0, dc.width, dc.height) : null
+      dc.width = w; dc.height = h
+      if (oldData) dc.getContext('2d')!.putImageData(oldData, 0, 0)
+    }
+  }
+
+  function getCanvasPoint(e: React.MouseEvent | React.TouchEvent): { x: number; y: number } | null {
+    const dc = drawCanvasRef.current; if (!dc) return null
+    const rect = dc.getBoundingClientRect()
+    const clientX = 'touches' in e ? e.touches[0]?.clientX ?? 0 : (e as React.MouseEvent).clientX
+    const clientY = 'touches' in e ? e.touches[0]?.clientY ?? 0 : (e as React.MouseEvent).clientY
+    const scaleX = dc.width / rect.width; const scaleY = dc.height / rect.height
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY }
+  }
+
+  function saveUndo() {
+    const dc = drawCanvasRef.current; if (!dc) return
+    const ctx = dc.getContext('2d')!
+    setUndoStack(prev => [...prev.slice(-15), ctx.getImageData(0, 0, dc.width, dc.height)])
+  }
+
+  function handleUndo() {
+    const dc = drawCanvasRef.current; if (!dc || undoStack.length === 0) return
+    const prev = [...undoStack]; const last = prev.pop()!
+    dc.getContext('2d')!.putImageData(last, 0, 0)
+    setUndoStack(prev)
+  }
+
+  function startDraw(e: React.MouseEvent | React.TouchEvent) {
+    if (tool !== 'draw' && tool !== 'dodge' && tool !== 'burn') return
+    e.preventDefault()
+    const pt = getCanvasPoint(e); if (!pt) return
+    saveUndo()
+    drawing.current = true; lastPt.current = pt
+    applyBrush(pt)
+  }
+
+  function moveDraw(e: React.MouseEvent | React.TouchEvent) {
+    if (!drawing.current) return
+    e.preventDefault()
+    const pt = getCanvasPoint(e); if (!pt) return
+    if (tool === 'draw') drawLine(lastPt.current!, pt)
+    else applyBrush(pt)
+    lastPt.current = pt
+  }
+
+  function endDraw() { drawing.current = false; lastPt.current = null }
+
+  function drawLine(from: { x: number; y: number }, to: { x: number; y: number }) {
+    const dc = drawCanvasRef.current; if (!dc) return
+    const ctx = dc.getContext('2d')!
+    ctx.globalAlpha = brushOpacity / 100
+    ctx.strokeStyle = brushColor
+    ctx.lineWidth = brushSize
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke()
+    ctx.globalAlpha = 1
+  }
+
+  function applyBrush(pt: { x: number; y: number }) {
+    if (tool === 'draw') { drawLine(lastPt.current || pt, pt); return }
+    // Dodge (lighten) or Burn (darken) — work on main canvas
+    const mc = mainCanvasRef.current; if (!mc) return
+    const ctx = mc.getContext('2d')!
+    const r = brushSize / 2
+    ctx.save()
+    ctx.globalCompositeOperation = tool === 'dodge' ? 'lighter' : 'multiply'
+    ctx.globalAlpha = 0.08
+    const grad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r)
+    if (tool === 'dodge') { grad.addColorStop(0, 'rgba(255,255,255,.6)'); grad.addColorStop(1, 'rgba(255,255,255,0)') }
+    else { grad.addColorStop(0, 'rgba(0,0,0,.5)'); grad.addColorStop(1, 'rgba(0,0,0,0)') }
+    ctx.fillStyle = grad
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2); ctx.fill()
     ctx.restore()
   }
 
   function handleSave() {
-    const canvas = canvasRef.current; if (!canvas) return
+    const mc = mainCanvasRef.current; const dc = drawCanvasRef.current; if (!mc) return
     const MAX = 1200
-    let w = canvas.width, h = canvas.height
-    if (w > MAX || h > MAX) {
-      if (w > h) { h = Math.round(h * MAX / w); w = MAX } else { w = Math.round(w * MAX / h); h = MAX }
-    }
+    let w = mc.width, h = mc.height
+    if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h * MAX / w); w = MAX } else { w = Math.round(w * MAX / h); h = MAX } }
     const out = document.createElement('canvas'); out.width = w; out.height = h
-    out.getContext('2d')!.drawImage(canvas, 0, 0, w, h)
+    const octx = out.getContext('2d')!
+    octx.drawImage(mc, 0, 0, w, h)
+    if (dc) octx.drawImage(dc, 0, 0, w, h)
     let q = 0.80, dataUrl = out.toDataURL('image/jpeg', q)
     while (dataUrl.length > 600000 && q > 0.3) { q -= 0.08; dataUrl = out.toDataURL('image/jpeg', q) }
     onSave(dataUrl)
   }
 
+  const TOOLS: { id: EditorTool; label: string; icon: string }[] = [
+    { id: 'filter', label: 'Filters', icon: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707' },
+    { id: 'adjust', label: 'Adjust', icon: 'M12 3v18M6 8l-2 2 2 2M18 8l2 2-2 2' },
+    { id: 'draw', label: 'Draw', icon: 'M12 19l7-7 3 3-7 7-3-3zM18 12l-1.5-1.5M2 12l10 0' },
+    { id: 'dodge', label: 'Lighten', icon: 'M12 3v1m0 16v1m9-9h-1M4 12H3m3.343-5.657L5.636 5.636m12.728 0l-.707.707M12 8a4 4 0 100 8 4 4 0 000-8z' },
+    { id: 'burn', label: 'Darken', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8' },
+  ]
+
+  const pill = (active: boolean): React.CSSProperties => ({ height: 32, padding: '0 12px', borderRadius: 999, border: `1px solid ${active ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.12)'}`, background: active ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.04)', color: active ? '#d7ecff' : 'rgba(255,255,255,.65)', cursor: 'pointer', fontWeight: 700, fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase' as const, fontFamily: 'inherit', transition: 'all .2s', display: 'inline-flex', alignItems: 'center', gap: 6 })
+
+  const sliderStyle: React.CSSProperties = { width: '100%', accentColor: '#0a84ff', height: 4, background: 'rgba(255,255,255,.08)', borderRadius: 999, cursor: 'pointer' }
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.90)', backdropFilter: 'blur(24px)', zIndex: 6000, display: 'flex', flexDirection: 'column', fontFamily: 'Inter,sans-serif', color: '#e9e9e9' }}>
-      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
-        <button onClick={onClose} style={{ height: 34, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit' }}>Cancel</button>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.94)', backdropFilter: 'blur(24px)', zIndex: 6000, display: 'flex', flexDirection: 'column', fontFamily: 'Inter,sans-serif', color: '#e9e9e9' }}>
+      {/* Header */}
+      <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,.08)', flexShrink: 0 }}>
+        <button onClick={onClose} style={{ ...pill(false), height: 34 }}>Cancel</button>
         <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: '.08em', textTransform: 'uppercase' }}>Edit Photo</div>
-        <button onClick={handleSave} style={{ height: 34, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>Save</button>
-      </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 16 }}>
-        <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12, objectFit: 'contain' }} />
-      </div>
-      <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
-        <button onClick={() => setRotation(r => (r + 90) % 360)} style={{ height: 36, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', marginBottom: 10 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ verticalAlign: 'middle', marginRight: 6 }}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-          Rotate
-        </button>
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8 }}>
-          {FILTERS.map(f => (
-            <button key={f.id} onClick={() => setFilter(f.id)} style={{
-              flexShrink: 0, width: 64, height: 64, borderRadius: 12, overflow: 'hidden', border: `2px solid ${filter === f.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.08)'}`, background: '#000', cursor: 'pointer', position: 'relative', padding: 0, boxShadow: filter === f.id ? '0 0 12px rgba(10,132,255,.25)' : 'none', transition: 'all .2s ease'
-            }}>
-              <img src={src} alt={f.label} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: f.css || 'none' }} />
-              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.7)', padding: '3px 0', fontSize: 8, fontWeight: 700, letterSpacing: '.04em', textAlign: 'center', color: filter === f.id ? '#d7ecff' : 'rgba(255,255,255,.60)' }}>{f.label}</div>
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={handleUndo} disabled={undoStack.length === 0} style={{ ...pill(false), height: 34, opacity: undoStack.length ? 1 : .3 }}>Undo</button>
+          <button onClick={handleSave} style={{ ...pill(true), height: 34 }}>Save</button>
         </div>
+      </div>
+      {/* Canvas area */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 12, position: 'relative', touchAction: (tool === 'draw' || tool === 'dodge' || tool === 'burn') ? 'none' : 'auto' }}>
+        <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%' }}>
+          <canvas ref={mainCanvasRef} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12, display: 'block' }} />
+          <canvas ref={drawCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: 12, cursor: (tool === 'draw' || tool === 'dodge' || tool === 'burn') ? 'crosshair' : 'default' }}
+            onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onMouseLeave={endDraw}
+            onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw} />
+        </div>
+      </div>
+      {/* Tool tabs */}
+      <div style={{ padding: '8px 16px 0', display: 'flex', gap: 6, overflowX: 'auto', flexShrink: 0, borderTop: '1px solid rgba(255,255,255,.06)' }}>
+        {TOOLS.map(t => <button key={t.id} onClick={() => setTool(t.id)} style={pill(tool === t.id)}>{t.label}</button>)}
+        <button onClick={() => setRotation(r => (r + 90) % 360)} style={pill(false)}>Rotate</button>
+      </div>
+      {/* Tool panels */}
+      <div style={{ padding: '10px 16px 16px', flexShrink: 0, minHeight: 80 }}>
+        {tool === 'filter' && (
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+            {FILTERS.map(f => (
+              <button key={f.id} onClick={() => setFilter(f.id)} style={{ flexShrink: 0, width: 58, height: 58, borderRadius: 12, overflow: 'hidden', border: `2px solid ${filter === f.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.08)'}`, background: '#000', cursor: 'pointer', position: 'relative', padding: 0, boxShadow: filter === f.id ? '0 0 10px rgba(10,132,255,.25)' : 'none', transition: 'all .2s' }}>
+                <img src={src} alt={f.label} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: f.css || 'none' }} />
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.75)', padding: '2px 0', fontSize: 7, fontWeight: 700, letterSpacing: '.04em', textAlign: 'center', color: filter === f.id ? '#d7ecff' : 'rgba(255,255,255,.55)' }}>{f.label}</div>
+              </button>
+            ))}
+          </div>
+        )}
+        {tool === 'adjust' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div><div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 4 }}>Brightness {brightness}%</div><input type="range" min={30} max={200} value={brightness} onChange={e => setBrightness(+e.target.value)} style={sliderStyle} /></div>
+            <div><div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 4 }}>Contrast {contrast}%</div><input type="range" min={30} max={200} value={contrast} onChange={e => setContrast(+e.target.value)} style={sliderStyle} /></div>
+            <div><div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 4 }}>Saturation {saturation}%</div><input type="range" min={0} max={200} value={saturation} onChange={e => setSaturation(+e.target.value)} style={sliderStyle} /></div>
+            <button onClick={() => { setBrightness(100); setContrast(100); setSaturation(100) }} style={{ ...pill(false), alignSelf: 'flex-start', marginTop: 2 }}>Reset</button>
+          </div>
+        )}
+        {tool === 'draw' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {COLORS.map(c => <button key={c} onClick={() => setBrushColor(c)} style={{ width: 28, height: 28, borderRadius: 999, border: `2px solid ${brushColor === c ? '#fff' : 'rgba(255,255,255,.12)'}`, background: c, cursor: 'pointer', boxShadow: brushColor === c ? '0 0 8px rgba(255,255,255,.3)' : 'none', transition: 'all .15s', padding: 0 }} />)}
+            </div>
+            <div><div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 4 }}>Size {brushSize}px</div><input type="range" min={2} max={60} value={brushSize} onChange={e => setBrushSize(+e.target.value)} style={sliderStyle} /></div>
+            <div><div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 4 }}>Opacity {brushOpacity}%</div><input type="range" min={10} max={100} value={brushOpacity} onChange={e => setBrushOpacity(+e.target.value)} style={sliderStyle} /></div>
+          </div>
+        )}
+        {(tool === 'dodge' || tool === 'burn') && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.60)', lineHeight: 1.4 }}>{tool === 'dodge' ? 'Paint to lighten areas' : 'Paint to darken areas'}. Use small brush for precision.</div>
+            <div><div style={{ fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 4 }}>Brush Size {brushSize}px</div><input type="range" min={5} max={80} value={brushSize} onChange={e => setBrushSize(+e.target.value)} style={sliderStyle} /></div>
+          </div>
+        )}
       </div>
     </div>
   )
