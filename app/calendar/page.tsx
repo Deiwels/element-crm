@@ -1309,14 +1309,27 @@ export default function CalendarPage() {
       setDragConfirm(null); return
     }
     const newBarber = barbers.find(b => b.id === dragConfirm.newBarberId)
-    const updated = { ...ev, barberId: dragConfirm.newBarberId, barberName: newBarber?.name || ev.barberName, startMin: dragConfirm.newMin }
+    // Remap services to new barber's equivalent (by name) — updates price & duration
+    const oldSvcIds = ev.serviceIds || (ev.serviceId ? [ev.serviceId] : [])
+    const newBarberSvcs = services.filter(s => !s.barberIds.length || s.barberIds.includes(dragConfirm.newBarberId))
+    const remappedSvcIds = oldSvcIds.map((id: string) => {
+      if (newBarberSvcs.some(s => s.id === id)) return id
+      const oldSvc = services.find(s => s.id === id)
+      if (!oldSvc) return null
+      const match = newBarberSvcs.find(s => s.name.toLowerCase() === oldSvc.name.toLowerCase())
+      return match ? match.id : null
+    }).filter(Boolean) as string[]
+    const remappedSvcs = remappedSvcIds.map(id => services.find(s => s.id === id)).filter(Boolean)
+    const newDurMin = remappedSvcs.length > 0 ? remappedSvcs.reduce((sum, s) => sum + (s!.durationMin || 30), 0) : ev.durMin
+    const newSvcNames = remappedSvcs.map(s => s!.name).join(' + ') || ev.serviceName
+    const updated = { ...ev, barberId: dragConfirm.newBarberId, barberName: newBarber?.name || ev.barberName, startMin: dragConfirm.newMin, serviceIds: remappedSvcIds, serviceId: remappedSvcIds[0] || ev.serviceId, serviceName: newSvcNames, durMin: newDurMin }
     setEvents(prev => prev.map(e => e.id === ev.id ? updated : e)); setDragConfirm(null)
     if (ev._raw?.id) {
       try {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         await apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), {
           method: 'PATCH',
-          body: JSON.stringify({ barber_id: updated.barberId, start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + updated.durMin*60000).toISOString() })
+          body: JSON.stringify({ barber_id: updated.barberId, service_id: remappedSvcIds.join(',') || updated.serviceId || '', service_name: newSvcNames, start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + newDurMin*60000).toISOString() })
         })
       } catch(e: any) {
         // Rollback optimistic update on failure
