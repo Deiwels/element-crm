@@ -633,6 +633,7 @@ export default function CalendarPage() {
   const [dragConfirm, setDragConfirm] = useState<{ eventId: string; newBarberId: string; newBarberName: string; newMin: number } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [dayTransition, setDayTransition] = useState<'idle' | 'out' | 'in'>('idle')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; barberId: string; min: number } | null>(null)
   const [blockDrag, setBlockDrag] = useState<{ barberId: string; barberIdx: number; startMin: number; endMin: number } | null>(null)
   const blockDragRef = useRef<{ barberId: string; barberIdx: number; startMin: number; endMin: number } | null>(null)
@@ -866,6 +867,17 @@ export default function CalendarPage() {
       : barbers
   const totalPages = Math.ceil(visibleBarbers.length / BARBERS_PER_PAGE)
 
+  // Animated day change — gravity lens effect
+  function animateDayChange(delta: number) {
+    if (dayTransition !== 'idle') return
+    setDayTransition('out')
+    setTimeout(() => {
+      setAnchor(a => { const x = new Date(a); x.setDate(x.getDate() + delta); return x })
+      setDayTransition('in')
+      setTimeout(() => setDayTransition('idle'), 350)
+    }, 300)
+  }
+
   // Swipe handler for mobile — always changes day for everyone
   useEffect(() => {
     if (!isMobile) return
@@ -877,14 +889,12 @@ export default function CalendarPage() {
       const dy = e.changedTouches[0].clientY - swipeRef.current.startY
       swipeRef.current = null
       if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return
-      // Swipe changes day for all roles
-      if (dx < 0) setAnchor(a => { const x = new Date(a); x.setDate(x.getDate() + 1); return x })
-      else setAnchor(a => { const x = new Date(a); x.setDate(x.getDate() - 1); return x })
+      animateDayChange(dx < 0 ? 1 : -1)
     }
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchend', onTouchEnd, { passive: true })
     return () => { el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchend', onTouchEnd) }
-  }, [isMobile])
+  }, [isMobile, dayTransition])
 
   const todayStr = isoDate(anchor)
 
@@ -1400,6 +1410,19 @@ export default function CalendarPage() {
           animation: arrivedShimmer 2.4s ease-in-out infinite;
           box-shadow: 0 0 10px rgba(10,132,255,.12), inset 0 0 8px rgba(10,132,255,.06);
         }
+        /* Gravity lens day transition */
+        @keyframes gravityOut {
+          0% { transform: scale(1); filter: blur(0px) brightness(1); border-radius: 0; opacity: 1; }
+          60% { transform: scale(.88,.92); filter: blur(2px) brightness(.85); border-radius: 12px; opacity: .9; }
+          100% { transform: scale(.3,.4); filter: blur(8px) brightness(.6); border-radius: 50%; opacity: .4; }
+        }
+        @keyframes gravityIn {
+          0% { transform: scale(.3,.4); filter: blur(8px) brightness(.6); border-radius: 50%; opacity: .4; }
+          40% { transform: scale(.88,.92); filter: blur(2px) brightness(.85); border-radius: 12px; opacity: .9; }
+          100% { transform: scale(1); filter: blur(0px) brightness(1); border-radius: 0; opacity: 1; }
+        }
+        .day-transition-out { animation: gravityOut .3s cubic-bezier(.4,0,1,.6) forwards; pointer-events: none; }
+        .day-transition-in { animation: gravityIn .35s cubic-bezier(0,.4,.2,1) forwards; }
         /* Date dot morph + glow animations */
         @keyframes dotPillGlow {
           0%, 100% { box-shadow: 0 2px 8px rgba(255,255,255,.15); }
@@ -1494,9 +1517,9 @@ export default function CalendarPage() {
 
               {/* Nav arrows + date — hidden on mobile, shown on desktop */}
               <div className="cal-nav-arrows" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button onClick={() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()-1); return x })} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>‹</button>
-                <button onClick={() => { const d=new Date(); d.setHours(0,0,0,0); setAnchor(d) }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', flexShrink: 0 }}>Today</button>
-                <button onClick={() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()+1); return x })} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>›</button>
+                <button onClick={() => animateDayChange(-1)} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>‹</button>
+                <button onClick={() => { if (dayTransition !== 'idle') return; setDayTransition('out'); setTimeout(() => { const d=new Date(); d.setHours(0,0,0,0); setAnchor(d); setDayTransition('in'); setTimeout(() => setDayTransition('idle'), 350) }, 300) }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', flexShrink: 0 }}>Today</button>
+                <button onClick={() => animateDayChange(1)} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>›</button>
               </div>
 
               {/* Search — full on desktop */}
@@ -1568,7 +1591,7 @@ export default function CalendarPage() {
             : COL_MIN
           const colMin = isMobile ? mobileColMin : COL_MIN
           return (
-        <div style={{ flex: 1, position: 'relative', overflowY: 'auto', overflowX: 'hidden', touchAction: drag ? 'none' : 'pan-x pan-y' }} ref={scrollContainerRef} onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd}>
+        <div className={dayTransition === 'out' ? 'day-transition-out' : dayTransition === 'in' ? 'day-transition-in' : ''} style={{ flex: 1, position: 'relative', overflowY: 'auto', overflowX: 'hidden', touchAction: drag ? 'none' : 'pan-x pan-y', transformOrigin: 'center 40%' }} ref={scrollContainerRef} onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd}>
           <div style={{ minWidth: timeColW + pageBarbers.length * colMin }}>
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${colMin}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
@@ -1954,7 +1977,10 @@ export default function CalendarPage() {
                   className={`date-dot${dot.isCurrent ? ' date-dot-current' : ''}`}
                   onClick={() => {
                     if (dot.isCurrent) { setDatePickerOpen(true); return }
-                    const d = new Date(dot.date); d.setHours(0,0,0,0); setAnchor(d)
+                    if (dayTransition !== 'idle') return
+                    setDayTransition('out')
+                    const targetDate = new Date(dot.date); targetDate.setHours(0,0,0,0)
+                    setTimeout(() => { setAnchor(targetDate); setDayTransition('in'); setTimeout(() => setDayTransition('idle'), 350) }, 300)
                   }}
                   style={{
                     height: 30,
