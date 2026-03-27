@@ -1442,8 +1442,8 @@ export default function CalendarPage() {
         }
         /* Date dot morph + glow animations */
         @keyframes dotPillGlow {
-          0%, 100% { box-shadow: 0 2px 8px rgba(255,255,255,.15); }
-          50% { box-shadow: 0 2px 16px rgba(255,255,255,.35), 0 0 24px rgba(255,255,255,.10); }
+          0%, 100% { box-shadow: 0 2px 8px rgba(255,255,255,.08); border-color: rgba(255,255,255,.20); }
+          50% { box-shadow: 0 2px 16px rgba(255,255,255,.20), 0 0 20px rgba(255,255,255,.06); border-color: rgba(255,255,255,.35); }
         }
         .date-dot {
           transition: width .3s cubic-bezier(.4,0,.2,1), min-width .3s cubic-bezier(.4,0,.2,1), padding .3s cubic-bezier(.4,0,.2,1), background .3s ease, color .3s ease, font-size .2s ease, font-weight .2s ease, box-shadow .3s ease, transform .15s ease;
@@ -2005,9 +2005,9 @@ export default function CalendarPage() {
                     width: dot.isCurrent ? 'auto' : 30,
                     minWidth: dot.isCurrent ? 76 : 30,
                     borderRadius: 999,
-                    border: 'none',
-                    background: dot.isCurrent ? 'rgba(255,255,255,.92)' : 'rgba(255,255,255,.12)',
-                    color: dot.isCurrent ? '#000' : 'rgba(255,255,255,.55)',
+                    border: `1px solid ${dot.isCurrent ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.15)'}`,
+                    background: dot.isCurrent ? 'rgba(0,0,0,.85)' : 'rgba(0,0,0,.60)',
+                    color: dot.isCurrent ? '#fff' : 'rgba(255,255,255,.60)',
                     cursor: 'pointer',
                     fontWeight: dot.isCurrent ? 800 : 600,
                     fontSize: dot.isCurrent ? 11 : 11,
