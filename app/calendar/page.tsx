@@ -746,6 +746,7 @@ export default function CalendarPage() {
   const [toast, setToast] = useState('')
   // Block modals
   const [blockModal, setBlockModal] = useState<{ type: 'create' | 'resize_confirm' | 'owner_resize'; barberId: string; startMin: number; currentDur: number; originalDur: number; evId?: string; rawId?: string } | null>(null)
+  const [blockConfirm, setBlockConfirm] = useState<{ action: 'create' | 'delete'; barberId: string; startMin: number; endMin: number; evId?: string; rawId?: string } | null>(null)
   const [blockDurInput, setBlockDurInput] = useState('30')
   // Pending block requests (loaded from /api/requests)
   const [pendingBlockRequests, setPendingBlockRequests] = useState<any[]>([])
@@ -1360,12 +1361,7 @@ export default function CalendarPage() {
     function onEnd() {
       const bd = blockDragRef.current
       if (bd && bd.endMin - bd.startMin >= 5) {
-        const dur = bd.endMin - bd.startMin
-        const startTime = minToHHMM(bd.startMin)
-        const endTime = minToHHMM(bd.endMin)
-        if (window.confirm(`Block time ${startTime} – ${endTime} (${dur} min)?`)) {
-          openCreateBlock(bd.barberId, bd.startMin, dur)
-        }
+        setBlockConfirm({ action: 'create', barberId: bd.barberId, startMin: bd.startMin, endMin: bd.endMin })
       }
       blockDragRef.current = null
       setBlockDrag(null)
@@ -2020,11 +2016,7 @@ export default function CalendarPage() {
                             if (drag || blockDragJustEnded.current) return
                             const canDelete = isOwnerOrAdmin || (isBarber && ev.barberId === myBarberId)
                             if (!canDelete) return
-                            if (window.confirm(`Delete block ${minToAMPM(ev.startMin)}–${minToAMPM(ev.startMin+ev.durMin)}?`)) {
-                              setEvents(prev => prev.filter(x => x.id !== ev.id))
-                              if (ev._raw?.id) apiFetch('/api/bookings/' + encodeURIComponent(String(ev._raw.id)), { method: 'DELETE' }).catch(console.warn)
-                              showToast('Block removed')
-                            }
+                            setBlockConfirm({ action: 'delete', barberId: ev.barberId, startMin: ev.startMin, endMin: ev.startMin + ev.durMin, evId: ev.id, rawId: ev._raw?.id ? String(ev._raw.id) : undefined })
                           }}>
                           {/* Approved part (moving stripes) */}
                           {!isPending && <div className="block-approved-stripes" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: hasPendingExtension ? (approvedDur / ev.durMin * 100) + '%' : '100%', borderRadius: hasPendingExtension ? '10px 10px 0 0' : 10, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.22)'}` }} />}
@@ -2036,7 +2028,7 @@ export default function CalendarPage() {
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,107,107,.80)" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
                               <span style={{ fontSize: 10, textTransform: 'uppercase', color: isPending ? 'rgba(255,107,107,.90)' : 'rgba(255,107,107,.80)', fontWeight: 900 }}>{isPending ? 'Pending approval' : hasPendingExtension ? 'Blocked + Pending' : 'Blocked'} {minToAMPM(ev.startMin)}–{minToAMPM(ev.startMin+ev.durMin)}</span>
                             </div>
-                            {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); setEvents(prev => prev.filter(x => x.id!==ev.id)); if (ev._raw?.id) apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'DELETE'}).catch(console.warn) }} style={{ width: 20, height: 20, borderRadius: 6, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.10)', color: 'rgba(255,107,107,.90)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontFamily: 'inherit' }}>✕</button>}
+                            {/* ✕ button removed — tap block to delete */}
                           </div>
                           {(isOwnerOrAdmin || (isBarber && ev.barberId === currentUser?.barber_id)) && (() => {
                             const handleResize = (startY: number, getY: (e: any) => number, evId: string, startDur: number, rawObj: any, startMin: number, dateStr: string, addMove: (fn: any) => void, addEnd: (fn: any) => void, rmMove: (fn: any) => void, rmEnd: (fn: any) => void) => {
@@ -2289,6 +2281,39 @@ export default function CalendarPage() {
           </div>
         )
       })()}
+
+      {/* Block confirm dialog */}
+      {blockConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.50)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
+          onClick={() => setBlockConfirm(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(340px,88vw)', borderRadius: 22, border: `1px solid ${blockConfirm.action === 'delete' ? 'rgba(255,107,107,.20)' : 'rgba(255,107,107,.15)'}`, background: 'rgba(8,8,8,.75)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 32px 80px rgba(0,0,0,.60), inset 0 0 0 0.5px rgba(255,255,255,.06)', padding: '22px 20px', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: blockConfirm.action === 'delete' ? 'rgba(255,107,107,.10)' : 'rgba(255,107,107,.08)', border: `1px solid ${blockConfirm.action === 'delete' ? 'rgba(255,107,107,.25)' : 'rgba(255,107,107,.15)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={blockConfirm.action === 'delete' ? 'rgba(255,107,107,.80)' : 'rgba(255,107,107,.65)'} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              </div>
+            </div>
+            <div style={{ textAlign: 'center', fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.14em', textTransform: 'uppercase', fontSize: 13, marginBottom: 8 }}>
+              {blockConfirm.action === 'delete' ? 'Remove Block' : 'Block Time'}
+            </div>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', letterSpacing: '.02em' }}>
+                {minToAMPM(blockConfirm.startMin)} – {minToAMPM(blockConfirm.endMin)}
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.40)', marginTop: 4 }}>{blockConfirm.endMin - blockConfirm.startMin} minutes</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setBlockConfirm(null)} style={{ flex: 1, height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.65)', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>Cancel</button>
+              <button onClick={() => {
+                if (blockConfirm.action === 'create') { openCreateBlock(blockConfirm.barberId, blockConfirm.startMin, blockConfirm.endMin - blockConfirm.startMin) }
+                else { if (blockConfirm.evId) setEvents(prev => prev.filter(x => x.id !== blockConfirm.evId)); if (blockConfirm.rawId) apiFetch('/api/bookings/' + encodeURIComponent(blockConfirm.rawId), { method: 'DELETE' }).catch(console.warn); showToast('Block removed') }
+                setBlockConfirm(null)
+              }} style={{ flex: 1, height: 44, borderRadius: 14, border: `1px solid ${blockConfirm.action === 'delete' ? 'rgba(255,107,107,.50)' : 'rgba(255,107,107,.40)'}`, background: blockConfirm.action === 'delete' ? 'rgba(255,107,107,.12)' : 'rgba(255,107,107,.08)', color: blockConfirm.action === 'delete' ? '#ffd0d0' : '#ffb0b0', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
+                {blockConfirm.action === 'delete' ? 'Remove' : 'Block'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Training modal */}
       {trainingModal && (() => {
