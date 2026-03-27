@@ -1435,6 +1435,8 @@ export default function CalendarPage() {
         }
       }
     } catch(e: any) {
+      // Rollback optimistic update on error
+      setEvents(prev => prev.map(e2 => e2.id === ev.id ? ev : e2))
       showToast('Save failed: ' + (e.message || 'Error'))
       throw e
     }

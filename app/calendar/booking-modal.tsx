@@ -931,8 +931,9 @@ export function BookingModal({
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientName, setClientName] = useState('')
   const [modalKey, setModalKey] = useState(0)  // force remount ClientSearch on open
-  // Barbers can only book for themselves
-  const forcedBarberId = (!isOwnerOrAdmin && myBarberId) ? myBarberId : barberId
+  // Barbers can only book for themselves — but when editing existing bookings, keep original barber
+  const isEditingExisting = !!existingEvent?._raw?.id
+  const forcedBarberId = (!isOwnerOrAdmin && myBarberId && !isEditingExisting) ? myBarberId : barberId
   const [selBarberId, setSelBarberId] = useState(forcedBarberId)
   const [serviceIds, setServiceIds] = useState<string[]>([])
   const [selStartMin, setSelStartMin] = useState(startMin)
@@ -1028,8 +1029,8 @@ export function BookingModal({
         ? `Training · ${studentName} · ${finalClientName}`
         : `Training · ${studentName}`
     }
-    // Safety: barbers can only save bookings for themselves
-    const saveBarberId = (!isOwnerOrAdmin && myBarberId) ? myBarberId : selBarberId
+    // Safety: barbers can only save bookings for themselves (but keep original barber when editing)
+    const saveBarberId = (!isOwnerOrAdmin && myBarberId && !isEditingExisting) ? myBarberId : selBarberId
     try {
       await onSave({
         clientName: finalClientName,
