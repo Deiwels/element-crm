@@ -643,18 +643,23 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
   ) : null
 
   const methodStyle = (m: string): React.CSSProperties => ({
-    flex: 1, height: 38, borderRadius: 999, cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit',
+    flex: 1, height: 40, borderRadius: 12, cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit',
+    transition: 'all .18s ease',
     border: method === m ? {
       terminal: '1px solid rgba(10,132,255,.75)', cash: '1px solid rgba(143,240,177,.65)',
       zelle: '1px solid rgba(106,0,255,.75)', other: '1px solid rgba(255,207,63,.65)'
-    }[m]! : '1px solid rgba(255,255,255,.12)',
+    }[m]! : '1px solid rgba(255,255,255,.10)',
     background: method === m ? {
       terminal: 'rgba(10,132,255,.14)', cash: 'rgba(143,240,177,.10)',
       zelle: 'rgba(106,0,255,.14)', other: 'rgba(255,207,63,.10)'
-    }[m]! : 'rgba(255,255,255,.04)',
+    }[m]! : 'rgba(255,255,255,.03)',
     color: method === m ? {
       terminal: '#d7ecff', cash: '#c9ffe1', zelle: '#d8b4fe', other: '#fff3b0'
-    }[m]! : 'rgba(255,255,255,.70)',
+    }[m]! : 'rgba(255,255,255,.50)',
+    boxShadow: method === m ? {
+      terminal: '0 0 12px rgba(10,132,255,.15)', cash: '0 0 12px rgba(143,240,177,.12)',
+      zelle: '0 0 12px rgba(106,0,255,.12)', other: '0 0 12px rgba(255,207,63,.10)'
+    }[m]! : 'none',
   })
 
   async function handleTerminal() {
@@ -753,9 +758,10 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
   }
 
   return (
-    <div style={{ padding: '14px', borderRadius: 18, border: '1px solid rgba(255,255,255,.09)', background: 'rgba(255,255,255,.04)', marginTop: 4 }}>
-      <div style={{ fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.50)', marginBottom: 8 }}>
-        Accept payment {price > 0 && <span style={{ color: '#e9e9e9', fontWeight: 900 }}> — ${price.toFixed(2)}</span>}
+    <div className="bm-section" style={{ padding: '16px', borderRadius: 18, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)', marginTop: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', fontWeight: 600 }}>Payment</div>
+        {price > 0 && <div style={{ fontSize: 16, fontWeight: 900, color: '#e9e9e9', letterSpacing: '.02em' }}>${price.toFixed(2)}</div>}
       </div>
       <PriceBreakdown />
       {/* Tip options preview for terminal */}
@@ -792,7 +798,7 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
         <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(143,240,177,.06)', border: '1px solid rgba(143,240,177,.18)', fontSize: 12, color: 'rgba(143,240,177,.85)', marginBottom: 8 }}>Cash collected by barber directly</div>
       )}
       {method !== 'terminal' && (
-        <button onClick={handleManual} style={{ width: '100%', height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,.22)', background: 'rgba(255,255,255,.10)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
+        <button onClick={handleManual} className="bm-footer-btn" style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.40)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', boxShadow: '0 0 16px rgba(10,132,255,.10)' }}>
           Confirm {method} payment
         </button>
       )}
@@ -891,7 +897,9 @@ export function BookingModal({
   const durMin = isModelEvent ? 90 : (selectedSvcs.length > 0 ? selectedSvcs.reduce((sum, s) => sum + (s.durationMin || 30), 0) : 30)
   const barberServices = (() => {
     const filtered = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId))
-    return filtered.length > 0 ? filtered : services
+    const list = filtered.length > 0 ? filtered : services
+    // Sort by duration: longest first
+    return [...list].sort((a, b) => (b.durationMin || 30) - (a.durationMin || 30))
   })()
 
   // Time slots 5min
@@ -942,18 +950,30 @@ export function BookingModal({
       <style>{`
         @keyframes slideDown { from { opacity:0; transform:translateY(-8px) } to { opacity:1; transform:translateY(0) } }
         @keyframes spin { to { transform:rotate(360deg) } }
-        @keyframes bmFadeIn { from { opacity:0; transform:scale(.97) translateY(12px) } to { opacity:1; transform:scale(1) translateY(0) } }
+        @keyframes bmBackdropIn { from { opacity:0; backdrop-filter:blur(0px); -webkit-backdrop-filter:blur(0px) } to { opacity:1; backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px) } }
+        @keyframes bmCardIn {
+          0% { opacity:0; transform:translateY(60px) scale(.92) }
+          60% { opacity:1; transform:translateY(-6px) scale(1.01) }
+          80% { transform:translateY(2px) scale(.998) }
+          100% { transform:translateY(0) scale(1) }
+        }
+        @keyframes bmGlowIn {
+          0% { box-shadow: 0 40px 100px rgba(0,0,0,.70), inset 0 1px 0 rgba(255,255,255,.06), 0 0 0 rgba(10,132,255,0) }
+          40% { box-shadow: 0 40px 100px rgba(0,0,0,.70), inset 0 1px 0 rgba(255,255,255,.06), 0 0 40px rgba(10,132,255,.12) }
+          100% { box-shadow: 0 40px 100px rgba(0,0,0,.70), inset 0 1px 0 rgba(255,255,255,.06), 0 0 0 rgba(10,132,255,0) }
+        }
         @keyframes bmShimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
         .bm-scroll::-webkit-scrollbar { width:5px }
         .bm-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:3px }
         select option { background:#111 }
-        .bm-card { animation: bmFadeIn .3s ease-out }
+        .bm-backdrop { animation: bmBackdropIn .35s ease-out both }
+        .bm-card { animation: bmCardIn .45s cubic-bezier(.16,1.2,.3,1) both, bmGlowIn .8s ease-out both }
         .bm-section { animation: slideDown .25s ease-out both }
-        .bm-section:nth-child(2) { animation-delay: .05s }
-        .bm-section:nth-child(3) { animation-delay: .10s }
-        .bm-section:nth-child(4) { animation-delay: .15s }
-        .bm-section:nth-child(5) { animation-delay: .20s }
-        .bm-section:nth-child(6) { animation-delay: .25s }
+        .bm-section:nth-child(2) { animation-delay: .08s }
+        .bm-section:nth-child(3) { animation-delay: .14s }
+        .bm-section:nth-child(4) { animation-delay: .20s }
+        .bm-section:nth-child(5) { animation-delay: .26s }
+        .bm-section:nth-child(6) { animation-delay: .32s }
         .bm-svc-btn { transition: all .18s ease; }
         .bm-svc-btn:active { transform: scale(.95) }
         .bm-footer-btn { transition: all .15s ease; }
@@ -966,7 +986,7 @@ export function BookingModal({
           animation: bmShimmer 3s ease-in-out infinite;
         }
       `}</style>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.50)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 'clamp(8px,3vw,16px)' }}
+      <div className="bm-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.50)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 'clamp(8px,3vw,16px)' }}
         onClick={e => { if (e.target === e.currentTarget) onClose() }}>
         <div className="bm-scroll bm-card" style={{ width: 'min(580px,100%)', height: 'min(720px,calc(100dvh - 16px))', borderRadius: 24, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(8,8,12,.80)', backdropFilter: 'saturate(180%) blur(40px)', WebkitBackdropFilter: 'saturate(180%) blur(40px)', boxShadow: '0 40px 100px rgba(0,0,0,.70), inset 0 1px 0 rgba(255,255,255,.06)', overflowY: 'auto', display: 'flex', flexDirection: 'column', color: '#e9e9e9', fontFamily: 'Inter,sans-serif' }}>
 
