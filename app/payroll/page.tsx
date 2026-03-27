@@ -152,7 +152,7 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
   const [tipsPct, setTipsPct] = useState(rule.tips_pct)
   const [tiers, setTiers] = useState<Tier[]>(rule.tiers || [])
   const [bonuses, setBonuses] = useState<CustomBonus[]>(rule.custom_bonuses || [])
-  const [latePenalty, setLatePenalty] = useState(rule.late_penalty_per_min ?? 1)
+  const [latePenalty, setLatePenalty] = useState(rule.late_penalty_per_min ?? 0)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -623,7 +623,7 @@ export default function PayrollPage() {
                       const isBoosted = b.effective_pct !== b.base_pct
                       const isOpen = expanded.has(b.barber_id)
                       const bRule: Rule = rules[b.barber_id] || { base_pct: 60, tips_pct: 100, tiers: [] }
-                      const penaltyRate = bRule.late_penalty_per_min ?? 1
+                      const penaltyRate = bRule.late_penalty_per_min ?? 0
                       const bLateMins = lateMinutes[b.barber_id] || 0
                       const latePenalty = bLateMins * penaltyRate
                       const adjustedTotal = b.barber_total - latePenalty
