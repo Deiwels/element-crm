@@ -984,7 +984,7 @@ export default function CalendarPage() {
       if (!swipeRef.current) return
       // Don't swipe calendar if sidebar is being swiped or drag is active
       if (document.body.getAttribute('data-sidebar-swiping') === '1') { swipeRef.current = null; return }
-      if (drag || blockDrag) { swipeRef.current = null; return }
+      if (document.body.getAttribute('data-dragging') === '1') { swipeRef.current = null; return }
       const dx = e.changedTouches[0].clientX - swipeRef.current.startX
       const dy = e.changedTouches[0].clientY - swipeRef.current.startY
       swipeRef.current = null
@@ -1272,6 +1272,7 @@ export default function CalendarPage() {
   function startDrag(e: React.MouseEvent | React.TouchEvent, ev: CalEvent, barberIdx: number) {
     e.preventDefault(); e.stopPropagation()
     haptic()
+    document.body.setAttribute('data-dragging', '1')
     const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
     const col = colRefs.current[barberIdx]; if (!col) return
     const clickedMin = Math.round((clientY - col.getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
@@ -1299,6 +1300,8 @@ export default function CalendarPage() {
       setDragConfirm({ eventId: ev.id, newBarberId: newBarber.id, newBarberName: newBarber.name, newMin: drag.ghostMin })
     }
     setDrag(null)
+    // Keep data-dragging for 500ms to prevent swipe from triggering after drag confirm
+    setTimeout(() => document.body.removeAttribute('data-dragging'), 500)
   }
 
   async function confirmDragMove() {
@@ -1365,6 +1368,7 @@ export default function CalendarPage() {
 
   function startBlockDrag(barberId: string, barberIdx: number, startMin: number) {
     haptic()
+    document.body.setAttribute('data-dragging', '1')
     const bd = { barberId, barberIdx, startMin: clamp(startMin), endMin: clamp(startMin) + 15 }
     blockDragRef.current = bd
     setBlockDrag(bd)
@@ -1390,6 +1394,7 @@ export default function CalendarPage() {
       blockDragRef.current = null
       setBlockDrag(null)
       blockDragJustEnded.current = true
+      setTimeout(() => document.body.removeAttribute('data-dragging'), 500)
       setTimeout(() => { blockDragJustEnded.current = false }, 50)
     }
     window.addEventListener('mousemove', onMove)
