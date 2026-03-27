@@ -683,7 +683,7 @@ export default function CalendarPage() {
       const dist = Math.sqrt(dx*dx + dy*dy)
       if (lastPinchDist.current > 0) {
         const scale = dist / lastPinchDist.current
-        setSlotH(prev => Math.round(Math.max(6, Math.min(22, prev * scale))))
+        setSlotH(prev => Math.round(Math.max(3, Math.min(22, prev * scale))))
       }
       lastPinchDist.current = dist
     }
