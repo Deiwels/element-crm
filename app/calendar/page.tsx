@@ -1289,6 +1289,11 @@ export default function CalendarPage() {
   async function confirmDragMove() {
     if (!dragConfirm) return
     const ev = events.find(e => e.id === dragConfirm.eventId); if (!ev) { setDragConfirm(null); return }
+    // Barbers cannot drag bookings to other barbers
+    if (isBarber && dragConfirm.newBarberId !== ev.barberId) {
+      showToast('Cannot move to another barber')
+      setDragConfirm(null); return
+    }
     const newBarber = barbers.find(b => b.id === dragConfirm.newBarberId)
     const updated = { ...ev, barberId: dragConfirm.newBarberId, barberName: newBarber?.name || ev.barberName, startMin: dragConfirm.newMin }
     setEvents(prev => prev.map(e => e.id === ev.id ? updated : e)); setDragConfirm(null)
@@ -1299,7 +1304,11 @@ export default function CalendarPage() {
           method: 'PATCH',
           body: JSON.stringify({ barber_id: updated.barberId, start_at: startAt.toISOString(), end_at: new Date(startAt.getTime() + updated.durMin*60000).toISOString() })
         })
-      } catch(e: any) { console.warn(e.message) }
+      } catch(e: any) {
+        // Rollback optimistic update on failure
+        setEvents(prev => prev.map(e2 => e2.id === ev.id ? ev : e2))
+        showToast('Move failed: ' + (e.message || 'Error'))
+      }
     }
   }
 
@@ -1405,7 +1414,13 @@ export default function CalendarPage() {
     setModal({ open: true, eventId: id, isNew: true })
   }
 
+  const savingRef = useRef(false)
   async function handleSave(patch: any) {
+    if (savingRef.current) return // Prevent double-save from rapid taps
+    savingRef.current = true
+    try { await _handleSaveInner(patch) } finally { savingRef.current = false }
+  }
+  async function _handleSaveInner(patch: any) {
     const ev = events.find(e => e.id === modal.eventId); if (!ev) return
     const svcIds: string[] = patch.serviceIds || (patch.serviceId ? [patch.serviceId] : [])
     const svcNames = svcIds.map(id => services.find(s => s.id === id)?.name).filter(Boolean).join(' + ')
@@ -1453,8 +1468,17 @@ export default function CalendarPage() {
       } catch { showToast('Arrived saved') }
     }
     setModal({ open: false, eventId: null, isNew: false })
-    // Reload bookings to get fresh data from server
-    setTimeout(() => { loadBookings(barbers, services).then(evs => setEvents(evs.map(e => { if (e.paid && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !e.paid && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e }))).catch(console.warn) }, 500)
+    // Reload bookings to get fresh data from server (2s delay to ensure server committed)
+    setTimeout(() => { loadBookings(barbers, services).then(evs => {
+      const serverIds = new Set(evs.map(e => e.id))
+      setEvents(prev => {
+        // Merge: keep recently-saved events that server might not have returned yet
+        const merged = evs.map(e => { if (e.paid && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !e.paid && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e })
+        // Keep any event from prev that has a real server ID but wasn't in the reload (saved < 5s ago)
+        const kept = prev.filter(pe => pe._raw?.id && !serverIds.has(pe.id) && !pe.id.startsWith('e_'))
+        return [...merged, ...kept]
+      })
+    }).catch(console.warn) }, 2000)
   }
 
   async function handleDelete() {
