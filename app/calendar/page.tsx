@@ -1446,8 +1446,9 @@ export default function CalendarPage() {
           .cal-search-icon{ display:flex !important; }
           .cal-settings-btn{ display:none !important; }
           .cal-settings-icon{ display:flex !important; }
-          /* Hide Calendar title + date on mobile */
+          /* Hide arrows + date pill on mobile — moved to bottom dots */
           .cal-topbar-left{ display:none !important; }
+          .cal-nav-arrows{ display:none !important; }
           /* Compact topbar on mobile — safe area for status bar */
           .cal-topbar-wrap{ padding:calc(env(safe-area-inset-top, 0px) + 6px) 8px 8px !important; }
         }
@@ -1469,21 +1470,12 @@ export default function CalendarPage() {
               {/* Date picker — desktop only */}
               <button className="cal-btn-date" onClick={() => setDatePickerOpen(true)} style={{ height: 40, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>Date</button>
 
-              {/* Prev */}
-              <button onClick={() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()-1); return x })} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>‹</button>
-
-              {/* Today — desktop only */}
-              {!isMobile && <button onClick={() => { const d=new Date(); d.setHours(0,0,0,0); setAnchor(d) }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', flexShrink: 0 }}>Today</button>}
-
-              {/* Date pill — mobile only, shows current date, opens picker */}
-              {isMobile && (
-                <button onClick={() => setDatePickerOpen(true)} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.07)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', flexShrink: 0, letterSpacing: '.02em' }}>
-                  {anchor.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-                </button>
-              )}
-
-              {/* Next */}
-              <button onClick={() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()+1); return x })} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>›</button>
+              {/* Nav arrows + date — hidden on mobile, shown on desktop */}
+              <div className="cal-nav-arrows" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button onClick={() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()-1); return x })} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>‹</button>
+                <button onClick={() => { const d=new Date(); d.setHours(0,0,0,0); setAnchor(d) }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', flexShrink: 0 }}>Today</button>
+                <button onClick={() => setAnchor(a => { const x=new Date(a); x.setDate(x.getDate()+1); return x })} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>›</button>
+              </div>
 
               {/* Search — full on desktop */}
               <input className="cal-search-full" placeholder="Search…" value={search} onChange={e => setSearch(e.target.value)} style={{ height: 36, width: 'min(200px,40vw)', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13 }} />
@@ -1918,7 +1910,53 @@ export default function CalendarPage() {
           )
         })()}
 
-        {/* Mobile page dots removed — all barbers shown at once now */}
+        {/* Mobile bottom date dots — Apple-style pill for current day */}
+        {isMobile && (() => {
+          const dots: { date: Date; day: number; label: string; isCurrent: boolean; isToday: boolean }[] = []
+          for (let i = -3; i <= 3; i++) {
+            const d = new Date(anchor); d.setDate(d.getDate() + i)
+            const today = new Date(); today.setHours(0,0,0,0)
+            const dNorm = new Date(d); dNorm.setHours(0,0,0,0)
+            dots.push({
+              date: d,
+              day: d.getDate(),
+              label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+              isCurrent: i === 0,
+              isToday: dNorm.getTime() === today.getTime(),
+            })
+          }
+          return (
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 15, padding: '8px 0 max(8px, env(safe-area-inset-bottom, 8px))', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, pointerEvents: 'auto' }}>
+              {dots.map((dot, i) => (
+                <button key={i}
+                  onClick={() => { const d = new Date(dot.date); d.setHours(0,0,0,0); setAnchor(d) }}
+                  style={{
+                    height: 28,
+                    padding: dot.isCurrent ? '0 12px' : '0',
+                    width: dot.isCurrent ? 'auto' : 28,
+                    minWidth: dot.isCurrent ? 70 : 28,
+                    borderRadius: 999,
+                    border: 'none',
+                    background: dot.isCurrent ? 'rgba(255,255,255,.92)' : 'rgba(255,255,255,.15)',
+                    color: dot.isCurrent ? '#000' : 'rgba(0,0,0,.70)',
+                    cursor: 'pointer',
+                    fontWeight: dot.isCurrent ? 800 : 600,
+                    fontSize: dot.isCurrent ? 11 : 10,
+                    fontFamily: 'inherit',
+                    letterSpacing: dot.isCurrent ? '.02em' : 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'all .2s ease',
+                    boxShadow: dot.isCurrent ? '0 2px 8px rgba(0,0,0,.3)' : 'none',
+                    position: 'relative',
+                  }}>
+                  {dot.isCurrent ? dot.label : dot.day}
+                  {dot.isToday && !dot.isCurrent && <div style={{ position: 'absolute', bottom: 2, width: 3, height: 3, borderRadius: 999, background: 'rgba(10,132,255,.80)' }} />}
+                </button>
+              ))}
+            </div>
+          )
+        })()}
 
         {loading && <div style={{ position: 'fixed', bottom: 20, right: 20, padding: '8px 16px', borderRadius: 999, background: 'rgba(10,132,255,.20)', border: '1px solid rgba(10,132,255,.40)', color: '#d7ecff', fontSize: 12, zIndex: 99 }}>Loading…</div>}
       </div>
