@@ -1403,6 +1403,15 @@ export default function CalendarPage() {
           50% { box-shadow: 0 0 18px rgba(255,107,107,.40); border-color: rgba(255,107,107,.55); background: rgba(255,107,107,.10); }
         }
         .block-pending-pulse { animation: blockPendingPulse 2.4s ease-in-out infinite; }
+        @keyframes blockStripeMove {
+          0% { background-position: 0 0; }
+          100% { background-position: 17px 17px; }
+        }
+        .block-approved-stripes {
+          background: repeating-linear-gradient(45deg, rgba(255,107,107,.08) 0px, rgba(255,107,107,.08) 6px, rgba(255,107,107,.02) 6px, rgba(255,107,107,.02) 12px) !important;
+          background-size: 17px 17px !important;
+          animation: blockStripeMove 1.2s linear infinite;
+        }
         @keyframes arrivedShimmer {
           0% { background-position: -200% 0; }
           100% { background-position: 200% 0; }
@@ -1830,8 +1839,8 @@ export default function CalendarPage() {
                           onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); clearTimeout(eventLongPressTimer.current); const touch = e.touches[0]; const evCopy = ev; const biCopy = bi; eventLongPressTimer.current = setTimeout(() => { const fakeEvt = { preventDefault(){}, stopPropagation(){}, touches: [touch] } as any; startDrag(fakeEvt, evCopy, biCopy) }, 400) }}
                           onTouchEnd={() => clearTimeout(eventLongPressTimer.current)}
                           onTouchMove={() => clearTimeout(eventLongPressTimer.current)}>
-                          {/* Approved part (solid) */}
-                          {!isPending && <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: hasPendingExtension ? (approvedDur / ev.durMin * 100) + '%' : '100%', borderRadius: hasPendingExtension ? '10px 10px 0 0' : 10, background: 'repeating-linear-gradient(45deg,rgba(255,107,107,.10) 0px,rgba(255,107,107,.10) 6px,rgba(255,107,107,.04) 6px,rgba(255,107,107,.04) 12px)', border: `1px solid ${drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.28)'}` }} />}
+                          {/* Approved part (moving stripes) */}
+                          {!isPending && <div className="block-approved-stripes" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: hasPendingExtension ? (approvedDur / ev.durMin * 100) + '%' : '100%', borderRadius: hasPendingExtension ? '10px 10px 0 0' : 10, border: `1px solid ${drag?.eventId===ev.id ? 'rgba(255,107,107,.70)' : 'rgba(255,107,107,.22)'}` }} />}
                           {/* Pending part (breathing red) */}
                           {(isPending || hasPendingExtension) && <div className="block-pending-pulse" style={{ position: 'absolute', left: 0, right: 0, top: hasPendingExtension ? (approvedDur / ev.durMin * 100) + '%' : 0, bottom: 0, borderRadius: hasPendingExtension ? '0 0 10px 10px' : 10, border: '1px solid rgba(255,107,107,.45)' }} />}
                           {/* Content */}
