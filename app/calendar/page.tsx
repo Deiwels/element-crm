@@ -982,8 +982,9 @@ export default function CalendarPage() {
     }
     function onTouchEnd(e: TouchEvent) {
       if (!swipeRef.current) return
-      // Don't swipe calendar if sidebar is being swiped
+      // Don't swipe calendar if sidebar is being swiped or drag is active
       if (document.body.getAttribute('data-sidebar-swiping') === '1') { swipeRef.current = null; return }
+      if (drag || blockDrag) { swipeRef.current = null; return }
       const dx = e.changedTouches[0].clientX - swipeRef.current.startX
       const dy = e.changedTouches[0].clientY - swipeRef.current.startY
       swipeRef.current = null
@@ -1310,18 +1311,28 @@ export default function CalendarPage() {
     }
     const newBarber = barbers.find(b => b.id === dragConfirm.newBarberId)
     // Remap services to new barber's equivalent (by name) — updates price & duration
-    const oldSvcIds = ev.serviceIds || (ev.serviceId ? [ev.serviceId] : [])
+    let oldSvcIds = ev.serviceIds?.length ? ev.serviceIds : (ev.serviceId ? [ev.serviceId] : [])
+    // If no service IDs, try to find by service name
+    if (!oldSvcIds.length && ev.serviceName) {
+      const byName = services.find(s => s.name === ev.serviceName && s.barberIds.includes(ev.barberId))
+      if (byName) oldSvcIds = [byName.id]
+    }
     const newBarberSvcs = services.filter(s => !s.barberIds.length || s.barberIds.includes(dragConfirm.newBarberId))
-    const remappedSvcIds = oldSvcIds.map((id: string) => {
-      if (newBarberSvcs.some(s => s.id === id)) return id
-      const oldSvc = services.find(s => s.id === id)
-      if (!oldSvc) return null
-      const match = newBarberSvcs.find(s => s.name.toLowerCase() === oldSvc.name.toLowerCase())
-      return match ? match.id : null
-    }).filter(Boolean) as string[]
+    let remappedSvcIds: string[] = []
+    if (dragConfirm.newBarberId !== ev.barberId && oldSvcIds.length) {
+      remappedSvcIds = oldSvcIds.map((id: string) => {
+        if (newBarberSvcs.some(s => s.id === id)) return id
+        const oldSvc = services.find(s => s.id === id)
+        if (!oldSvc) return null
+        const match = newBarberSvcs.find(s => s.name.toLowerCase() === oldSvc.name.toLowerCase())
+        return match ? match.id : null
+      }).filter(Boolean) as string[]
+    } else {
+      remappedSvcIds = oldSvcIds
+    }
     const remappedSvcs = remappedSvcIds.map(id => services.find(s => s.id === id)).filter(Boolean)
     const newDurMin = remappedSvcs.length > 0 ? remappedSvcs.reduce((sum, s) => sum + (s!.durationMin || 30), 0) : ev.durMin
-    const newSvcNames = remappedSvcs.map(s => s!.name).join(' + ') || ev.serviceName
+    const newSvcNames = remappedSvcs.length > 0 ? remappedSvcs.map(s => s!.name).join(' + ') : ev.serviceName
     const updated = { ...ev, barberId: dragConfirm.newBarberId, barberName: newBarber?.name || ev.barberName, startMin: dragConfirm.newMin, serviceIds: remappedSvcIds, serviceId: remappedSvcIds[0] || ev.serviceId, serviceName: newSvcNames, durMin: newDurMin }
     setEvents(prev => prev.map(e => e.id === ev.id ? updated : e)); setDragConfirm(null)
     if (ev._raw?.id) {
