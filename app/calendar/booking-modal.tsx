@@ -975,8 +975,44 @@ export function BookingModal({
         .bm-section:nth-child(4) { animation-delay: .20s }
         .bm-section:nth-child(5) { animation-delay: .26s }
         .bm-section:nth-child(6) { animation-delay: .32s }
-        .bm-svc-btn { transition: all .18s ease; }
-        .bm-svc-btn:active { transform: scale(.95) }
+        .bm-svc-btn {
+          transition: all .2s cubic-bezier(.4,0,.2,1);
+          position: relative;
+          overflow: hidden;
+        }
+        .bm-svc-btn:active { transform: scale(.93) }
+        .bm-svc-btn::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(circle at var(--rx,50%) var(--ry,50%), rgba(10,132,255,.35) 0%, transparent 60%);
+          opacity: 0;
+          transition: opacity .4s;
+          pointer-events: none;
+        }
+        .bm-svc-active::after { opacity: 1; animation: bmRippleFade .6s ease-out }
+        @keyframes bmRippleFade {
+          0% { opacity: .8; transform: scale(.5) }
+          50% { opacity: .4; transform: scale(1.2) }
+          100% { opacity: 0; transform: scale(1) }
+        }
+        @keyframes bmSvcPop {
+          0% { transform: scale(1) }
+          40% { transform: scale(1.08) }
+          100% { transform: scale(1) }
+        }
+        .bm-svc-pop { animation: bmSvcPop .3s cubic-bezier(.16,1.2,.3,1) }
+        @keyframes bmPriceFloat {
+          0% { opacity: 1; transform: translateY(0) scale(1) }
+          100% { opacity: 0; transform: translateY(-28px) scale(.7) }
+        }
+        .bm-price-float {
+          position: absolute; top: -4px; right: 8px;
+          font-size: 10px; font-weight: 800; color: rgba(10,132,255,.80);
+          pointer-events: none;
+          animation: bmPriceFloat .5s ease-out forwards;
+        }
         .bm-footer-btn { transition: all .15s ease; }
         .bm-footer-btn:active { transform: scale(.96) }
         .bm-input { transition: border-color .2s ease, box-shadow .2s ease; }
@@ -1107,36 +1143,53 @@ export function BookingModal({
                 {/* Services */}
                 <div className="bm-section" style={{ padding: '14px 16px', borderRadius: 16, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)' }}>
                   <label style={{ ...lbl, marginBottom: 10 }}>Services {serviceIds.length > 0 && <span style={{ color: 'rgba(10,132,255,.60)', fontWeight: 600 }}>({serviceIds.length} selected)</span>}</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 7 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 7 }}>
                     {barberServices.map(s => {
                       const active = serviceIds.includes(s.id)
                       const bp = s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0
                       const calc = calcTotal(bp, shopSettings)
                       const priceLabel = bp > 0 ? `$${calc.total.toFixed(2)}` : ''
                       return (
-                        <button key={s.id} type="button" className="bm-svc-btn"
-                          onClick={() => setServiceIds(prev => active ? prev.filter(id => id !== s.id) : [...prev, s.id])}
+                        <button key={s.id} type="button" className={`bm-svc-btn${active ? ' bm-svc-active bm-svc-pop' : ''}`}
+                          onClick={(e) => {
+                            const adding = !active
+                            setServiceIds(prev => active ? prev.filter(id => id !== s.id) : [...prev, s.id])
+                            // Float price animation
+                            if (adding && priceLabel) {
+                              const btn = e.currentTarget
+                              const float = document.createElement('span')
+                              float.className = 'bm-price-float'
+                              float.textContent = '+' + priceLabel
+                              btn.style.position = 'relative'
+                              btn.appendChild(float)
+                              setTimeout(() => float.remove(), 600)
+                            }
+                          }}
                           style={{
-                            height: 38, padding: '0 14px', borderRadius: 12,
-                            border: `1px solid ${active ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.10)'}`,
-                            background: active ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.03)',
-                            color: active ? '#d7ecff' : 'rgba(255,255,255,.55)',
-                            cursor: 'pointer', fontSize: 12, fontWeight: active ? 800 : 500,
-                            fontFamily: 'inherit', whiteSpace: 'nowrap' as const,
-                            boxShadow: active ? '0 0 12px rgba(10,132,255,.15)' : 'none',
+                            height: 42, padding: '0 10px', borderRadius: 12,
+                            border: `1px solid ${active ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.08)'}`,
+                            background: active ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.03)',
+                            color: active ? '#d7ecff' : 'rgba(255,255,255,.50)',
+                            cursor: 'pointer', fontSize: 11, fontWeight: active ? 800 : 500,
+                            fontFamily: 'inherit',
+                            boxShadow: active ? '0 0 14px rgba(10,132,255,.18)' : 'none',
+                            display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-start', justifyContent: 'center', gap: 1,
+                            textAlign: 'left' as const,
                           }}>
-                          {s.name}{priceLabel ? ` · ${priceLabel}` : ''}{active ? ' ✓' : ''}
+                          <span style={{ lineHeight: 1.2 }}>{s.name}{active ? ' ✓' : ''}</span>
+                          {priceLabel && <span style={{ fontSize: 10, opacity: .6 }}>{priceLabel}</span>}
                         </button>
                       )
                     })}
                   </div>
-                  {selectedSvcs.length > 1 && (() => {
+                  {selectedSvcs.length > 0 && (() => {
                     let totalBase = 0
                     for (const s of selectedSvcs) { totalBase += s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0 }
                     const calc = calcTotal(totalBase, shopSettings)
                     return (
-                      <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: 'rgba(10,132,255,.06)', border: '1px solid rgba(10,132,255,.15)', fontSize: 12, color: 'rgba(10,132,255,.80)', fontWeight: 700 }}>
-                        Total: {durMin}min · ${calc.total.toFixed(2)}
+                      <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: 'rgba(10,132,255,.06)', border: '1px solid rgba(10,132,255,.12)', fontSize: 12, color: 'rgba(10,132,255,.80)', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{durMin}min · {selectedSvcs.length} service{selectedSvcs.length > 1 ? 's' : ''}</span>
+                        <span style={{ fontSize: 14, fontWeight: 900 }}>${calc.total.toFixed(2)}</span>
                       </div>
                     )
                   })()}
