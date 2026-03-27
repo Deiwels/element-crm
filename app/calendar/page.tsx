@@ -805,13 +805,21 @@ export default function CalendarPage() {
     const dow = anchor.getDay() // anchor is Date object, 0=Sun..6=Sat
     const next: Record<string, { startMin: number; endMin: number; dayOff: boolean }> = {}
     barbers.forEach(b => {
+      // Check one-time override for this specific date first
+      const dateKey = isoDate(anchor)
+      const override = (b as any).schedule_overrides?.[dateKey]
+      if (override) {
+        next[b.id] = override.enabled === false
+          ? { startMin: 0, endMin: 0, dayOff: true }
+          : { startMin: Number(override.startMin || 600), endMin: Number(override.endMin || 1200), dayOff: false }
+        return
+      }
+      // Normal permanent schedule
       const sched = b.schedule
       if (!sched) {
-        // No schedule — no gray blocks, show full day
         next[b.id] = { startMin: 0, endMin: END_HOUR * 60, dayOff: false }
         return
       }
-      // sched is 7-element array indexed by JS getDay() 0=Sun..6=Sat
       const day = sched[dow]
       if (!day) {
         next[b.id] = { startMin: 0, endMin: END_HOUR * 60, dayOff: false }
@@ -2489,47 +2497,12 @@ export default function CalendarPage() {
               loadBarbers().then(list => setBarbers(list))
               return
             }
-            const barber = barbers.find(b => b.id === barberId)
-            // Build per-day schedule array [Sun, Mon, Tue, ...]
-            const rawSched = barber?.schedule || barber?.work_schedule
-            const baseSched = Array.isArray(rawSched) ? rawSched :
-              (rawSched?.perDay ? rawSched.perDay :
-                Array.from({length:7}, (_, i) => ({
-                  enabled: rawSched?.days ? rawSched.days.includes(i) : i !== 0,
-                  startMin: rawSched?.startMin ?? 10*60,
-                  endMin: rawSched?.endMin ?? 20*60
-                })))
-
-            // 1. Save this day's override to localStorage
-            saveSchedOverride(barberId, dow, startMin, endMin)
-
-            // 2. Build updated per-day schedule applying ALL localStorage overrides
-            const allOverrides = getSchedOverrides(barberId)
-            const newSched = baseSched.map((d: any, i: number) => {
-              const ov = allOverrides[i]
-              return {
-                enabled: d.enabled !== false,
-                startMin: ov ? ov.startMin : (d.startMin ?? 600),
-                endMin: ov ? ov.endMin : (d.endMin ?? 1200),
-              }
-            })
-
-            // 3. Apply the current change
-            newSched[dow] = { enabled: true, startMin, endMin }
-
-            // 4. Send per-day schedule to server
-            const enabledDays = newSched.map((d: any, i: number) => d.enabled ? i : -1).filter((i: number) => i >= 0)
-            const enabledScheds = newSched.filter((d: any) => d.enabled)
-            const globalStart = enabledScheds.length ? Math.min(...enabledScheds.map((d: any) => d.startMin)) : startMin
-            const globalEnd = enabledScheds.length ? Math.max(...enabledScheds.map((d: any) => d.endMin)) : endMin
-
-            await apiFetch('/api/barbers/' + encodeURIComponent(barberId), {
+            // Save as one-time override for today's date only (not permanent)
+            await apiFetch(`/api/barbers/${encodeURIComponent(barberId)}/schedule-override`, {
               method: 'PATCH',
-              body: JSON.stringify({
-                schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays, perDay: newSched },
-                work_schedule: { startMin: globalStart, endMin: globalEnd, days: enabledDays, perDay: newSched }
-              })
+              body: JSON.stringify({ date: todayStr, startMin, endMin, enabled: true })
             })
+            showToast('Schedule updated for today')
             loadBarbers().then(list => setBarbers(list))
           } catch(e) { console.warn('Schedule save error:', e) }
         }
@@ -2543,7 +2516,7 @@ export default function CalendarPage() {
             <div style={{ width:'min(360px,92vw)', borderRadius:22, border:'1px solid rgba(255,255,255,.10)', background:'rgba(0,0,0,.65)', backdropFilter:'saturate(180%) blur(40px)', WebkitBackdropFilter:'saturate(180%) blur(40px)', boxShadow:'0 32px 80px rgba(0,0,0,.55)', padding:22, color:'#e9e9e9', fontFamily:'Inter,sans-serif' }}>
               <div style={{ fontFamily:'"Julius Sans One",sans-serif', letterSpacing:'.16em', textTransform:'uppercase', fontSize:13, marginBottom:14 }}>{isBarber && !isOwnerOrAdmin ? 'Request schedule change' : 'Update schedule'}</div>
               <div style={{ fontSize:13, color:'rgba(255,255,255,.70)', lineHeight:1.6, marginBottom:18 }}>
-                {isBarber && !isOwnerOrAdmin ? 'Request to change' : 'Change'} <span style={{ color:'#fff', fontWeight:700 }}>{barberName}</span>'s schedule for every <span style={{ color:'#fff', fontWeight:700 }}>{dayName}</span> to:
+                {isBarber && !isOwnerOrAdmin ? 'Request to change' : 'Change'} <span style={{ color:'#fff', fontWeight:700 }}>{barberName}</span>'s schedule for <span style={{ color:'#fff', fontWeight:700 }}>{dayName}, {new Date(todayStr + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span> to:
                 <div style={{ marginTop:10, fontSize:22, fontWeight:800, color:'#fff', letterSpacing:'.04em' }}>
                   {fmt(startMin)} — {fmt(endMin)}
                 </div>
