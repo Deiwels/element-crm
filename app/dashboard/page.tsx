@@ -93,6 +93,7 @@ export default function DashboardPage() {
   const [clockLoading, setClockLoading] = useState(false)
   const [clockError, setClockError] = useState('')
   const [clockSuccess, setClockSuccess] = useState<'in'|'out'|null>(null)
+  const [clockErrorAnim, setClockErrorAnim] = useState(false)
   const [elapsedStr, setElapsedStr] = useState('')
   const [staffOnClock, setStaffOnClock] = useState<any[]>([])
   const [attHistory, setAttHistory] = useState<any[]>([])
@@ -336,9 +337,12 @@ export default function DashboardPage() {
       setClockSuccess(wasClocked ? 'out' : 'in')
       setTimeout(() => { setClockSuccess(null); loadAll() }, 1400)
     } catch (err: any) {
-      if (err?.code === 1) setClockError('Location access denied. Enable GPS in your browser settings.')
-      else if (err?.code === 2 || err?.code === 3) setClockError('Could not get location. Try again.')
-      else setClockError(err?.message || 'Clock action failed')
+      let msg = err?.message || 'Clock action failed'
+      if (err?.code === 1) msg = 'Location access denied. Enable GPS.'
+      else if (err?.code === 2 || err?.code === 3) msg = 'Could not get location. Try again.'
+      setClockError(msg)
+      setClockErrorAnim(true)
+      setTimeout(() => setClockErrorAnim(false), 3200)
     }
     setClockLoading(false)
   }
@@ -414,6 +418,34 @@ export default function DashboardPage() {
           .clock-out-success-card { animation: clockCheckIn .45s cubic-bezier(.16,1.2,.3,1) both, clockOutGlow 1.4s ease-out both; }
           .clock-btn-morph { transition: all .4s cubic-bezier(.4,0,.2,1); }
           .clock-btn-morph:active { transform: scale(.92) }
+          @keyframes radarSweep {
+            0% { transform: rotate(0deg) }
+            100% { transform: rotate(720deg) }
+          }
+          @keyframes radarRing1 {
+            0% { transform: scale(.2); opacity: .6 }
+            100% { transform: scale(1); opacity: 0 }
+          }
+          @keyframes radarRing2 {
+            0% { transform: scale(.2); opacity: .5 }
+            100% { transform: scale(.75); opacity: 0 }
+          }
+          @keyframes radarFadeIn {
+            0% { opacity: 0 }
+            100% { opacity: 1 }
+          }
+          @keyframes radarXIn {
+            0% { opacity: 0; transform: scale(.3) rotate(-90deg) }
+            60% { opacity: 1; transform: scale(1.1) rotate(5deg) }
+            100% { transform: scale(1) rotate(0deg) }
+          }
+          @keyframes radarFadeOut {
+            0%,70% { opacity: 1 }
+            100% { opacity: 0 }
+          }
+          .radar-overlay { animation: radarFadeIn .2s ease-out, radarFadeOut 3.2s ease-in-out forwards }
+          .radar-x { animation: radarXIn .4s cubic-bezier(.16,1.2,.3,1) 1.6s both }
+          .radar-text { animation: radarFadeIn .3s ease-out 2s both }
           @media (max-width: 768px) {
             .dash-topbar-row { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; }
             .dash-search { width: 100% !important; }
@@ -476,6 +508,43 @@ export default function DashboardPage() {
             </button>
           )}
         </div>
+
+        {/* Radar error overlay */}
+        {clockErrorAnim && (
+          <div className="radar-overlay" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.75)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
+            {/* Radar */}
+            <div style={{ position: 'relative', width: 160, height: 160, marginBottom: 24 }}>
+              {/* Expanding rings */}
+              <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '1px solid rgba(255,107,107,.20)', animation: 'radarRing1 1.6s ease-out infinite' }} />
+              <div style={{ position: 'absolute', inset: 20, borderRadius: '50%', border: '1px solid rgba(255,107,107,.25)', animation: 'radarRing2 1.6s ease-out .4s infinite' }} />
+              {/* Static rings */}
+              <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '1px solid rgba(255,107,107,.10)' }} />
+              <div style={{ position: 'absolute', inset: 20, borderRadius: '50%', border: '1px solid rgba(255,107,107,.08)' }} />
+              <div style={{ position: 'absolute', inset: 40, borderRadius: '50%', border: '1px solid rgba(255,107,107,.06)' }} />
+              {/* Cross lines */}
+              <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1, background: 'rgba(255,107,107,.08)' }} />
+              <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'rgba(255,107,107,.08)' }} />
+              {/* Sweep line */}
+              <div style={{ position: 'absolute', inset: 0, animation: 'radarSweep 1.6s linear forwards' }}>
+                <div style={{ position: 'absolute', top: '50%', left: '50%', width: '50%', height: 2, background: 'linear-gradient(90deg, rgba(255,107,107,.80), transparent)', transformOrigin: '0 50%', boxShadow: '0 0 8px rgba(255,107,107,.50)' }} />
+              </div>
+              {/* Center dot */}
+              <div style={{ position: 'absolute', top: '50%', left: '50%', width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,107,107,.80)', transform: 'translate(-50%,-50%)', boxShadow: '0 0 8px rgba(255,107,107,.60)' }} />
+              {/* Red X */}
+              <div className="radar-x" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="50" height="50" viewBox="0 0 50 50">
+                  <line x1="15" y1="15" x2="35" y2="35" stroke="#ff6b6b" strokeWidth="4" strokeLinecap="round" />
+                  <line x1="35" y1="15" x2="15" y2="35" stroke="#ff6b6b" strokeWidth="4" strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
+            {/* Error text */}
+            <div className="radar-text" style={{ textAlign: 'center', padding: '0 32px' }}>
+              <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13, color: '#ffd0d0', marginBottom: 6 }}>Location failed</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', lineHeight: 1.5 }}>{clockError}</div>
+            </div>
+          </div>
+        )}
 
         {/* Staff on clock — admin/owner only */}
         {isOwnerOrAdmin && staffOnClock.length > 0 && (
