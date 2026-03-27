@@ -1303,7 +1303,7 @@ export default function CalendarPage() {
       if (!ev._raw?.id) {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         const endAt = new Date(startAt.getTime() + (updated.durMin || 30) * 60000)
-        const postBody: any = { barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId || '', client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), end_at: endAt.toISOString(), notes: updated.notes || '', status: 'booked' }
+        const postBody: any = { barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId || '', service_name: svcNames || updated.serviceName || '', client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), end_at: endAt.toISOString(), notes: updated.notes || '', status: 'booked' }
         if (svcIds.length > 1) postBody.service_ids = svcIds
         if (updated.photoUrl) postBody.reference_photo_url = updated.photoUrl
         if (isStudent) { postBody.booking_type = 'model'; postBody.student_id = currentUser?.uid || '' }
@@ -1314,9 +1314,9 @@ export default function CalendarPage() {
         const patchStart = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         const patchEnd = new Date(patchStart.getTime() + (updated.durMin || 30) * 60000)
         const apiStatus = updated.status === 'arrived' ? 'booked' : updated.status
-        const patchBody: any = { barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId || '', client_name: updated.clientName, status: apiStatus, end_at: patchEnd.toISOString() }
+        const patchBody: any = { barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId || '', service_name: svcNames || updated.serviceName || '', client_name: updated.clientName, status: apiStatus, end_at: patchEnd.toISOString(), start_at: patchStart.toISOString() }
         if (updated.clientPhone) patchBody.client_phone = updated.clientPhone
-        if (updated.notes) patchBody.notes = updated.notes
+        if (updated.notes != null) patchBody.notes = updated.notes || ''
         if (updated.photoUrl) patchBody.reference_photo_url = updated.photoUrl
         if (svcIds.length > 1) patchBody.service_ids = svcIds
         await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify(patchBody) })
