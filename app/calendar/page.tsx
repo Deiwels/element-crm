@@ -1269,6 +1269,7 @@ export default function CalendarPage() {
   // ── Drag ──────────────────────────────────────────────────────────────────
   function startDrag(e: React.MouseEvent | React.TouchEvent, ev: CalEvent, barberIdx: number) {
     e.preventDefault(); e.stopPropagation()
+    haptic()
     const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
     const col = colRefs.current[barberIdx]; if (!col) return
     const clickedMin = Math.round((clientY - col.getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
@@ -1334,7 +1335,11 @@ export default function CalendarPage() {
   }, [drag, events, barbers])
 
   // ── Block drag-to-create ────────────────────────────────────────────────────
+  // Haptic feedback for iOS
+  function haptic() { try { if (navigator?.vibrate) navigator.vibrate(10) } catch {} }
+
   function startBlockDrag(barberId: string, barberIdx: number, startMin: number) {
+    haptic()
     const bd = { barberId, barberIdx, startMin: clamp(startMin), endMin: clamp(startMin) + 15 }
     blockDragRef.current = bd
     setBlockDrag(bd)
@@ -1525,6 +1530,7 @@ export default function CalendarPage() {
     <Shell page="calendar">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
+        .cal-container { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
         .cal-event:hover { filter: brightness(1.12); }
         .barber-edit-card:hover { border-color: rgba(255,255,255,.22) !important; box-shadow: 0 2px 16px rgba(255,255,255,.04); }
         @keyframes slideUp { from { opacity:0; transform:translateX(-50%) translateY(12px) } to { opacity:1; transform:translateX(-50%) translateY(0) } }
@@ -1784,7 +1790,7 @@ export default function CalendarPage() {
             : COL_MIN
           const colMin = isMobile ? mobileColMin : COL_MIN
           return (
-        <div className={dayTransition === 'out' ? 'day-transition-out' : dayTransition === 'in' ? 'day-transition-in' : ''} style={{ flex: 1, position: 'relative', overflowY: 'auto', overflowX: 'hidden', touchAction: drag ? 'none' : 'pan-x pan-y', transformOrigin: 'center 40%' }} ref={scrollContainerRef} onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd}>
+        <div className={`cal-container${dayTransition === 'out' ? ' day-transition-out' : dayTransition === 'in' ? ' day-transition-in' : ''}`} style={{ flex: 1, position: 'relative', overflowY: 'auto', overflowX: 'hidden', touchAction: drag ? 'none' : 'pan-x pan-y', transformOrigin: 'center 40%' }} ref={scrollContainerRef} onTouchStart={onPinchStart} onTouchMove={onPinchMove} onTouchEnd={onPinchEnd}>
           <div style={{ minWidth: timeColW + pageBarbers.length * colMin }}>
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${colMin}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
