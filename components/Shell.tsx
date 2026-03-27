@@ -153,16 +153,18 @@ function ProfileModal({ user, onClose, onUpdated }: {
           })
           setMsg('Name saved. Photo sent for approval ✓')
         } else {
-          // Owner/admin — save directly
+          // Owner/admin with barber profile — save directly to barber
           await fetch(`${API}/api/barbers/${encodeURIComponent(user.barber_id)}`, {
             method: 'PATCH', headers: h, body: JSON.stringify({ name, photo_url: photo })
           })
           setMsg('Saved ✓')
         }
       }
+      // Save name + photo to user record (for owner/admin without barber_id and for chat avatars)
       await fetch(`${API}/api/users/${encodeURIComponent(user.uid)}`, {
-        method: 'PATCH', headers: h, body: JSON.stringify({ name })
+        method: 'PATCH', headers: h, body: JSON.stringify({ name, ...(photoChanged ? { photo_url: photo } : {}) })
       })
+      if (!user.barber_id && photoChanged) setMsg('Saved ✓')
       const updated = { ...user, name, photo: isBarberRole && photoChanged ? user.photo : photo }
       localStorage.setItem('ELEMENT_USER', JSON.stringify(updated))
       onUpdated(updated)
@@ -353,6 +355,10 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
             const me = list.find(b => String(b.id) === String(barberId))
             if (me?.photo_url) userData = { ...userData, photo: me.photo_url, name: me.name || userData.name }
           } catch {}
+        }
+        // For users without barber_id (owner/admin), use photo_url from user record
+        if (!userData.photo && userData.photo_url) {
+          userData = { ...userData, photo: userData.photo_url }
         }
         setUser(userData)
         localStorage.setItem('ELEMENT_USER', JSON.stringify(userData))
