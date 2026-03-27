@@ -1303,21 +1303,31 @@ export default function CalendarPage() {
       if (!ev._raw?.id) {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         const endAt = new Date(startAt.getTime() + (updated.durMin || 30) * 60000)
-        const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify({ barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId, service_ids: svcIds, client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), end_at: endAt.toISOString(), notes: updated.notes || '', status: 'booked', reference_photo_url: updated.photoUrl || '', ...(isStudent ? { booking_type: 'model', student_id: currentUser?.uid || '' } : {}) }) })
+        const postBody: any = { barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId || '', client_name: updated.clientName, client_phone: updated.clientPhone || '', start_at: startAt.toISOString(), end_at: endAt.toISOString(), notes: updated.notes || '', status: 'booked' }
+        if (svcIds.length > 1) postBody.service_ids = svcIds
+        if (updated.photoUrl) postBody.reference_photo_url = updated.photoUrl
+        if (isStudent) { postBody.booking_type = 'model'; postBody.student_id = currentUser?.uid || '' }
+        const res = await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify(postBody) })
         const savedId = res?.booking?.id || res?.id
         if (savedId) setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, _raw: { ...e._raw, ...res, id: savedId }, id: String(savedId) } : e))
       } else {
         const patchStart = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         const patchEnd = new Date(patchStart.getTime() + (updated.durMin || 30) * 60000)
-        // Backend may not accept 'arrived' status — send 'booked' for API but keep 'arrived' locally
         const apiStatus = updated.status === 'arrived' ? 'booked' : updated.status
-        await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId, service_ids: svcIds, client_name: updated.clientName, client_phone: updated.clientPhone || '', status: apiStatus, notes: updated.notes || '', reference_photo_url: updated.photoUrl || '', end_at: patchEnd.toISOString() }) })
-        // Try to save arrived status separately (will work if backend supports it, ignored otherwise)
+        const patchBody: any = { barber_id: updated.barberId, service_id: svcIds[0] || updated.serviceId || '', client_name: updated.clientName, status: apiStatus, end_at: patchEnd.toISOString() }
+        if (updated.clientPhone) patchBody.client_phone = updated.clientPhone
+        if (updated.notes) patchBody.notes = updated.notes
+        if (updated.photoUrl) patchBody.reference_photo_url = updated.photoUrl
+        if (svcIds.length > 1) patchBody.service_ids = svcIds
+        await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify(patchBody) })
         if (updated.status === 'arrived') {
           apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ status: 'arrived' }) }).catch(() => {})
         }
       }
-    } catch(e: any) { console.warn('save:', e.message) }
+    } catch(e: any) {
+      showToast('Save failed: ' + (e.message || 'Error'))
+      throw e
+    }
     // If status changed to 'arrived' — track locally + send message to barbers chat
     if (patch.status === 'arrived' && ev.status !== 'arrived') {
       if (ev._raw?.id) arrivedIdsRef.current.add(String(ev._raw.id))
