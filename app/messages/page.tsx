@@ -500,10 +500,10 @@ export default function MessagesPage() {
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  // Voice recording OFF — crashes iOS WebView/PWA even with try/catch
-  // AudioPlayer still works for playback of voice messages sent from desktop
-  useEffect(() => { setVoiceSupported(false)
-  }, [])
+  // Show mic button but test actual support only on first tap (lazy check)
+  // This avoids calling getUserMedia on mount which crashes some iOS WebViews
+  const [micTested, setMicTested] = useState(false)
+  useEffect(() => { setVoiceSupported(true) }, []) // optimistic — hide on first failure
 
   useEffect(() => {
     try { setUser(JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null')) } catch {}
@@ -633,7 +633,27 @@ export default function MessagesPage() {
   // Voice recording functions
   async function startRecording() {
     if (!voiceSupported) return
+
+    // First-time check: verify APIs exist before calling them
+    if (!micTested) {
+      setMicTested(true)
+      try {
+        if (!navigator?.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+          setVoiceSupported(false)
+          return
+        }
+        // Check permission state if available (without triggering prompt)
+        if (navigator.permissions?.query) {
+          try {
+            const perm = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+            if (perm.state === 'denied') { setVoiceSupported(false); return }
+          } catch {} // permissions.query not supported — proceed
+        }
+      } catch { setVoiceSupported(false); return }
+    }
+
     try {
+      // This triggers the system permission dialog on first call
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
       let mimeType = ''
@@ -662,7 +682,7 @@ export default function MessagesPage() {
       try { streamRef.current?.getTracks().forEach(t => t.stop()) } catch {}
       streamRef.current = null
       setIsRecording(false)
-      setVoiceSupported(false) // Hide mic button if it fails
+      setVoiceSupported(false) // Hide mic button permanently if it fails
     }
   }
 
