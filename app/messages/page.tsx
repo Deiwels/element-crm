@@ -500,13 +500,9 @@ export default function MessagesPage() {
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  // Check voice recording support on mount (client-side only)
-  useEffect(() => {
-    try {
-      const supported = !!(typeof window !== 'undefined' && navigator?.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined')
-      setVoiceSupported(supported)
-    } catch { setVoiceSupported(false) }
-  }, [])
+  // Voice recording disabled — causes crashes in iOS PWA/Safari WebView
+  // TODO: re-enable when native mic support is added to Element Team app
+  useEffect(() => { setVoiceSupported(false) }, [])
 
   useEffect(() => {
     try { setUser(JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null')) } catch {}
