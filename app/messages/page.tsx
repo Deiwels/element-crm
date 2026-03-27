@@ -949,7 +949,7 @@ export default function MessagesPage() {
               </div>
             )}
             {/* Input Bar — glass style */}
-            <div style={{ padding: '8px 16px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(18,18,18,.60)', backdropFilter: 'blur(30px) saturate(180%)', WebkitBackdropFilter: 'blur(30px) saturate(180%)', borderTop: '1px solid rgba(255,255,255,.05)', boxShadow: '0 -4px 20px rgba(0,0,0,.30)' } as React.CSSProperties}>
+            <div style={{ padding: '4px 10px', paddingBottom: 'max(6px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(18,18,18,.50)', backdropFilter: 'blur(30px) saturate(180%)', WebkitBackdropFilter: 'blur(30px) saturate(180%)', borderTop: '1px solid rgba(255,255,255,.04)' } as React.CSSProperties}>
               {isRecording ? (
                 /* Recording UI */
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, height: 44 }}>
@@ -961,30 +961,30 @@ export default function MessagesPage() {
                       <div key={i} className="wave-bar" style={{ width: 3, borderRadius: 2, background: 'rgba(255,59,48,.60)', animationDelay: `${i * 0.08}s` }} />
                     ))}
                   </div>
-                  <button onClick={handleVoiceToggle} style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: 'linear-gradient(135deg, rgba(10,132,255,.85), rgba(10,100,220,.90))', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 12px rgba(10,132,255,.30)' }}>
+                  <button onClick={handleVoiceToggle} style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: 'linear-gradient(135deg, rgba(10,132,255,.85), rgba(10,100,220,.90))', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 2px 12px rgba(10,132,255,.30)' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                   </button>
                 </div>
               ) : (
                 /* Normal input UI */
                 <>
-                  <label style={{ width: 40, height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  <label style={{ width: 34, height: 34, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.40)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
                     <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { handleImageAttach(e.target.files?.[0] || null); e.target.value = '' }} />
                   </label>
                   <input className="msg-input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }} placeholder="Type a message..."
-                    style={{ flex: 1, height: 44, borderRadius: 22, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.08)', color: '#fff', padding: '0 18px', outline: 'none', fontSize: 13, fontFamily: 'inherit', transition: 'border-color .2s, box-shadow .2s' }} />
+                    style={{ flex: 1, height: 36, borderRadius: 18, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 13, fontFamily: 'inherit', transition: 'border-color .2s, box-shadow .2s' }} />
                   {hasContent ? (
                     /* Send button with glow */
                     <button onClick={sendMessage} disabled={sending}
                       className="msg-send-glow"
-                      style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: 'linear-gradient(135deg, rgba(10,132,255,.85), rgba(10,100,220,.90))', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
+                      style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: 'linear-gradient(135deg, rgba(10,132,255,.85), rgba(10,100,220,.90))', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                     </button>
                   ) : (
                     /* Mic button */
                     <button onClick={handleVoiceToggle}
-                      style={{ width: 44, height: 44, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
+                      style={{ width: 34, height: 34, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="1" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                     </button>
                   )}
