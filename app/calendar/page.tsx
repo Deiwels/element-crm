@@ -973,12 +973,21 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!isMobile) return
     const el = scrollContainerRef.current; if (!el) return
-    function onTouchStart(e: TouchEvent) { swipeRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY } }
+    function onTouchStart(e: TouchEvent) {
+      const x = e.touches[0].clientX
+      // Ignore if starting from left edge (sidebar swipe area)
+      if (x < 40) { swipeRef.current = null; return }
+      swipeRef.current = { startX: x, startY: e.touches[0].clientY }
+    }
     function onTouchEnd(e: TouchEvent) {
       if (!swipeRef.current) return
+      // Don't swipe calendar if sidebar is being swiped
+      if (document.body.getAttribute('data-sidebar-swiping') === '1') { swipeRef.current = null; return }
       const dx = e.changedTouches[0].clientX - swipeRef.current.startX
       const dy = e.changedTouches[0].clientY - swipeRef.current.startY
       swipeRef.current = null
+      // Ignore swipe if started from left edge (sidebar area)
+      if (swipeRef.current === null && e.changedTouches[0].clientX < 50 && dx > 0) return
       if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return
       animateDayChange(dx < 0 ? 1 : -1)
     }

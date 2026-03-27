@@ -311,27 +311,43 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   const [unreadChat, setUnreadChat] = useState<string | null>(null) // color of latest unread chat type
   const pathname = usePathname()
 
-  // Swipe to open/close sidebar
+  // Swipe to open/close sidebar — sets flag to block other swipe handlers
   useEffect(() => {
-    let startX = 0, startY = 0
+    let startX = 0, startY = 0, isSidebarSwipe = false
     const onTouchStart = (e: TouchEvent) => {
       const t = e.touches[0]; if (!t) return
       startX = t.clientX; startY = t.clientY
+      // Mark as sidebar swipe if starting from left edge or sidebar is open
+      isSidebarSwipe = startX < 40 || sidebarOpen
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isSidebarSwipe) return
+      const t = e.touches[0]; if (!t) return
+      const dx = t.clientX - startX
+      // If swiping horizontally from left edge, prevent other handlers
+      if (Math.abs(dx) > 10 && (startX < 40 || sidebarOpen)) {
+        document.body.setAttribute('data-sidebar-swiping', '1')
+      }
     }
     const onTouchEnd = (e: TouchEvent) => {
       const t = e.changedTouches[0]; if (!t) return
       const dx = t.clientX - startX, dy = t.clientY - startY
+      document.body.removeAttribute('data-sidebar-swiping')
+      if (!isSidebarSwipe) return
+      isSidebarSwipe = false
       if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return
       if (dx > 0 && startX < 40) setSidebarOpen(true)
-      if (dx < 0) setSidebarOpen(false)
+      if (dx < 0 && sidebarOpen) setSidebarOpen(false)
     }
     document.addEventListener('touchstart', onTouchStart, { passive: true })
+    document.addEventListener('touchmove', onTouchMove, { passive: true })
     document.addEventListener('touchend', onTouchEnd, { passive: true })
     return () => {
       document.removeEventListener('touchstart', onTouchStart)
+      document.removeEventListener('touchmove', onTouchMove)
       document.removeEventListener('touchend', onTouchEnd)
     }
-  }, [])
+  }, [sidebarOpen])
 
   useEffect(() => {
     const token = localStorage.getItem('ELEMENT_TOKEN')
