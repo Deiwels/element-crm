@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import Shell from '@/components/Shell'
 import { BookingModal } from '@/app/calendar/booking-modal'
+import ImageCropper from '@/components/ImageCropper'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 
@@ -236,6 +237,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
   const [radarValues, setRadarValues] = useState((b.radarValues || [4.5,4.5,4.5,4.5,4.5]).join(','))
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
+  const [cropSrc, setCropSrc] = useState('')
   const [sched, setSched] = useState<DaySchedule[]>(() => {
     const raw = b.schedule || b.work_schedule
     // Per-day array format
@@ -282,7 +284,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
         canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
         let q = 0.82, out = canvas.toDataURL('image/jpeg', q)
         while (out.length > 900000 && q > 0.35) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q) }
-        setPhotoPreview(out)
+        setCropSrc(out)
       }
       img.src = reader.result as string
     }
@@ -390,6 +392,7 @@ function BarberEditCard({ b, onDelete, onSaved, onError, isBarberSelf }: {
           </button>
         </div>
       </div>
+      {cropSrc && <ImageCropper src={cropSrc} onSave={(url) => { setPhotoPreview(url); setCropSrc('') }} onClose={() => setCropSrc('')} />}
     </div>
   )
 }

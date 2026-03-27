@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { clearAuthCookie } from '@/lib/auth-cookie'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import ImageCropper from '@/components/ImageCropper'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 const API_KEY = 'R1403ss81fxrx*rx1403'
@@ -96,6 +97,7 @@ function ProfileModal({ user, onClose, onUpdated }: {
 }) {
   const [name, setName] = useState(user.name || '')
   const [photo, setPhoto] = useState(user.photo || '')
+  const [cropSrc, setCropSrc] = useState('')
   const [currentPw, setCurrentPw] = useState('')
   const [newPw, setNewPw] = useState('')
   const [saving, setSaving] = useState(false)
@@ -129,7 +131,7 @@ function ProfileModal({ user, onClose, onUpdated }: {
         canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
         let q = 0.82, out = canvas.toDataURL('image/jpeg', q)
         while (out.length > 900000 && q > 0.35) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q) }
-        setPhoto(out)
+        setCropSrc(out)
       }
       img.src = reader.result as string
     }
@@ -295,6 +297,7 @@ function ProfileModal({ user, onClose, onUpdated }: {
           {err && <div style={{ fontSize: 12, color: '#ffd0d0', padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(255,107,107,.22)', background: 'rgba(255,107,107,.06)' }}>{err}</div>}
         </div>
       </div>
+      {cropSrc && <ImageCropper src={cropSrc} onSave={(url) => { setPhoto(url); setCropSrc('') }} onClose={() => setCropSrc('')} shape="circle" />}
     </div>
   )
 }
