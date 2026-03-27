@@ -94,6 +94,7 @@ export default function DashboardPage() {
   const [clockError, setClockError] = useState('')
   const [clockSuccess, setClockSuccess] = useState<'in'|'out'|null>(null)
   const [clockErrorAnim, setClockErrorAnim] = useState(false)
+  const [clockOutSummary, setClockOutSummary] = useState<{ hours: string; earnings: string; tips: string; clients: number; services: string } | null>(null)
   const [elapsedStr, setElapsedStr] = useState('')
   const [staffOnClock, setStaffOnClock] = useState<any[]>([])
   const [attHistory, setAttHistory] = useState<any[]>([])
@@ -333,9 +334,36 @@ export default function DashboardPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
-      // Show success animation
-      setClockSuccess(wasClocked ? 'out' : 'in')
-      setTimeout(() => { setClockSuccess(null); loadAll() }, 1400)
+      if (wasClocked) {
+        // Clock out — fetch today's payroll for summary
+        try {
+          const today = isoToday()
+          const pr = await fetch(`${API}/api/payroll?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`, { credentials: 'include', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
+          const prData = await pr.json()
+          const uid = user?.barber_id || user?.uid || ''
+          const mine = (prData?.barbers || []).find((b: any) => b.barber_id === uid)
+          const totalMins = data?.duration_minutes || todayMinutes
+          const h = Math.floor(totalMins / 60)
+          const m = totalMins % 60
+          setClockOutSummary({
+            hours: h > 0 ? `${h}h ${m}m` : `${m}m`,
+            earnings: money(mine?.barber_total || 0),
+            tips: money(mine?.tips_total || 0),
+            clients: mine?.client_count || 0,
+            services: money(mine?.barber_service_share || 0),
+          })
+        } catch {
+          const totalMins = data?.duration_minutes || todayMinutes
+          const h = Math.floor(totalMins / 60)
+          const m = totalMins % 60
+          setClockOutSummary({ hours: h > 0 ? `${h}h ${m}m` : `${m}m`, earnings: '—', tips: '—', clients: 0, services: '—' })
+        }
+        setClockSuccess('out')
+        setTimeout(() => { setClockSuccess(null); setClockOutSummary(null); loadAll() }, 3500)
+      } else {
+        setClockSuccess('in')
+        setTimeout(() => { setClockSuccess(null); loadAll() }, 1400)
+      }
     } catch (err: any) {
       let msg = err?.message || 'Clock action failed'
       if (err?.code === 1) msg = 'Location access denied. Enable GPS.'
@@ -418,6 +446,20 @@ export default function DashboardPage() {
           .clock-out-success-card { animation: clockCheckIn .45s cubic-bezier(.16,1.2,.3,1) both, clockOutGlow 1.4s ease-out both; }
           .clock-btn-morph { transition: all .4s cubic-bezier(.4,0,.2,1); }
           .clock-btn-morph:active { transform: scale(.92) }
+          @keyframes clockSummaryIn {
+            0% { opacity: 0; transform: scale(.92) }
+            100% { opacity: 1; transform: scale(1) }
+          }
+          @keyframes clockSummaryItem {
+            0% { opacity: 0; transform: translateY(8px) }
+            100% { opacity: 1; transform: translateY(0) }
+          }
+          .clock-summary { animation: clockSummaryIn .4s cubic-bezier(.16,1,.3,1) both }
+          .clock-summary-item { animation: clockSummaryItem .3s ease-out both }
+          .clock-summary-item:nth-child(1) { animation-delay: .15s }
+          .clock-summary-item:nth-child(2) { animation-delay: .25s }
+          .clock-summary-item:nth-child(3) { animation-delay: .35s }
+          .clock-summary-item:nth-child(4) { animation-delay: .45s }
           @keyframes radarSweep {
             0% { transform: rotate(0deg) }
             100% { transform: rotate(720deg) }
@@ -455,17 +497,48 @@ export default function DashboardPage() {
             .dash-container { padding: 12px 10px 40px !important; }
           }
         `}</style>
-        <div className={clockSuccess === 'in' ? 'clock-success-card' : clockSuccess === 'out' ? 'clock-out-success-card' : ''} style={{ borderRadius: 18, border: `1px solid ${clockSuccess === 'in' ? 'rgba(143,240,177,.50)' : clockSuccess === 'out' ? 'rgba(255,107,107,.40)' : clockedIn ? 'rgba(143,240,177,.25)' : 'rgba(255,255,255,.10)'}`, background: clockSuccess === 'in' ? 'linear-gradient(180deg,rgba(143,240,177,.14),rgba(143,240,177,.04))' : clockSuccess === 'out' ? 'linear-gradient(180deg,rgba(255,107,107,.10),rgba(255,107,107,.02))' : clockedIn ? 'linear-gradient(180deg,rgba(143,240,177,.06),rgba(143,240,177,.01))' : 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', boxShadow: '0 10px 40px rgba(0,0,0,.35)', padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', transition: 'border-color .4s, background .4s' }}>
+        {/* Clock out summary overlay */}
+        {clockSuccess === 'out' && clockOutSummary ? (
+          <div className="clock-summary" style={{ borderRadius: 18, border: '1px solid rgba(143,240,177,.30)', background: 'linear-gradient(180deg,rgba(143,240,177,.08),rgba(0,0,0,.40))', boxShadow: '0 10px 40px rgba(0,0,0,.35), 0 0 20px rgba(143,240,177,.10)', padding: '20px 18px', marginBottom: 14 }}>
+            {/* Header with checkmark */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <svg width="32" height="32" viewBox="0 0 60 60">
+                <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(143,240,177,.60)" strokeWidth="2.5" strokeDasharray="160" strokeDashoffset="160" strokeLinecap="round" style={{ animation: 'clockRingDraw .5s ease-out .1s forwards' }} />
+                <polyline points="20,32 27,39 40,24" fill="none" stroke="#8ff0b1" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="32" strokeDashoffset="32" style={{ animation: 'clockCheckDraw .3s ease-out .35s forwards' }} />
+              </svg>
+              <div>
+                <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.14em', textTransform: 'uppercase', fontSize: 14, color: '#c9ffe1' }}>Done!</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginTop: 2 }}>{clockOutSummary.hours} <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,.45)' }}>today</span></div>
+              </div>
+            </div>
+            {/* Stats grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div className="clock-summary-item" style={{ padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
+                <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 4 }}>Earnings</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#8ff0b1' }}>{clockOutSummary.earnings}</div>
+              </div>
+              <div className="clock-summary-item" style={{ padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
+                <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 4 }}>Tips</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#ffcf3f' }}>{clockOutSummary.tips}</div>
+              </div>
+              <div className="clock-summary-item" style={{ padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
+                <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 4 }}>Services</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#d7ecff' }}>{clockOutSummary.services}</div>
+              </div>
+              <div className="clock-summary-item" style={{ padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
+                <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 4 }}>Clients</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>{clockOutSummary.clients}</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+        <div className={clockSuccess === 'in' ? 'clock-success-card' : ''} style={{ borderRadius: 18, border: `1px solid ${clockSuccess === 'in' ? 'rgba(143,240,177,.50)' : clockedIn ? 'rgba(143,240,177,.25)' : 'rgba(255,255,255,.10)'}`, background: clockSuccess === 'in' ? 'linear-gradient(180deg,rgba(143,240,177,.14),rgba(143,240,177,.04))' : clockedIn ? 'linear-gradient(180deg,rgba(143,240,177,.06),rgba(143,240,177,.01))' : 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', boxShadow: '0 10px 40px rgba(0,0,0,.35)', padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', transition: 'border-color .4s, background .4s' }}>
           {/* Status icon / Success checkmark */}
-          {clockSuccess ? (
+          {clockSuccess === 'in' ? (
             <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="32" height="32" viewBox="0 0 60 60">
-                <circle cx="30" cy="30" r="24" fill="none" stroke={clockSuccess === 'in' ? 'rgba(143,240,177,.70)' : 'rgba(255,107,107,.60)'} strokeWidth="2.5" strokeDasharray="160" strokeDashoffset="160" strokeLinecap="round" style={{ animation: 'clockRingDraw .5s ease-out .1s forwards' }} />
-                {clockSuccess === 'in' ? (
-                  <polyline points="20,32 27,39 40,24" fill="none" stroke="#8ff0b1" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="32" strokeDashoffset="32" style={{ animation: 'clockCheckDraw .3s ease-out .35s forwards' }} />
-                ) : (
-                  <polyline points="20,32 27,39 40,24" fill="none" stroke="#ff6b6b" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="32" strokeDashoffset="32" style={{ animation: 'clockCheckDraw .3s ease-out .35s forwards' }} />
-                )}
+                <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(143,240,177,.70)" strokeWidth="2.5" strokeDasharray="160" strokeDashoffset="160" strokeLinecap="round" style={{ animation: 'clockRingDraw .5s ease-out .1s forwards' }} />
+                <polyline points="20,32 27,39 40,24" fill="none" stroke="#8ff0b1" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="32" strokeDashoffset="32" style={{ animation: 'clockCheckDraw .3s ease-out .35s forwards' }} />
               </svg>
             </div>
           ) : (
@@ -479,8 +552,8 @@ export default function DashboardPage() {
           <div style={{ flex: 1, minWidth: 120 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {clockedIn && !clockSuccess && <span style={{ width: 8, height: 8, borderRadius: 999, background: '#8ff0b1', display: 'inline-block', animation: 'clockDot 2s ease-in-out infinite' }} />}
-              <span style={{ fontWeight: 800, fontSize: 14, color: clockSuccess === 'in' ? '#8ff0b1' : clockSuccess === 'out' ? '#ffd0d0' : clockedIn ? '#c9ffe1' : 'rgba(255,255,255,.70)', transition: 'color .3s' }}>
-                {clockSuccess === 'in' ? 'Clocked in!' : clockSuccess === 'out' ? 'Clocked out!' : clockedIn ? `Clocked in since ${clockInSince}` : 'Not clocked in'}
+              <span style={{ fontWeight: 800, fontSize: 14, color: clockSuccess === 'in' ? '#8ff0b1' : clockedIn ? '#c9ffe1' : 'rgba(255,255,255,.70)', transition: 'color .3s' }}>
+                {clockSuccess === 'in' ? 'Clocked in!' : clockedIn ? `Clocked in since ${clockInSince}` : 'Not clocked in'}
               </span>
             </div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
@@ -492,7 +565,7 @@ export default function DashboardPage() {
           {!clockSuccess && (
             <button onClick={handleClockAction} disabled={clockLoading} className="clock-btn-morph"
               style={{
-                height: 44, padding: clockedIn ? '0 16px' : '0 22px', borderRadius: 999, cursor: clockLoading ? 'wait' : 'pointer',
+                height: 44, padding: '0 22px', borderRadius: 999, cursor: clockLoading ? 'wait' : 'pointer',
                 fontWeight: 900, fontSize: 13, fontFamily: 'inherit', letterSpacing: '.04em', textTransform: 'uppercase',
                 border: `1px solid ${clockedIn ? 'rgba(255,107,107,.45)' : 'rgba(143,240,177,.45)'}`,
                 background: clockedIn ? 'rgba(255,107,107,.12)' : 'rgba(143,240,177,.12)',
@@ -500,14 +573,12 @@ export default function DashboardPage() {
                 opacity: clockLoading ? .5 : 1,
                 animation: !clockLoading && !clockedIn ? 'clockPulse 2.6s ease-in-out infinite' : 'none',
                 flexShrink: 0,
-                display: 'flex', alignItems: 'center', gap: 8,
               }}>
-              {clockLoading ? 'Locating…' : clockedIn ? (
-                <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>{elapsedStr || 'Clock Out'}</>
-              ) : 'Clock In'}
+              {clockLoading ? 'Locating…' : clockedIn ? 'Clock Out' : 'Clock In'}
             </button>
           )}
         </div>
+        )}
 
         {/* Radar error overlay */}
         {clockErrorAnim && (
