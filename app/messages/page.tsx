@@ -38,6 +38,7 @@ interface Message {
   text: string
   imageUrl?: string
   createdAt: string
+  reactions?: Record<string, string[]>
 }
 
 interface Request {
@@ -101,11 +102,35 @@ const ROLE_COLORS: Record<string, string> = {
   owner: '#ffe9a3', admin: '#c9ffe1', barber: '#d7ecff', student: '#d4b8ff'
 }
 
+// ─── Reaction emojis ─────────────────────────────────────────────────────────
+const REACTION_EMOJIS = ['👍', '❤️', '😂', '🔥', '👏', '😢']
+
 // ─── MessageBubble ───────────────────────────────────────────────────────────
-function MessageBubble({ msg, isOwn, onImageClick, isGrouped }: { msg: Message; isOwn: boolean; onImageClick?: (url: string) => void; isGrouped?: boolean }) {
+function MessageBubble({ msg, isOwn, onImageClick, isGrouped, onReaction, myUid }: { msg: Message; isOwn: boolean; onImageClick?: (url: string) => void; isGrouped?: boolean; onReaction?: (msgId: string, emoji: string) => void; myUid?: string }) {
   const roleColor = ROLE_COLORS[msg.senderRole] || '#e9e9e9'
+  const [showReactions, setShowReactions] = React.useState(false)
+  const longPressRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didLongPress = React.useRef(false)
+
+  function onPointerDown() {
+    didLongPress.current = false
+    longPressRef.current = setTimeout(() => {
+      didLongPress.current = true
+      setShowReactions(true)
+    }, 500)
+  }
+  function onPointerUp() {
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null }
+  }
+  function onPointerLeave() {
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null }
+  }
+
+  const reactions = msg.reactions || {}
+  const hasReactions = Object.keys(reactions).length > 0
+
   return (
-    <div className="msg-bubble-wrap" style={{ display: 'flex', flexDirection: isOwn ? 'row-reverse' : 'row', gap: isGrouped ? 0 : 10, alignItems: 'flex-end', marginBottom: isGrouped ? 2 : 8, padding: '0 16px' }}>
+    <div className="msg-bubble-wrap" style={{ display: 'flex', flexDirection: isOwn ? 'row-reverse' : 'row', gap: isGrouped ? 0 : 10, alignItems: 'flex-end', marginBottom: isGrouped ? 2 : (hasReactions ? 28 : 8), padding: '0 16px', position: 'relative' }}>
       {/* Avatar — hidden when grouped */}
       {!isGrouped ? (
         msg.senderPhoto ? (
@@ -117,7 +142,9 @@ function MessageBubble({ msg, isOwn, onImageClick, isGrouped }: { msg: Message; 
         )
       ) : <div style={{ width: 30, flexShrink: 0 }} />}
       {/* Bubble with tail */}
-      <div style={{ maxWidth: '72%', position: 'relative' }}>
+      <div style={{ maxWidth: '72%', position: 'relative' }}
+        onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerLeave={onPointerLeave}
+        onContextMenu={e => { e.preventDefault(); setShowReactions(true) }}>
         {/* Tail — only on last message (not grouped) */}
         {!isGrouped && (
           <div style={{
@@ -137,6 +164,7 @@ function MessageBubble({ msg, isOwn, onImageClick, isGrouped }: { msg: Message; 
           backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
           border: `1px solid ${isOwn ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.06)'}`,
           boxShadow: '0 2px 8px rgba(0,0,0,.15)',
+          userSelect: 'none' as const, WebkitUserSelect: 'none' as const,
         }}>
           {!isOwn && !isGrouped && (
             <div style={{ fontSize: 10, fontWeight: 800, color: roleColor, marginBottom: 3, letterSpacing: '.04em' }}>
@@ -145,12 +173,58 @@ function MessageBubble({ msg, isOwn, onImageClick, isGrouped }: { msg: Message; 
           )}
           {msg.text && <div style={{ fontSize: 13, lineHeight: 1.5, color: '#e9e9e9', wordBreak: 'break-word' }}>{msg.text}</div>}
           {msg.imageUrl && (
-            <img src={msg.imageUrl} alt="" onClick={() => onImageClick?.(msg.imageUrl!)}
+            <img src={msg.imageUrl} alt="" onClick={() => { if (!didLongPress.current) onImageClick?.(msg.imageUrl!) }}
               style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 10, marginTop: msg.text ? 6 : 0, cursor: 'pointer', objectFit: 'cover', border: '1px solid rgba(255,255,255,.08)' }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
           )}
           <div style={{ fontSize: 9, color: 'rgba(255,255,255,.20)', marginTop: 3, textAlign: isOwn ? 'right' : 'left' }}>{timeAgo(msg.createdAt)}</div>
         </div>
+
+        {/* Reaction badges under bubble */}
+        {hasReactions && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4, ...(isOwn ? { justifyContent: 'flex-end' } : {}) }}>
+            {Object.entries(reactions).map(([emoji, uids]) => {
+              const isMine = myUid ? uids.includes(myUid) : false
+              return (
+                <button key={emoji} onClick={() => onReaction?.(msg.id, emoji)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, height: 24, padding: '0 7px', borderRadius: 999,
+                    border: `1px solid ${isMine ? 'rgba(10,132,255,.45)' : 'rgba(255,255,255,.12)'}`,
+                    background: isMine ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.06)',
+                    cursor: 'pointer', fontSize: 12, color: '#e9e9e9', fontFamily: 'inherit',
+                    transition: 'all .2s ease',
+                  }}>
+                  <span>{emoji}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: isMine ? '#d7ecff' : 'rgba(255,255,255,.50)' }}>{uids.length}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Reaction picker popup */}
+        {showReactions && (
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setShowReactions(false)} />
+            <div style={{
+              position: 'absolute', bottom: '100%', marginBottom: 6,
+              ...(isOwn ? { right: 0 } : { left: 0 }),
+              display: 'flex', gap: 4, padding: '6px 10px', borderRadius: 999,
+              background: 'rgba(20,20,20,.92)', border: '1px solid rgba(255,255,255,.14)',
+              backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+              boxShadow: '0 8px 32px rgba(0,0,0,.6)', zIndex: 999,
+              animation: 'reactionPopIn .2s ease',
+            }}>
+              {REACTION_EMOJIS.map(emoji => (
+                <button key={emoji} onClick={() => { onReaction?.(msg.id, emoji); setShowReactions(false) }}
+                  style={{ width: 36, height: 36, borderRadius: 999, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform .15s ease' }}
+                  onPointerDown={e => (e.currentTarget.style.transform = 'scale(1.3)')}
+                  onPointerUp={e => (e.currentTarget.style.transform = 'scale(1)')}>
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -379,6 +453,17 @@ export default function MessagesPage() {
     } catch { /* ignore */ }
   }, [activeTab])
 
+  // Toggle reaction on a message
+  async function handleReaction(msgId: string, emoji: string) {
+    try {
+      const data = await apiFetch(`/api/messages/${encodeURIComponent(msgId)}/reactions`, {
+        method: 'PATCH', body: JSON.stringify({ emoji })
+      })
+      // Update local state
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions: data.reactions || {} } : m))
+    } catch {}
+  }
+
   // Load requests
   const loadRequests = useCallback(async () => {
     try {
@@ -529,6 +614,10 @@ export default function MessagesPage() {
           50% { box-shadow: 0 0 12px 3px rgba(10,132,255,.35); }
         }
         .msg-send-pulse { animation: sendPulse 1.8s ease-in-out infinite; }
+        @keyframes reactionPopIn {
+          0% { opacity: 0; transform: scale(.6) translateY(8px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
       `}</style>
 
       <div className="msg-container" style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Inter,sans-serif', color: '#e9e9e9' }}>
@@ -645,7 +734,7 @@ export default function MessagesPage() {
               {messages.map((msg, i) => {
                 const prev = i > 0 ? messages[i - 1] : null
                 const isGrouped = prev?.senderId === msg.senderId && prev?.senderName === msg.senderName
-                return <MessageBubble key={msg.id} msg={msg} isOwn={msg.senderId === uid} onImageClick={url => setLightboxUrl(url)} isGrouped={isGrouped} />
+                return <MessageBubble key={msg.id} msg={msg} isOwn={msg.senderId === uid} onImageClick={url => setLightboxUrl(url)} isGrouped={isGrouped} onReaction={handleReaction} myUid={uid} />
               })}
             </div>
             {imagePreview && (
