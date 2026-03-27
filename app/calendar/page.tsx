@@ -1423,6 +1423,23 @@ export default function CalendarPage() {
         }
         .day-transition-out { animation: gravityOut .18s cubic-bezier(.4,0,1,.6) forwards; pointer-events: none; }
         .day-transition-in { animation: gravityIn .22s cubic-bezier(0,.4,.2,1) forwards; }
+        /* Drag lift + neon + tilt */
+        @keyframes dragLift {
+          0% { transform: scale(1) perspective(600px) rotateX(0deg); box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+          100% { transform: scale(1.06) perspective(600px) rotateX(0deg); box-shadow: 0 16px 40px rgba(0,0,0,.50), 0 0 20px rgba(10,132,255,.30); }
+        }
+        .cal-event-dragging {
+          animation: dragLift .2s ease-out forwards !important;
+          border: 1.5px solid rgba(10,132,255,.70) !important;
+          z-index: 50 !important;
+          opacity: 1 !important;
+          filter: brightness(1.15);
+        }
+        .cal-event-drag-ghost {
+          border: 2px dashed rgba(10,132,255,.50) !important;
+          background: rgba(10,132,255,.08) !important;
+          box-shadow: 0 0 16px rgba(10,132,255,.20), inset 0 0 12px rgba(10,132,255,.06);
+        }
         /* Date dot morph + glow animations */
         @keyframes dotPillGlow {
           0%, 100% { box-shadow: 0 2px 8px rgba(255,255,255,.15); }
@@ -1782,7 +1799,7 @@ export default function CalendarPage() {
                     {/* Ghost */}
                     {drag?.ghostBarberIdx===bi && (() => {
                       const dragEv = events.find(e => e.id === drag.eventId); if (!dragEv) return null
-                      return <div style={{ position: 'absolute', left: 8, right: 8, top: minToY(drag.ghostMin), height: Math.max(slotH*6, (dragEv.durMin/5)*slotH)-2, borderRadius: 14, border: '2px solid rgba(10,132,255,.75)', background: 'rgba(10,132,255,.12)', pointerEvents: 'none', zIndex: 40 }}><div style={{ padding: '6px 10px', fontWeight: 900, fontSize: 11, color: '#d7ecff' }}>{dragEv.clientName} — {minToAMPM(drag.ghostMin)}</div></div>
+                      return <div className="cal-event-drag-ghost" style={{ position: 'absolute', left: 8, right: 8, top: minToY(drag.ghostMin), height: Math.max(slotH*6, (dragEv.durMin/5)*slotH)-2, borderRadius: 14, pointerEvents: 'none', zIndex: 40 }}><div style={{ padding: '6px 10px', fontWeight: 900, fontSize: 11, color: '#d7ecff' }}>{dragEv.clientName} — {minToAMPM(drag.ghostMin)}</div></div>
                     })()}
                     {/* Block drag ghost */}
                     {blockDrag?.barberIdx === bi && (() => {
@@ -1804,7 +1821,7 @@ export default function CalendarPage() {
                       const approvedDur = (ev as any)._approvedDur || (isPending ? 0 : ev.durMin)
                       const hasPendingExtension = !isPending && (ev as any)._pendingResize && approvedDur > 0 && ev.durMin > approvedDur
                       if (isBlock) return (
-                        <div key={ev.id} style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'visible', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'grab') : 'default', opacity: drag?.eventId===ev.id ? 0.5 : 1, userSelect: 'none' }}
+                        <div key={ev.id} className={drag?.eventId===ev.id ? 'cal-event-dragging' : ''} style={{ position: 'absolute', left: 4, right: 4, top, height: height-2, borderRadius: 10, zIndex: drag?.eventId===ev.id ? 50 : 3, overflow: 'visible', cursor: isOwnerOrAdmin ? (drag?.eventId===ev.id ? 'grabbing' : 'grab') : 'default', userSelect: 'none', transition: 'transform .15s, box-shadow .15s' }}
                           onMouseDown={e => { if (!isOwnerOrAdmin || e.button!==0) return; e.stopPropagation(); startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!isOwnerOrAdmin) return; e.stopPropagation(); clearTimeout(eventLongPressTimer.current); const touch = e.touches[0]; const evCopy = ev; const biCopy = bi; eventLongPressTimer.current = setTimeout(() => { const fakeEvt = { preventDefault(){}, stopPropagation(){}, touches: [touch] } as any; startDrag(fakeEvt, evCopy, biCopy) }, 400) }}
                           onTouchEnd={() => clearTimeout(eventLongPressTimer.current)}
@@ -1869,8 +1886,8 @@ export default function CalendarPage() {
                       const tinyCol = isMobile && pageBarbers.length > 2
                       const isArrived = ev.status === 'arrived'
                       return (
-                        <div key={ev.id} className={`cal-event${isArrived ? ' arrived-pulse' : ''}`}
-                          style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, ...(isArrived ? {} : { border: `1px solid ${drag?.eventId===ev.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.10)'}`, background: (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}26,${barber.color}12)` }), padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, opacity: drag?.eventId===ev.id ? 0.5 : 1, transition: 'opacity .15s' }}
+                        <div key={ev.id} className={`cal-event${isArrived ? ' arrived-pulse' : ''}${drag?.eventId===ev.id ? ' cal-event-dragging' : ''}`}
+                          style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, ...(isArrived ? {} : drag?.eventId===ev.id ? {} : { border: `1px solid rgba(255,255,255,.10)`, background: (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}26,${barber.color}12)` }), padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, transition: 'transform .15s, box-shadow .15s' }}
                           onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; e.stopPropagation(); clearTimeout(eventLongPressTimer.current); const touch = e.touches[0]; const evCopy = ev; const biCopy = bi; eventLongPressTimer.current = setTimeout(() => { const fakeEvt = { preventDefault(){}, stopPropagation(){}, touches: [touch] } as any; startDrag(fakeEvt, evCopy, biCopy) }, 400) }}
                           onTouchEnd={() => clearTimeout(eventLongPressTimer.current)}
