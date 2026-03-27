@@ -980,23 +980,27 @@ export function BookingModal({
     }
   }, [isOpen, existingEvent?.id, barberId, startMin])
 
-  // When barber changes, remap services to the new barber's equivalent (by name)
-  useEffect(() => {
-    if (!serviceIds.length) return
-    const newBarberSvcs = services.filter(s => !s.barberIds.length || s.barberIds.includes(selBarberId))
-    setServiceIds(prev => {
-      const remapped = prev.map(id => {
-        // Already available for new barber? Keep it
-        if (newBarberSvcs.some(s => s.id === id)) return id
-        // Find equivalent by name
-        const oldSvc = services.find(s => s.id === id)
-        if (!oldSvc) return null
-        const match = newBarberSvcs.find(s => s.name.toLowerCase() === oldSvc.name.toLowerCase())
-        return match ? match.id : null
-      }).filter(Boolean) as string[]
-      return remapped
-    })
-  }, [selBarberId])
+  // Remap services when barber changes — find equivalent services by name
+  function remapServicesForBarber(newBarberId: string, currentServiceIds: string[]) {
+    if (!currentServiceIds.length) return currentServiceIds
+    const newBarberSvcs = services.filter(s => !s.barberIds.length || s.barberIds.includes(newBarberId))
+    const remapped = currentServiceIds.map(id => {
+      // Already available for new barber? Keep it
+      if (newBarberSvcs.some(s => s.id === id)) return id
+      // Find equivalent by name
+      const oldSvc = services.find(s => s.id === id)
+      if (!oldSvc) return null
+      const match = newBarberSvcs.find(s => s.name.toLowerCase() === oldSvc.name.toLowerCase())
+      return match ? match.id : null
+    }).filter(Boolean) as string[]
+    return remapped
+  }
+
+  function handleBarberChange(newBarberId: string) {
+    const remapped = remapServicesForBarber(newBarberId, serviceIds)
+    setSelBarberId(newBarberId)
+    setServiceIds(remapped)
+  }
 
   const selectedSvcs = services.filter(s => serviceIds.includes(s.id))
   const durMin = isModelEvent ? 90 : (selectedSvcs.length > 0 ? selectedSvcs.reduce((sum, s) => sum + (s.durationMin || 30), 0) : 30)
@@ -1259,7 +1263,7 @@ export function BookingModal({
                 {/* Barber */}
                 <div className="bm-section">
                   <label style={lbl}>Barber</label>
-                  <select value={selBarberId} onChange={e => setSelBarberId(e.target.value)}
+                  <select value={selBarberId} onChange={e => handleBarberChange(e.target.value)}
                     disabled={!isOwnerOrAdmin}
                     className="bm-input"
                     style={{ ...inp, opacity: isOwnerOrAdmin ? 1 : 0.6, cursor: isOwnerOrAdmin ? 'auto' : 'not-allowed', maxWidth: 220 }}>
