@@ -2067,8 +2067,9 @@ export default function CalendarPage() {
                           onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
                           {tinyCol ? (<>
                             <div style={{ fontWeight: 900, fontSize: 9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.clientName.split(' ')[0]}</div>
-                            {height > 30 && <div style={{ fontSize: 8, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToAMPM(ev.startMin)}</div>}
-                            {height > 44 && <div style={{ fontSize: 8, color: ev.paid ? 'rgba(143,240,177,.70)' : 'rgba(255,255,255,.40)' }}>{ev.paid ? '✓' : ev.status?.charAt(0).toUpperCase()}</div>}
+                            {height > 24 && <div style={{ fontSize: 7, color: 'rgba(255,255,255,.45)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToAMPM(ev.startMin)}</div>}
+                            {height > 36 && ev.serviceName && ev.serviceName !== 'Service' && <div style={{ fontSize: 7, color: 'rgba(255,255,255,.35)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.serviceName.split(' + ')[0]}</div>}
+                            {height > 48 && <div style={{ fontSize: 7, color: ev.paid ? 'rgba(143,240,177,.70)' : 'rgba(255,255,255,.30)' }}>{ev.paid ? '✓' : ev.status?.charAt(0).toUpperCase()}</div>}
                           </>) : (<>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
                             <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>{ev.clientName}{ev._raw?.client_status === 'vip' ? <span style={{ fontSize: 8, fontWeight: 900, color: '#ffd700', background: 'rgba(255,215,0,.18)', border: '1px solid rgba(255,215,0,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>VIP</span> : ev._raw?.client_status === 'new' ? <span style={{ fontSize: 8, fontWeight: 900, color: '#7abaff', background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>NEW</span> : ev._raw?.client_status === 'at_risk' ? <span style={{ fontSize: 9, fontWeight: 900, color: '#ff6b6b', background: 'rgba(255,107,107,.18)', border: '1px solid rgba(255,107,107,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>!</span> : ev._raw?.client_status === 'active' ? <span style={{ width: 5, height: 5, borderRadius: 999, background: '#8ff0b1', flexShrink: 0 }} /> : null}</div>
@@ -2084,7 +2085,10 @@ export default function CalendarPage() {
                               )}
                             </div>
                           </div>
-                          {height > 40 && <div style={{ marginTop: 3, fontSize: 11, color: 'rgba(255,255,255,.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToAMPM(ev.startMin)} · {ev.serviceName}</div>}
+                          <div style={{ marginTop: 2, fontSize: height > 40 ? 11 : 9, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                            {minToAMPM(ev.startMin)}
+                            {ev.serviceName && ev.serviceName !== 'Service' && <span style={{ color: 'rgba(255,255,255,.40)' }}> · {ev.serviceName}</span>}
+                          </div>
                           </>)}
                         </div>
                       )
