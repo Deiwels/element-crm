@@ -1279,10 +1279,14 @@ export default function CalendarPage() {
         const startAt = new Date(todayStr + 'T' + minToHHMM(clamp(startMin)) + ':00')
         const endAt = new Date(startAt.getTime() + duration * 60000)
         const barber = barbers.find(b => b.id === barberId)
-        await apiFetch('/api/requests', {
+        const reqData = { barber_id: barberId, barberId, barberName: barber?.name || '', date: todayStr, startMin, duration, start_min: startMin, duration_min: duration, startAt: startAt.toISOString(), endAt: endAt.toISOString() }
+        const res = await apiFetch('/api/requests', {
           method: 'POST',
-          body: JSON.stringify({ type: 'block_time', data: { barber_id: barberId, barberId, barberName: barber?.name || '', date: todayStr, startMin, duration, start_min: startMin, duration_min: duration, startAt: startAt.toISOString(), endAt: endAt.toISOString() } })
+          body: JSON.stringify({ type: 'block_time', data: reqData })
         })
+        // Immediately show pending block on calendar
+        const newReqId = res?.id || 'pending_' + Date.now()
+        setPendingBlockRequests(prev => [...prev, { id: newReqId, type: 'block_time', status: 'pending', data: reqData }])
         showToast('Block request sent for approval')
       } catch (e: any) { showToast('Failed to send request: ' + (e.message || 'Error')) }
       setBlockModal(null)
