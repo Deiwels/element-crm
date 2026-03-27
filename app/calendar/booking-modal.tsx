@@ -672,7 +672,8 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
     const totalAmount = Number(rawData.total_amount || serviceAmount)
     const rawBarberName = (ev as any).barberName || (ev._raw as any)?.barber_name || (ev._raw as any)?.barber || '—'
     const svcNames = (ev.serviceIds || []).map((id: string) => services.find(s => s.id === id)?.name).filter(Boolean).join(', ') || (ev as any).serviceName || (ev._raw as any)?.service_name || '—'
-    const timeStr = `${pad2(Math.floor((ev.startMin || 0) / 60))}:${pad2((ev.startMin || 0) % 60)}`
+    const evStartMin = Number((ev as any).startMin || (ev._raw as any)?.start_min || 0)
+    const timeStr = `${pad2(Math.floor(evStartMin / 60))}:${pad2(evStartMin % 60)}`
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1401,7 +1402,20 @@ export function BookingModal({
                   {!isNew && (
                     <div>
                       <label style={lbl}>Status</label>
-                      <select value={status} onChange={e => setStatus(e.target.value)} className="bm-input" style={inp}>
+                      <select value={status} onChange={e => {
+                        const newStatus = e.target.value
+                        setStatus(newStatus)
+                        // Auto-save and close for terminal statuses
+                        if (newStatus === 'cancelled' || newStatus === 'noshow') {
+                          if (window.confirm(`Mark as ${newStatus}? This will save and close.`)) {
+                            setTimeout(() => {
+                              onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: newStatus, notes, photoUrl }).catch(() => {})
+                            }, 50)
+                          } else {
+                            setStatus(status) // revert
+                          }
+                        }
+                      }} className="bm-input" style={inp}>
                         {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
