@@ -51,44 +51,74 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
   const COLORS = ['#ffffff','#000000','#ff3b30','#ff9500','#ffcc00','#34c759','#007aff','#af52de','#ff2d55','#8e8e93']
 
   useEffect(() => {
-    const img = new Image()
-    if (!src.startsWith('data:')) img.crossOrigin = 'anonymous'
-    img.onload = () => { imgRef.current = img; renderBase() }
-    img.onerror = () => {
-      // CORS failed — retry without crossOrigin via fetch+blob
-      fetch(src).then(r => r.blob()).then(blob => {
-        const img2 = new Image()
-        img2.onload = () => { imgRef.current = img2; renderBase() }
-        img2.src = URL.createObjectURL(blob)
-      }).catch(() => {})
+    // Convert any URL to a blob URL first to avoid CORS/tainted canvas issues
+    async function loadImg() {
+      let blobUrl = src
+      if (!src.startsWith('data:') && !src.startsWith('blob:')) {
+        try {
+          const r = await fetch(src, { mode: 'cors' })
+          const blob = await r.blob()
+          blobUrl = URL.createObjectURL(blob)
+        } catch {
+          // If CORS fetch fails, try no-cors (will be opaque but at least loads)
+          try {
+            const r2 = await fetch(src)
+            const blob = await r2.blob()
+            blobUrl = URL.createObjectURL(blob)
+          } catch { blobUrl = src }
+        }
+      }
+      const img = new Image()
+      img.onload = () => {
+        imgRef.current = img
+        // Force render with timeout to ensure refs are ready
+        setTimeout(() => {
+          const canvas = mainCanvasRef.current
+          if (!canvas || !img) return
+          const ctx = canvas.getContext('2d')!
+          canvas.width = img.width; canvas.height = img.height
+          cw.current = img.width; ch.current = img.height
+          ctx.drawImage(img, 0, 0)
+          // Sync draw canvas
+          const dc = drawCanvasRef.current
+          if (dc) { dc.width = img.width; dc.height = img.height }
+        }, 50)
+      }
+      img.src = blobUrl
     }
-    img.src = src
+    loadImg()
   }, [src])
 
   useEffect(() => { renderBase() }, [filter, rotation, brightness, contrast, saturation])
 
   function renderBase() {
     const canvas = mainCanvasRef.current; const img = imgRef.current
-    if (!canvas || !img) return
-    const ctx = canvas.getContext('2d')!
+    if (!canvas || !img || !img.naturalWidth) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
     const rotated = rotation % 180 !== 0
-    const w = rotated ? img.height : img.width
-    const h = rotated ? img.width : img.height
+    const w = rotated ? img.naturalHeight : img.naturalWidth
+    const h = rotated ? img.naturalWidth : img.naturalHeight
     canvas.width = w; canvas.height = h; cw.current = w; ch.current = h
+    ctx.clearRect(0, 0, w, h)
     ctx.save()
     ctx.translate(w / 2, h / 2)
     ctx.rotate((rotation * Math.PI) / 180)
     const f = FILTERS.find(x => x.id === filter)
-    const cssFilter = [f?.css || '', `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`].filter(Boolean).join(' ')
-    if (cssFilter) ctx.filter = cssFilter
-    ctx.drawImage(img, -img.width / 2, -img.height / 2)
+    const parts: string[] = []
+    if (f?.css) parts.push(f.css)
+    if (brightness !== 100) parts.push(`brightness(${brightness}%)`)
+    if (contrast !== 100) parts.push(`contrast(${contrast}%)`)
+    if (saturation !== 100) parts.push(`saturate(${saturation}%)`)
+    if (parts.length) ctx.filter = parts.join(' ')
+    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2)
     ctx.restore()
     // Sync draw canvas size
     const dc = drawCanvasRef.current
     if (dc && (dc.width !== w || dc.height !== h)) {
-      const oldData = dc.width > 0 ? dc.getContext('2d')!.getImageData(0, 0, dc.width, dc.height) : null
+      const oldData = (dc.width > 0 && dc.height > 0) ? dc.getContext('2d')?.getImageData(0, 0, dc.width, dc.height) : null
       dc.width = w; dc.height = h
-      if (oldData) dc.getContext('2d')!.putImageData(oldData, 0, 0)
+      if (oldData) dc.getContext('2d')?.putImageData(oldData, 0, 0)
     }
   }
 
