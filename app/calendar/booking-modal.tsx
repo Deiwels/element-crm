@@ -666,19 +666,72 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
   }
 
   if (ev?.paid) {
+    const rawData = ev._raw || {} as any
+    const tipAmount = Number(rawData.tip || rawData.tip_amount || 0)
+    const serviceAmount = Number(rawData.service_amount || rawData.amount || 0)
+    const totalAmount = Number(rawData.total_amount || serviceAmount)
+    const barberName = barbers.find(b => b.id === ev.barberId)?.name || ev.barberName || '—'
+    const svcNames = (ev.serviceIds || []).map((id: string) => services.find(s => s.id === id)?.name).filter(Boolean).join(', ') || ev.serviceName || '—'
+    const timeStr = `${pad2(Math.floor((ev.startMin || 0) / 60))}:${pad2((ev.startMin || 0) % 60)}`
+
     return (
-      <div>
-        <div style={{ padding: '10px 14px', borderRadius: 14, border: '1px solid rgba(143,240,177,.30)', background: 'rgba(143,240,177,.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8ff0b1" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-          <span style={{ fontSize: 13, color: '#c9ffe1', fontWeight: 700 }}>Paid via {ev.paymentMethod || '—'}</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Paid badge */}
+        <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(143,240,177,.25)', background: 'rgba(143,240,177,.05)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8ff0b1" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <div>
+            <div style={{ fontSize: 13, color: '#c9ffe1', fontWeight: 800 }}>Completed & Paid</div>
+            <div style={{ fontSize: 11, color: 'rgba(143,240,177,.60)', marginTop: 2 }}>via {ev.paymentMethod || '—'}</div>
+          </div>
         </div>
+
+        {/* Read-only booking info */}
+        <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.02)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div><div style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 3 }}>Client</div><div style={{ fontSize: 13, fontWeight: 700 }}>{ev.clientName || '—'}</div></div>
+            <div><div style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 3 }}>Barber</div><div style={{ fontSize: 13, fontWeight: 700 }}>{barberName}</div></div>
+            <div><div style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 3 }}>Time</div><div style={{ fontSize: 13, fontWeight: 700 }}>{timeStr}</div></div>
+            <div><div style={{ fontSize: 9, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 3 }}>Services</div><div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,.70)' }}>{svcNames}</div></div>
+          </div>
+        </div>
+
+        {/* Financial info — tip visible to all, amounts visible to owner/admin */}
+        <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,207,63,.15)', background: 'rgba(255,207,63,.03)' }}>
+          {tipAmount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isOwnerOrAdmin && serviceAmount > 0 ? 8 : 0 }}>
+              <span style={{ fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(255,207,63,.60)' }}>Tip</span>
+              <span style={{ fontSize: 18, fontWeight: 900, color: '#ffe9a3' }}>${tipAmount.toFixed(2)}</span>
+            </div>
+          )}
+          {tipAmount === 0 && (
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.25)', textAlign: 'center' }}>No tip</div>
+          )}
+          {isOwnerOrAdmin && serviceAmount > 0 && (
+            <div style={{ borderTop: '1px solid rgba(255,255,255,.06)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,.40)' }}>Service</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>${serviceAmount.toFixed(2)}</span>
+              </div>
+              {tipAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,.40)' }}>Tip</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>${tipAmount.toFixed(2)}</span>
+              </div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: 4, marginTop: 2 }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,.65)' }}>Total</span>
+                <span style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>${(totalAmount + tipAmount).toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Refund — owner/admin only */}
         {isOwnerOrAdmin && ev._raw?.id && (
-          <button onClick={handleRefund} style={{ width: '100%', height: 36, borderRadius: 10, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', marginTop: 8 }}>
+          <button onClick={handleRefund} style={{ width: '100%', height: 36, borderRadius: 10, border: '1px solid rgba(255,107,107,.25)', background: 'rgba(255,107,107,.04)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit' }}>
             Issue Refund
           </button>
         )}
         {hint && (
-          <div style={{ fontSize: 12, marginTop: 8, padding: '8px 12px', borderRadius: 10,
+          <div style={{ fontSize: 12, marginTop: 4, padding: '8px 12px', borderRadius: 10,
             color: hintType==='success' ? '#c9ffe1' : hintType==='error' ? '#ffd0d0' : 'rgba(255,255,255,.60)',
             background: hintType==='success' ? 'rgba(143,240,177,.08)' : hintType==='error' ? 'rgba(255,107,107,.08)' : 'rgba(255,255,255,.04)',
             border: `1px solid ${hintType==='success' ? 'rgba(143,240,177,.20)' : hintType==='error' ? 'rgba(255,107,107,.20)' : 'rgba(255,255,255,.08)'}`,
