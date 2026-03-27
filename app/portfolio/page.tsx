@@ -51,8 +51,17 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
   const COLORS = ['#ffffff','#000000','#ff3b30','#ff9500','#ffcc00','#34c759','#007aff','#af52de','#ff2d55','#8e8e93']
 
   useEffect(() => {
-    const img = new Image(); img.crossOrigin = 'anonymous'
+    const img = new Image()
+    if (!src.startsWith('data:')) img.crossOrigin = 'anonymous'
     img.onload = () => { imgRef.current = img; renderBase() }
+    img.onerror = () => {
+      // CORS failed — retry without crossOrigin via fetch+blob
+      fetch(src).then(r => r.blob()).then(blob => {
+        const img2 = new Image()
+        img2.onload = () => { imgRef.current = img2; renderBase() }
+        img2.src = URL.createObjectURL(blob)
+      }).catch(() => {})
+    }
     img.src = src
   }, [src])
 
