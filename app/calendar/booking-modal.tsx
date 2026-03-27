@@ -1409,7 +1409,7 @@ export function BookingModal({
                         if (newStatus === 'cancelled' || newStatus === 'noshow') {
                           if (window.confirm(`Mark as ${newStatus}? This will save and close.`)) {
                             setTimeout(() => {
-                              onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: newStatus, notes, photoUrl }).catch(() => {})
+                              try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: newStatus, notes, photoUrl }) } catch {}
                             }, 50)
                           } else {
                             setStatus(status) // revert
