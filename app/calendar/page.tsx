@@ -1412,6 +1412,27 @@ export default function CalendarPage() {
           background-size: 17px 17px !important;
           animation: blockStripeMove 1.2s linear infinite;
         }
+        @keyframes paidShimmer {
+          0%, 80% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .cal-event-paid {
+          opacity: .55;
+          background: linear-gradient(180deg, rgba(143,240,177,.08), rgba(0,0,0,.10)) !important;
+          border-color: rgba(143,240,177,.15) !important;
+          position: relative;
+          overflow: hidden;
+        }
+        .cal-event-paid::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, transparent 0%, rgba(143,240,177,.10) 40%, rgba(143,240,177,.18) 50%, rgba(143,240,177,.10) 60%, transparent 100%);
+          background-size: 200% 100%;
+          animation: paidShimmer 5s ease-in-out infinite;
+          pointer-events: none;
+          border-radius: inherit;
+        }
         @keyframes arrivedShimmer {
           0% { background-position: -200% 0; }
           100% { background-position: 200% 0; }
@@ -1898,8 +1919,9 @@ export default function CalendarPage() {
 
                       const tinyCol = isMobile && pageBarbers.length > 2
                       const isArrived = ev.status === 'arrived'
+                      const isPaid = !!ev.paid
                       return (
-                        <div key={ev.id} className={`cal-event${isArrived ? ' arrived-pulse' : ''}${drag?.eventId===ev.id ? ' cal-event-dragging' : ''}`}
+                        <div key={ev.id} className={`cal-event${isArrived ? ' arrived-pulse' : ''}${isPaid ? ' cal-event-paid' : ''}${drag?.eventId===ev.id ? ' cal-event-dragging' : ''}`}
                           style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, ...(isArrived ? {} : drag?.eventId===ev.id ? {} : { border: `1px solid rgba(255,255,255,.10)`, background: (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}26,${barber.color}12)` }), padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, transition: 'transform .15s, box-shadow .15s' }}
                           onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; e.stopPropagation(); clearTimeout(eventLongPressTimer.current); const touch = e.touches[0]; const evCopy = ev; const biCopy = bi; eventLongPressTimer.current = setTimeout(() => { const fakeEvt = { preventDefault(){}, stopPropagation(){}, touches: [touch] } as any; startDrag(fakeEvt, evCopy, biCopy) }, 400) }}
