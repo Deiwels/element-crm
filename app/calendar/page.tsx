@@ -874,8 +874,8 @@ export default function CalendarPage() {
     setTimeout(() => {
       setAnchor(a => { const x = new Date(a); x.setDate(x.getDate() + delta); return x })
       setDayTransition('in')
-      setTimeout(() => setDayTransition('idle'), 350)
-    }, 300)
+      setTimeout(() => setDayTransition('idle'), 220)
+    }, 180)
   }
 
   // Swipe handler for mobile — always changes day for everyone
@@ -1421,8 +1421,8 @@ export default function CalendarPage() {
           40% { transform: scale(.88,.92); filter: blur(2px) brightness(.85); border-radius: 12px; opacity: .9; }
           100% { transform: scale(1); filter: blur(0px) brightness(1); border-radius: 0; opacity: 1; }
         }
-        .day-transition-out { animation: gravityOut .3s cubic-bezier(.4,0,1,.6) forwards; pointer-events: none; }
-        .day-transition-in { animation: gravityIn .35s cubic-bezier(0,.4,.2,1) forwards; }
+        .day-transition-out { animation: gravityOut .18s cubic-bezier(.4,0,1,.6) forwards; pointer-events: none; }
+        .day-transition-in { animation: gravityIn .22s cubic-bezier(0,.4,.2,1) forwards; }
         /* Date dot morph + glow animations */
         @keyframes dotPillGlow {
           0%, 100% { box-shadow: 0 2px 8px rgba(255,255,255,.15); }
@@ -1518,7 +1518,7 @@ export default function CalendarPage() {
               {/* Nav arrows + date — hidden on mobile, shown on desktop */}
               <div className="cal-nav-arrows" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button onClick={() => animateDayChange(-1)} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>‹</button>
-                <button onClick={() => { if (dayTransition !== 'idle') return; setDayTransition('out'); setTimeout(() => { const d=new Date(); d.setHours(0,0,0,0); setAnchor(d); setDayTransition('in'); setTimeout(() => setDayTransition('idle'), 350) }, 300) }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', flexShrink: 0 }}>Today</button>
+                <button onClick={() => { if (dayTransition !== 'idle') return; setDayTransition('out'); setTimeout(() => { const d=new Date(); d.setHours(0,0,0,0); setAnchor(d); setDayTransition('in'); setTimeout(() => setDayTransition('idle'), 220) }, 180) }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', flexShrink: 0 }}>Today</button>
                 <button onClick={() => animateDayChange(1)} style={{ height: 36, width: 36, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, fontFamily: 'inherit', flexShrink: 0 }}>›</button>
               </div>
 
@@ -1980,7 +1980,7 @@ export default function CalendarPage() {
                     if (dayTransition !== 'idle') return
                     setDayTransition('out')
                     const targetDate = new Date(dot.date); targetDate.setHours(0,0,0,0)
-                    setTimeout(() => { setAnchor(targetDate); setDayTransition('in'); setTimeout(() => setDayTransition('idle'), 350) }, 300)
+                    setTimeout(() => { setAnchor(targetDate); setDayTransition('in'); setTimeout(() => setDayTransition('idle'), 220) }, 180)
                   }}
                   style={{
                     height: 30,
