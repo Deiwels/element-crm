@@ -1,6 +1,6 @@
 'use client'
 import Shell from '@/components/Shell'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 const API_KEY = 'R1403ss81fxrx*rx1403'
@@ -15,33 +15,141 @@ async function apiFetch(path: string, opts?: RequestInit) {
   return data
 }
 
+// ─── Photo Editor Modal ──────────────────────────────────────────────────────
+function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: string) => void; onClose: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [filter, setFilter] = useState('none')
+  const [rotation, setRotation] = useState(0)
+  const imgRef = useRef<HTMLImageElement | null>(null)
+
+  const FILTERS = [
+    { id: 'none', label: 'Original', css: '' },
+    { id: 'bw', label: 'B&W', css: 'grayscale(100%)' },
+    { id: 'sepia', label: 'Sepia', css: 'sepia(80%)' },
+    { id: 'contrast', label: 'Contrast', css: 'contrast(130%) saturate(110%)' },
+    { id: 'warm', label: 'Warm', css: 'sepia(25%) saturate(130%) brightness(105%)' },
+    { id: 'cool', label: 'Cool', css: 'saturate(80%) hue-rotate(15deg) brightness(105%)' },
+    { id: 'vivid', label: 'Vivid', css: 'saturate(160%) contrast(110%)' },
+    { id: 'fade', label: 'Fade', css: 'saturate(70%) brightness(110%) contrast(90%)' },
+  ]
+
+  useEffect(() => {
+    const img = new Image()
+    img.onload = () => { imgRef.current = img; drawCanvas() }
+    img.src = src
+  }, [src])
+
+  useEffect(() => { drawCanvas() }, [filter, rotation])
+
+  function drawCanvas() {
+    const canvas = canvasRef.current; const img = imgRef.current
+    if (!canvas || !img) return
+    const ctx = canvas.getContext('2d')!
+    const rotated = rotation % 180 !== 0
+    canvas.width = rotated ? img.height : img.width
+    canvas.height = rotated ? img.width : img.height
+    ctx.save()
+    ctx.translate(canvas.width / 2, canvas.height / 2)
+    ctx.rotate((rotation * Math.PI) / 180)
+    const f = FILTERS.find(f => f.id === filter)
+    if (f?.css) ctx.filter = f.css
+    ctx.drawImage(img, -img.width / 2, -img.height / 2)
+    ctx.restore()
+  }
+
+  function handleSave() {
+    const canvas = canvasRef.current; if (!canvas) return
+    const MAX = 1200
+    let w = canvas.width, h = canvas.height
+    if (w > MAX || h > MAX) {
+      if (w > h) { h = Math.round(h * MAX / w); w = MAX } else { w = Math.round(w * MAX / h); h = MAX }
+    }
+    const out = document.createElement('canvas'); out.width = w; out.height = h
+    out.getContext('2d')!.drawImage(canvas, 0, 0, w, h)
+    let q = 0.80, dataUrl = out.toDataURL('image/jpeg', q)
+    while (dataUrl.length > 600000 && q > 0.3) { q -= 0.08; dataUrl = out.toDataURL('image/jpeg', q) }
+    onSave(dataUrl)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.90)', backdropFilter: 'blur(24px)', zIndex: 6000, display: 'flex', flexDirection: 'column', fontFamily: 'Inter,sans-serif', color: '#e9e9e9' }}>
+      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
+        <button onClick={onClose} style={{ height: 34, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit' }}>Cancel</button>
+        <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: '.08em', textTransform: 'uppercase' }}>Edit Photo</div>
+        <button onClick={handleSave} style={{ height: 34, padding: '0 14px', borderRadius: 999, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit' }}>Save</button>
+      </div>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 16 }}>
+        <canvas ref={canvasRef} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12, objectFit: 'contain' }} />
+      </div>
+      <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
+        <button onClick={() => setRotation(r => (r + 90) % 360)} style={{ height: 36, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', marginBottom: 10 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ verticalAlign: 'middle', marginRight: 6 }}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          Rotate
+        </button>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8 }}>
+          {FILTERS.map(f => (
+            <button key={f.id} onClick={() => setFilter(f.id)} style={{
+              flexShrink: 0, width: 64, height: 64, borderRadius: 12, overflow: 'hidden', border: `2px solid ${filter === f.id ? 'rgba(10,132,255,.65)' : 'rgba(255,255,255,.08)'}`, background: '#000', cursor: 'pointer', position: 'relative', padding: 0, boxShadow: filter === f.id ? '0 0 12px rgba(10,132,255,.25)' : 'none', transition: 'all .2s ease'
+            }}>
+              <img src={src} alt={f.label} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: f.css || 'none' }} />
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.7)', padding: '3px 0', fontSize: 8, fontWeight: 700, letterSpacing: '.04em', textAlign: 'center', color: filter === f.id ? '#d7ecff' : 'rgba(255,255,255,.60)' }}>{f.label}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PortfolioPage() {
   const [photos, setPhotos] = useState<string[]>([])
   const [barberId, setBarberId] = useState('')
   const [barberName, setBarberName] = useState('')
+  const [barbers, setBarbers] = useState<{ id: string; name: string; photo?: string }[]>([])
+  const [isOwnerOrAdmin, setIsOwnerOrAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [toast, setToast] = useState('')
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [editingPhoto, setEditingPhoto] = useState<{ index: number; src: string } | null>(null)
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
-  const load = useCallback(async () => {
+  const loadBarbers = useCallback(async () => {
+    try {
+      const data = await apiFetch('/api/barbers')
+      const list = (Array.isArray(data) ? data : (data?.barbers || [])).map((b: any) => ({ id: String(b.id), name: String(b.name || ''), photo: b.photo_url || '', portfolio: Array.isArray(b.portfolio) ? b.portfolio : [] }))
+      setBarbers(list)
+      return list
+    } catch { return [] }
+  }, [])
+
+  const load = useCallback(async (overrideBarberId?: string) => {
     setLoading(true)
     try {
       const user = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}')
-      const bid = user.barber_id || ''
+      const role = user.role || 'barber'
+      const ownerAdmin = role === 'owner' || role === 'admin'
+      setIsOwnerOrAdmin(ownerAdmin)
+
+      const list = await loadBarbers()
+      const bid = overrideBarberId || (ownerAdmin ? (list[0]?.id || '') : (user.barber_id || ''))
       setBarberId(bid)
-      setBarberName(user.name || '')
-      if (!bid) { setLoading(false); return }
-      const data = await apiFetch('/api/barbers')
-      const list = Array.isArray(data) ? data : (data?.barbers || [])
-      const me = list.find((b: any) => String(b.id) === String(bid))
-      setPhotos(Array.isArray(me?.portfolio) ? me.portfolio : [])
+
+      const found = list.find((b: any) => b.id === bid)
+      setBarberName(found?.name || user.name || '')
+      setPhotos(Array.isArray((found as any)?.portfolio) ? (found as any).portfolio : [])
     } catch (e: any) { showToast('Error: ' + e.message) }
     setLoading(false)
-  }, [])
+  }, [loadBarbers])
+
+  function switchBarber(bid: string) {
+    const found = barbers.find(b => b.id === bid)
+    setBarberId(bid)
+    setBarberName(found?.name || '')
+    setPhotos(Array.isArray((found as any)?.portfolio) ? (found as any).portfolio : [])
+  }
 
   useEffect(() => { load() }, [load])
 
@@ -138,7 +246,8 @@ export default function PortfolioPage() {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
 
         {/* Header */}
-        <div style={{ padding: '14px 20px', background: 'rgba(0,0,0,.80)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', position: 'sticky', top: 0, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '14px 20px', background: 'rgba(0,0,0,.80)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', position: 'sticky', top: 0, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h2 style={{ margin: 0, fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 15 }}>Portfolio</h2>
             <p style={{ margin: '3px 0 0', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.08em' }}>
@@ -158,6 +267,19 @@ export default function PortfolioPage() {
             <input type="file" accept="image/*" multiple style={{ display: 'none' }} disabled={uploading}
               onChange={e => handleUpload(e.target.files)} />
           </label>
+        </div>
+          {/* Barber selector for owner/admin */}
+          {isOwnerOrAdmin && barbers.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+              {barbers.map(b => (
+                <button key={b.id} onClick={() => switchBarber(b.id)}
+                  style={{ height: 32, padding: '0 12px', borderRadius: 999, border: `1px solid ${barberId === b.id ? 'rgba(10,132,255,.50)' : 'rgba(255,255,255,.08)'}`, background: barberId === b.id ? 'rgba(10,132,255,.12)' : 'rgba(255,255,255,.03)', color: barberId === b.id ? '#d7ecff' : 'rgba(255,255,255,.50)', cursor: 'pointer', fontWeight: 800, fontSize: 11, fontFamily: 'inherit', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6, transition: 'all .2s ease', flexShrink: 0 }}>
+                  {b.photo && <img src={b.photo} alt="" style={{ width: 18, height: 18, borderRadius: 999, objectFit: 'cover' }} />}
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Content */}
@@ -199,8 +321,16 @@ export default function PortfolioPage() {
                           style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
                       )}
                     </div>
-                    <button onClick={e => { e.stopPropagation(); removePhoto(i) }}
-                      style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.15)', color: '#ffd0d0', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button onClick={e => { e.stopPropagation(); setEditingPhoto({ index: i, src: url }) }}
+                        style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(10,132,255,.35)', background: 'rgba(10,132,255,.15)', color: '#d7ecff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); removePhoto(i) }}
+                        style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.15)', color: '#ffd0d0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -214,6 +344,26 @@ export default function PortfolioPage() {
           )}
         </div>
       </div>
+
+      {/* Photo Editor */}
+      {editingPhoto && (
+        <PhotoEditor
+          src={editingPhoto.src}
+          onClose={() => setEditingPhoto(null)}
+          onSave={async (dataUrl) => {
+            const newPhotos = [...photos]
+            newPhotos[editingPhoto.index] = dataUrl
+            setPhotos(newPhotos)
+            setEditingPhoto(null)
+            try {
+              await apiFetch(`/api/barbers/${encodeURIComponent(barberId)}`, {
+                method: 'PATCH', body: JSON.stringify({ portfolio: newPhotos })
+              })
+              showToast('Photo updated')
+            } catch (e: any) { showToast('Error: ' + (e?.message || '')); load() }
+          }}
+        />
+      )}
 
       {/* Lightbox */}
       {lightbox && (
