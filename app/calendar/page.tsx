@@ -1252,14 +1252,14 @@ export default function CalendarPage() {
   useEffect(() => {
     if (modal.open) return // Don't poll while booking modal is open
     const interval = setInterval(() => {
-      loadBookings(barbers, services).then(evs => setEvents(evs.map(e => { if (e.paid && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !e.paid && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e }))).catch(console.warn)
+      loadBookings(barbers, services).then(evs => setEvents(evs.map(e => { if ((e.paid || e.status === 'done' || e.status === 'completed') && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !(e.paid || e.status === 'done' || e.status === 'completed') && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e }))).catch(console.warn)
       loadPendingBlocks().catch(() => {})
     }, 15000)
     return () => clearInterval(interval)
   }, [barbers, services, loadBookings, modal.open])
 
   const reload = useCallback(() => {
-    loadBookings(barbers, services).then(evs => setEvents(evs.map(e => { if (e.paid && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !e.paid && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e }))).catch(console.warn)
+    loadBookings(barbers, services).then(evs => setEvents(evs.map(e => { if ((e.paid || e.status === 'done' || e.status === 'completed') && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !(e.paid || e.status === 'done' || e.status === 'completed') && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e }))).catch(console.warn)
   }, [barbers, services, loadBookings])
 
   const totalH = (END_HOUR - START_HOUR) * 12 * slotH
@@ -1529,7 +1529,7 @@ export default function CalendarPage() {
       const serverIds = new Set(evs.map(e => e.id))
       setEvents(prev => {
         // Merge: keep recently-saved events that server might not have returned yet
-        const merged = evs.map(e => { if (e.paid && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !e.paid && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e })
+        const merged = evs.map(e => { if ((e.paid || e.status === 'done' || e.status === 'completed') && arrivedIdsRef.current.has(e.id)) clearArrived(e.id); return !(e.paid || e.status === 'done' || e.status === 'completed') && arrivedIdsRef.current.has(e.id) ? { ...e, status: 'arrived' } : e })
         // Keep any event from prev that has a real server ID but wasn't in the reload (saved < 5s ago)
         const kept = prev.filter(pe => pe._raw?.id && !serverIds.has(pe.id) && !pe.id.startsWith('e_'))
         return [...merged, ...kept]
