@@ -102,32 +102,55 @@ const ROLE_COLORS: Record<string, string> = {
 }
 
 // ─── MessageBubble ───────────────────────────────────────────────────────────
-function MessageBubble({ msg, isOwn, onImageClick }: { msg: Message; isOwn: boolean; onImageClick?: (url: string) => void }) {
+function MessageBubble({ msg, isOwn, onImageClick, isGrouped }: { msg: Message; isOwn: boolean; onImageClick?: (url: string) => void; isGrouped?: boolean }) {
   const roleColor = ROLE_COLORS[msg.senderRole] || '#e9e9e9'
   return (
-    <div style={{ display: 'flex', flexDirection: isOwn ? 'row-reverse' : 'row', gap: 10, alignItems: 'flex-end', marginBottom: 4, padding: '0 16px' }}>
-      {/* Avatar */}
-      {msg.senderPhoto ? (
-        <img src={msg.senderPhoto} alt="" style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover', border: `1px solid ${isOwn ? 'rgba(10,132,255,.30)' : 'rgba(255,255,255,.10)'}`, flexShrink: 0 }} />
-      ) : (
-        <div style={{ width: 32, height: 32, borderRadius: 10, background: isOwn ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.08)', border: `1px solid ${isOwn ? 'rgba(10,132,255,.30)' : 'rgba(255,255,255,.10)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: isOwn ? '#d7ecff' : roleColor, flexShrink: 0 }}>
-          {initials(msg.senderName)}
-        </div>
-      )}
-      {/* Bubble */}
-      <div style={{ maxWidth: '70%', padding: '10px 14px', borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px', background: isOwn ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.06)', border: `1px solid ${isOwn ? 'rgba(10,132,255,.25)' : 'rgba(255,255,255,.08)'}` }}>
-        {!isOwn && (
-          <div style={{ fontSize: 10, fontWeight: 800, color: roleColor, marginBottom: 3, letterSpacing: '.04em' }}>
-            {msg.senderName} <span style={{ color: 'rgba(255,255,255,.25)', fontWeight: 400 }}>· {msg.senderRole}</span>
+    <div className="msg-bubble-wrap" style={{ display: 'flex', flexDirection: isOwn ? 'row-reverse' : 'row', gap: isGrouped ? 0 : 10, alignItems: 'flex-end', marginBottom: isGrouped ? 2 : 8, padding: '0 16px' }}>
+      {/* Avatar — hidden when grouped */}
+      {!isGrouped ? (
+        msg.senderPhoto ? (
+          <img src={msg.senderPhoto} alt="" style={{ width: 30, height: 30, borderRadius: 10, objectFit: 'cover', border: `1px solid ${isOwn ? 'rgba(10,132,255,.25)' : 'rgba(255,255,255,.08)'}`, flexShrink: 0 }} />
+        ) : (
+          <div style={{ width: 30, height: 30, borderRadius: 10, background: isOwn ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.06)', border: `1px solid ${isOwn ? 'rgba(10,132,255,.25)' : 'rgba(255,255,255,.08)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: isOwn ? '#d7ecff' : roleColor, flexShrink: 0 }}>
+            {initials(msg.senderName)}
           </div>
+        )
+      ) : <div style={{ width: 30, flexShrink: 0 }} />}
+      {/* Bubble with tail */}
+      <div style={{ maxWidth: '72%', position: 'relative' }}>
+        {/* Tail — only on last message (not grouped) */}
+        {!isGrouped && (
+          <div style={{
+            position: 'absolute', bottom: 6,
+            ...(isOwn ? { right: -6 } : { left: -6 }),
+            width: 12, height: 12,
+            background: isOwn ? 'rgba(10,132,255,.12)' : 'rgba(255,255,255,.05)',
+            clipPath: isOwn ? 'polygon(0 0, 100% 50%, 0 100%)' : 'polygon(100% 0, 0 50%, 100% 100%)',
+          }} />
         )}
-        {msg.text && <div style={{ fontSize: 13, lineHeight: 1.5, color: '#e9e9e9', wordBreak: 'break-word' }}>{msg.text}</div>}
-        {msg.imageUrl && (
-          <img src={msg.imageUrl} alt="" onClick={() => onImageClick?.(msg.imageUrl!)}
-            style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 10, marginTop: msg.text ? 6 : 0, cursor: 'pointer', objectFit: 'cover', border: '1px solid rgba(255,255,255,.10)' }}
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-        )}
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,.25)', marginTop: 4, textAlign: isOwn ? 'right' : 'left' }}>{timeAgo(msg.createdAt)}</div>
+        <div style={{
+          padding: '9px 14px',
+          borderRadius: isOwn
+            ? (isGrouped ? '14px' : '16px 16px 4px 16px')
+            : (isGrouped ? '14px' : '16px 16px 16px 4px'),
+          background: isOwn ? 'rgba(10,132,255,.12)' : 'rgba(255,255,255,.05)',
+          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+          border: `1px solid ${isOwn ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.06)'}`,
+          boxShadow: '0 2px 8px rgba(0,0,0,.15)',
+        }}>
+          {!isOwn && !isGrouped && (
+            <div style={{ fontSize: 10, fontWeight: 800, color: roleColor, marginBottom: 3, letterSpacing: '.04em' }}>
+              {msg.senderName} <span style={{ color: 'rgba(255,255,255,.20)', fontWeight: 400 }}>· {msg.senderRole}</span>
+            </div>
+          )}
+          {msg.text && <div style={{ fontSize: 13, lineHeight: 1.5, color: '#e9e9e9', wordBreak: 'break-word' }}>{msg.text}</div>}
+          {msg.imageUrl && (
+            <img src={msg.imageUrl} alt="" onClick={() => onImageClick?.(msg.imageUrl!)}
+              style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 10, marginTop: msg.text ? 6 : 0, cursor: 'pointer', objectFit: 'cover', border: '1px solid rgba(255,255,255,.08)' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          )}
+          <div style={{ fontSize: 9, color: 'rgba(255,255,255,.20)', marginTop: 3, textAlign: isOwn ? 'right' : 'left' }}>{timeAgo(msg.createdAt)}</div>
+        </div>
       </div>
     </div>
   )
@@ -492,9 +515,20 @@ export default function MessagesPage() {
     <Shell page="Messages">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&family=Julius+Sans+One&display=swap');
-        .msg-input:focus { border-color: rgba(255,255,255,.25) !important; }
+        .msg-input:focus { border-color: rgba(10,132,255,.40) !important; box-shadow: 0 0 0 3px rgba(10,132,255,.10) !important; }
         .msg-list::-webkit-scrollbar { width: 4px; }
         .msg-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 2px; }
+        @keyframes msgPopIn {
+          0% { opacity: 0; transform: scale(.85) translateY(8px) }
+          60% { transform: scale(1.02) translateY(-1px) }
+          100% { opacity: 1; transform: scale(1) translateY(0) }
+        }
+        .msg-bubble-wrap { animation: msgPopIn .25s cubic-bezier(.16,1.2,.3,1) both }
+        @keyframes sendPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(10,132,255,0); }
+          50% { box-shadow: 0 0 12px 3px rgba(10,132,255,.35); }
+        }
+        .msg-send-pulse { animation: sendPulse 1.8s ease-in-out infinite; }
       `}</style>
 
       <div className="msg-container" style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Inter,sans-serif', color: '#e9e9e9' }}>
@@ -608,9 +642,11 @@ export default function MessagesPage() {
                   <div style={{ fontSize: 11, marginTop: 4, color: 'rgba(255,255,255,.15)' }}>Be the first to say something!</div>
                 </div>
               )}
-              {messages.map(msg => (
-                <MessageBubble key={msg.id} msg={msg} isOwn={msg.senderId === uid} onImageClick={url => setLightboxUrl(url)} />
-              ))}
+              {messages.map((msg, i) => {
+                const prev = i > 0 ? messages[i - 1] : null
+                const isGrouped = prev?.senderId === msg.senderId && prev?.senderName === msg.senderName
+                return <MessageBubble key={msg.id} msg={msg} isOwn={msg.senderId === uid} onImageClick={url => setLightboxUrl(url)} isGrouped={isGrouped} />
+              })}
             </div>
             {imagePreview && (
               <div style={{ padding: '8px 16px 0', flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -618,16 +654,17 @@ export default function MessagesPage() {
                 <button onClick={() => setImagePreview('')} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
               </div>
             )}
-            <div style={{ padding: '8px 16px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', borderTop: '1px solid rgba(255,255,255,.07)', flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ width: 42, height: 42, borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            <div style={{ padding: '8px 16px', paddingBottom: 'max(12px, env(safe-area-inset-bottom))', flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(0,0,0,.60)', backdropFilter: 'saturate(180%) blur(20px)', WebkitBackdropFilter: 'saturate(180%) blur(20px)', borderTop: '1px solid rgba(255,255,255,.05)', boxShadow: '0 -4px 20px rgba(0,0,0,.30)' } as React.CSSProperties}>
+              <label style={{ width: 40, height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.40)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { handleImageAttach(e.target.files?.[0] || null); e.target.value = '' }} />
               </label>
-              <input className="msg-input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }} placeholder="Type a message…"
-                style={{ flex: 1, height: 42, borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.05)', color: '#fff', padding: '0 16px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }} />
+              <input className="msg-input" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }} placeholder="Type a message..."
+                style={{ flex: 1, height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)', color: '#fff', padding: '0 16px', outline: 'none', fontSize: 13, fontFamily: 'inherit', transition: 'border-color .2s, box-shadow .2s' }} />
               <button onClick={sendMessage} disabled={sending || (!input.trim() && !imagePreview)}
-                style={{ width: 42, height: 42, borderRadius: 999, border: '1px solid rgba(10,132,255,.55)', background: (input.trim() || imagePreview) ? 'rgba(10,132,255,.18)' : 'rgba(255,255,255,.04)', color: (input.trim() || imagePreview) ? '#d7ecff' : 'rgba(255,255,255,.25)', cursor: (input.trim() || imagePreview) ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                className={(input.trim() || imagePreview) ? 'msg-send-pulse' : ''}
+                style={{ width: 40, height: 40, borderRadius: 999, border: `1px solid ${(input.trim() || imagePreview) ? 'rgba(10,132,255,.50)' : 'rgba(255,255,255,.08)'}`, background: (input.trim() || imagePreview) ? 'rgba(10,132,255,.16)' : 'rgba(255,255,255,.03)', color: (input.trim() || imagePreview) ? '#d7ecff' : 'rgba(255,255,255,.20)', cursor: (input.trim() || imagePreview) ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </button>
             </div>
           </>
