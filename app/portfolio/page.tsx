@@ -69,20 +69,31 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
         }
       }
       const img = new Image()
+      img.crossOrigin = 'anonymous'
       img.onload = () => {
         imgRef.current = img
         // Force render with timeout to ensure refs are ready
         setTimeout(() => {
           const canvas = mainCanvasRef.current
-          if (!canvas || !img) return
-          const ctx = canvas.getContext('2d')!
-          canvas.width = img.width; canvas.height = img.height
-          cw.current = img.width; ch.current = img.height
+          if (!canvas || !img || !img.naturalWidth) return
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return
+          const w = img.naturalWidth || img.width
+          const h = img.naturalHeight || img.height
+          if (!w || !h) return
+          canvas.width = w; canvas.height = h
+          cw.current = w; ch.current = h
           ctx.drawImage(img, 0, 0)
           // Sync draw canvas
           const dc = drawCanvasRef.current
-          if (dc) { dc.width = img.width; dc.height = img.height }
+          if (dc) { dc.width = w; dc.height = h }
         }, 50)
+      }
+      img.onerror = () => {
+        // Fallback: try without crossOrigin
+        const img2 = new Image()
+        img2.onload = () => { imgRef.current = img2; setTimeout(() => renderBase(), 100) }
+        img2.src = blobUrl
       }
       img.src = blobUrl
     }
@@ -109,12 +120,13 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
     // Apply filters via pixel manipulation (ctx.filter not supported in iOS WebView)
     const needsFilter = filter !== 'none' || brightness !== 100 || contrast !== 100 || saturation !== 100
     if (needsFilter && w > 0 && h > 0) {
-      const imageData = ctx.getImageData(0, 0, w, h)
-      const d = imageData.data
-      const br = brightness / 100
-      const co = contrast / 100
-      const sat = saturation / 100
-      const fId = filter
+      try {
+        const imageData = ctx.getImageData(0, 0, w, h)
+        const d = imageData.data
+        const br = brightness / 100
+        const co = contrast / 100
+        const sat = saturation / 100
+        const fId = filter
       for (let i = 0; i < d.length; i += 4) {
         let r = d[i], g = d[i+1], b = d[i+2]
         // Brightness
@@ -134,6 +146,7 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
         d[i] = Math.max(0, Math.min(255, r)); d[i+1] = Math.max(0, Math.min(255, g)); d[i+2] = Math.max(0, Math.min(255, b))
       }
       ctx.putImageData(imageData, 0, 0)
+      } catch (e) { console.warn('Filter apply failed (canvas may be tainted):', e) }
     }
     // Sync draw canvas size
     const dc = drawCanvasRef.current
