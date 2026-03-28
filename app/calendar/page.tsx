@@ -2258,7 +2258,7 @@ export default function CalendarPage() {
                     flexShrink: 0,
                     position: 'relative',
                   }}>
-                  {dot.isCurrent ? (<><div style={{ lineHeight: 1 }}>{dot.label}</div><div style={{ fontSize: 8, opacity: .5, lineHeight: 1, marginTop: 1 }}>{dot.dayName}</div></>) : dot.day}
+                  {dot.isCurrent ? (<><div style={{ fontSize: 13, fontWeight: 900, lineHeight: 1 }}>{dot.dayName}</div><div style={{ fontSize: 8, opacity: .45, lineHeight: 1, marginTop: 2 }}>{dot.label}</div></>) : dot.day}
                   {dot.isToday && !dot.isCurrent && <div style={{ position: 'absolute', bottom: 3, width: 3, height: 3, borderRadius: 999, background: 'rgba(10,132,255,.90)' }} />}
                 </button>
               ))}
