@@ -384,8 +384,35 @@ export default function PayrollPage() {
         apiFetch('/api/users').catch(() => ({ users: [] })),
         apiFetch(`/api/attendance?from=${from}&to=${to}`).catch(() => ({ attendance: [], summary: {} })),
       ])
-      setBarbers(payData?.barbers || [])
-      setTotals(payData?.totals || null)
+      // Recalculate totals from paid bookings only (server counts all bookings including unpaid)
+      const rawBarbers = payData?.barbers || []
+      const fixedBarbers = rawBarbers.map((b: any) => {
+        const paidBookings = (b.bookings || []).filter((bk: any) => bk.paid)
+        const serviceTotal = paidBookings.reduce((s: number, bk: any) => s + Number(bk.service_amount || 0), 0)
+        const tipsTotal = paidBookings.reduce((s: number, bk: any) => s + Number(bk.tip || 0), 0)
+        const clientCount = paidBookings.length
+        const rule = (rulesData?.rules || {})[b.barber_id] || { base_pct: 60, tips_pct: 100, tiers: [] }
+        const basePct = Number(rule.base_pct ?? 60)
+        const tipsPct = Number(rule.tips_pct ?? 100)
+        const tiers = Array.isArray(rule.tiers) ? rule.tiers : []
+        let effectivePct = basePct
+        const allMatching = [...tiers.filter((t: any) => t.type === 'revenue' && serviceTotal >= t.threshold), ...tiers.filter((t: any) => t.type === 'clients' && clientCount >= t.threshold)]
+        if (allMatching.length) effectivePct = Math.max(...allMatching.map((t: any) => t.pct))
+        const barberServiceShare = Math.round(serviceTotal * (effectivePct / 100) * 100) / 100
+        const ownerServiceShare = Math.round(serviceTotal * ((100 - effectivePct) / 100) * 100) / 100
+        const barberTips = Math.round(tipsTotal * (tipsPct / 100) * 100) / 100
+        const barberTotal = Math.round((barberServiceShare + barberTips) * 100) / 100
+        return { ...b, service_total: serviceTotal, tips_total: tipsTotal, client_count: clientCount, effective_pct: effectivePct, barber_service_share: barberServiceShare, owner_service_share: ownerServiceShare, barber_tips: barberTips, barber_total: barberTotal }
+      })
+      const fixedTotals = {
+        service_total: fixedBarbers.reduce((s: number, b: any) => s + b.service_total, 0),
+        tips_total: fixedBarbers.reduce((s: number, b: any) => s + b.tips_total, 0),
+        barber_service_share: fixedBarbers.reduce((s: number, b: any) => s + b.barber_service_share, 0),
+        owner_service_share: fixedBarbers.reduce((s: number, b: any) => s + b.owner_service_share, 0),
+        barber_total: fixedBarbers.reduce((s: number, b: any) => s + b.barber_total, 0),
+      }
+      setBarbers(fixedBarbers)
+      setTotals(fixedTotals)
       setRules(rulesData?.rules || {})
       // Admin users
       const allUsers = usersData?.users || []

@@ -121,14 +121,22 @@ export default function CashPage() {
       const byDate = new Map<string, { cashTotal: number; zelleTotal: number; cashTips: number; zelleTips: number; cashCount: number; zelleCount: number }>()
       const start = new Date(fromDate + 'T00:00:00'), end = new Date(toDate + 'T00:00:00')
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) byDate.set(localDateStr(d), { cashTotal: 0, zelleTotal: 0, cashTips: 0, zelleTips: 0, cashCount: 0, zelleCount: 0 })
+      const seenBookingIds = new Set<string>()
       for (const p of payments) {
         if (p.status !== 'paid') continue
         const method = String(p.method || p.source || '').toLowerCase()
+        if (method !== 'cash' && method !== 'zelle') continue
         const date = String(p.date || '').slice(0, 10)
         if (!date) continue
+        // Deduplicate by booking_id — prevent double counting
+        const bkId = String(p.booking_id || p.id || '')
+        if (bkId && seenBookingIds.has(bkId + method)) continue
+        if (bkId) seenBookingIds.add(bkId + method)
         const entry = byDate.get(date) || { cashTotal: 0, zelleTotal: 0, cashTips: 0, zelleTips: 0, cashCount: 0, zelleCount: 0 }
-        if (method === 'cash') { entry.cashTotal += Number(p.amount || 0); entry.cashTips += Number(p.tip || 0); entry.cashCount++ }
-        else if (method === 'zelle') { entry.zelleTotal += Number(p.amount || 0); entry.zelleTips += Number(p.tip || 0); entry.zelleCount++ }
+        const amt = Number(p.service_amount || p.amount || 0)
+        const tip = Number(p.tip || 0)
+        if (method === 'cash') { entry.cashTotal += amt; entry.cashTips += tip; entry.cashCount++ }
+        else if (method === 'zelle') { entry.zelleTotal += amt; entry.zelleTips += tip; entry.zelleCount++ }
         byDate.set(date, entry)
       }
       const result: DaySummary[] = []
