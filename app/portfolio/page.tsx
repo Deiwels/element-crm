@@ -203,49 +203,37 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
   }
 
   function handleSave() {
-    const mc = mainCanvasRef.current; const dc = drawCanvasRef.current; if (!mc) return
-    // Render main canvas + filter + draw layer to a temp canvas via <img> to avoid tainted canvas issues
-    // Step 1: convert main canvas to blob URL (this bypasses tainted canvas restrictions)
-    const tempImg = new Image()
-    tempImg.onload = () => {
-      try {
-        const MAX = 1200
-        let w = tempImg.naturalWidth, h = tempImg.naturalHeight
-        if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h * MAX / w); w = MAX } else { w = Math.round(w * MAX / h); h = MAX } }
-        const out = document.createElement('canvas'); out.width = w; out.height = h
-        const octx = out.getContext('2d')!
-        // Apply CSS filter on draw
-        if (cssFilter && cssFilter !== 'none') octx.filter = cssFilter
-        octx.drawImage(tempImg, 0, 0, w, h)
-        octx.filter = 'none'
-        // Draw overlay on top (without filter)
-        if (dc) octx.drawImage(dc, 0, 0, w, h)
-        let q = 0.80, dataUrl = out.toDataURL('image/jpeg', q)
-        while (dataUrl.length > 600000 && q > 0.3) { q -= 0.08; dataUrl = out.toDataURL('image/jpeg', q) }
-        onSave(dataUrl)
-      } catch (e) {
-        console.warn('Save with filter failed, saving without:', e)
-        // Fallback: save without filter
-        try {
-          const MAX = 1200
-          let w = mc.width, h = mc.height
-          if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h * MAX / w); w = MAX } else { w = Math.round(w * MAX / h); h = MAX } }
-          const out = document.createElement('canvas'); out.width = w; out.height = h
-          const octx = out.getContext('2d')!
-          octx.drawImage(mc, 0, 0, w, h)
-          if (dc) octx.drawImage(dc, 0, 0, w, h)
-          let q = 0.80, dataUrl = out.toDataURL('image/jpeg', q)
-          while (dataUrl.length > 600000 && q > 0.3) { q -= 0.08; dataUrl = out.toDataURL('image/jpeg', q) }
-          onSave(dataUrl)
-        } catch { alert('Could not save. Try a different photo.') }
+    const img = imgRef.current; const dc = drawCanvasRef.current
+    if (!img) { alert('Image not loaded'); return }
+    try {
+      const MAX = 1200
+      const rotated = rotation % 180 !== 0
+      let w = rotated ? img.naturalHeight : img.naturalWidth
+      let h = rotated ? img.naturalWidth : img.naturalHeight
+      if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h * MAX / w); w = MAX } else { w = Math.round(w * MAX / h); h = MAX } }
+      const out = document.createElement('canvas'); out.width = w; out.height = h
+      const octx = out.getContext('2d')!
+      // Apply CSS filter via ctx.filter (works on fresh canvas from blob img)
+      const filterStr = cssFilter !== 'none' ? cssFilter : ''
+      if (filterStr) try { octx.filter = filterStr } catch {}
+      // Rotation
+      if (rotation) { octx.translate(w / 2, h / 2); octx.rotate((rotation * Math.PI) / 180); octx.translate(-w / 2, -h / 2) }
+      const dw = rotated ? h : w, dh = rotated ? w : h
+      octx.drawImage(img, 0, 0, dw, dh)
+      // Reset filter for draw overlay
+      try { octx.filter = 'none' } catch {}
+      // Draw overlay on top (without filter)
+      if (dc && dc.width > 0) {
+        const mcCanvas = mainCanvasRef.current
+        if (mcCanvas) octx.drawImage(dc, 0, 0, w, h)
       }
+      let q = 0.82, dataUrl = out.toDataURL('image/jpeg', q)
+      while (dataUrl.length > 600000 && q > 0.3) { q -= 0.08; dataUrl = out.toDataURL('image/jpeg', q) }
+      onSave(dataUrl)
+    } catch (e) {
+      console.warn('Save failed:', e)
+      alert('Could not save. Try a different photo.')
     }
-    tempImg.onerror = () => { alert('Could not process image for save.') }
-    // Use blob URL from main canvas to create clean image
-    mc.toBlob(blob => {
-      if (!blob) { alert('Could not save image.'); return }
-      tempImg.src = URL.createObjectURL(blob)
-    }, 'image/jpeg', 0.95)
   }
 
   const TOOLS: { id: EditorTool; label: string; icon: string }[] = [
