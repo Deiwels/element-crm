@@ -845,15 +845,29 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
   async function handleRefund() {
     const backendId = ev?._raw?.id
     if (!backendId) return
-    if (!window.confirm('Issue a full refund for this payment?')) return
-    try {
-      setHint('Processing refund…'); setHintType('info')
-      await apiFetch(`/api/payments/refund-by-booking/${encodeURIComponent(String(backendId))}`, {
-        method: 'POST',
-        body: JSON.stringify({ reason: 'Requested by staff' })
-      })
-      setHint('Refund issued ✓'); setHintType('success')
-    } catch (e: any) { setHint('Refund failed: ' + e.message); setHintType('error') }
+    const method = String(ev?._raw?.payment_method || ev?.paymentMethod || payMethod || '').toLowerCase()
+    const isTerminal = method === 'terminal' || method === 'square'
+    if (isTerminal) {
+      if (!window.confirm('Issue a full refund via Square for this terminal payment?')) return
+      try {
+        setHint('Processing Square refund…'); setHintType('info')
+        await apiFetch(`/api/payments/refund-by-booking/${encodeURIComponent(String(backendId))}`, {
+          method: 'POST',
+          body: JSON.stringify({ reason: 'Requested by staff' })
+        })
+        setHint('Refund issued via Square ✓'); setHintType('success')
+      } catch (e: any) { setHint('Refund failed: ' + e.message); setHintType('error') }
+    } else {
+      if (!window.confirm(`Issue a refund for this ${method || 'manual'} payment? This will mark it as refunded (no Square transaction).`)) return
+      try {
+        setHint('Processing refund…'); setHintType('info')
+        await apiFetch(`/api/bookings/${encodeURIComponent(String(backendId))}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ payment_status: 'refunded', status: 'cancelled', notes: (ev?._raw?.notes || '') + '\n[Refunded — ' + method + ']' })
+        })
+        setHint('Refund recorded ✓'); setHintType('success')
+      } catch (e: any) { setHint('Refund failed: ' + e.message); setHintType('error') }
+    }
   }
 
   async function handleManual() {
