@@ -1483,6 +1483,20 @@ export default function CalendarPage() {
     const svcNames = svcIds.map(id => services.find(s => s.id === id)?.name).filter(Boolean).join(' + ')
     const updated = { ...ev, ...patch, serviceIds: svcIds, serviceName: svcNames || ev.serviceName }
     setEvents(prev => prev.map(e => e.id === ev.id ? updated : e))
+    // Track arrived + send notification BEFORE save (so it works even if save fails)
+    const shouldNotifyArrived = patch.status === 'arrived' && !arrivedIdsRef.current.has(ev.id) && !arrivedIdsRef.current.has(String(ev._raw?.id || ''))
+    if (patch.status === 'arrived') {
+      if (ev._raw?.id) markArrived(String(ev._raw.id))
+      if (ev.id) markArrived(String(ev.id))
+    }
+    if (shouldNotifyArrived) {
+      const barberName = barbers.find(b => b.id === updated.barberId)?.name || updated.barberName || ''
+      const clientName = updated.clientName || 'Client'
+      const msgText = `📍 ${clientName} arrived — ${barberName}`
+      apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: 'barbers', text: msgText }) })
+        .then(() => showToast('Client arrived — barbers notified'))
+        .catch(() => showToast('Arrived saved'))
+    }
     try {
       if (!ev._raw?.id) {
         const startAt = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
@@ -1512,18 +1526,7 @@ export default function CalendarPage() {
       showToast('Save failed: ' + (e.message || 'Error'))
       throw e
     }
-    // If status changed to 'arrived' — track locally + send message to barbers chat
-    if (patch.status === 'arrived' && ev.status !== 'arrived') {
-      if (ev._raw?.id) markArrived(String(ev._raw.id))
-      if (ev.id) markArrived(String(ev.id))
-      const barberName = barbers.find(b => b.id === updated.barberId)?.name || updated.barberName || ''
-      const clientName = updated.clientName || 'Client'
-      const msgText = `📍 ${clientName} arrived — ${barberName}`
-      try {
-        await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: 'barbers', text: msgText }) })
-        showToast('Client arrived — barbers notified')
-      } catch { showToast('Arrived saved') }
-    }
+    // (arrived notification sent before save — see above)
     setModal({ open: false, eventId: null, isNew: false })
     // Reload bookings to get fresh data from server (2s delay to ensure server committed)
     setTimeout(() => { loadBookings(barbers, services).then(evs => {
