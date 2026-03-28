@@ -152,7 +152,7 @@ function CommissionEditor({ barber, rule, onSaved }: { barber: BarberPayroll; ru
   const [tipsPct, setTipsPct] = useState(rule.tips_pct)
   const [tiers, setTiers] = useState<Tier[]>(rule.tiers || [])
   const [bonuses, setBonuses] = useState<CustomBonus[]>(rule.custom_bonuses || [])
-  const [latePenalty, setLatePenalty] = useState(rule.late_penalty_per_min ?? 0)
+  const [latePenalty, setLatePenalty] = useState(rule.late_penalty_per_min ?? 1)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -623,7 +623,7 @@ export default function PayrollPage() {
                       const isBoosted = b.effective_pct !== b.base_pct
                       const isOpen = expanded.has(b.barber_id)
                       const bRule: Rule = rules[b.barber_id] || { base_pct: 60, tips_pct: 100, tiers: [] }
-                      const penaltyRate = bRule.late_penalty_per_min ?? 0
+                      const penaltyRate = bRule.late_penalty_per_min ?? 1
                       const bLateMins = lateMinutes[b.barber_id] || 0
                       const latePenalty = bLateMins * penaltyRate
                       const adjustedTotal = b.barber_total - latePenalty
@@ -659,7 +659,11 @@ export default function PayrollPage() {
                             {latePenalty > 0 ? (
                               <div>
                                 <span>{fmtMoney(adjustedTotal)}</span>
-                                <div style={{ fontSize: 10, color: '#ff6b6b', fontWeight: 600, marginTop: 2 }}>−{fmtMoney(latePenalty)} late ({bLateMins}min × ${penaltyRate})</div>
+                                <div style={{ fontSize: 10, color: '#ff6b6b', fontWeight: 600, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span>−{fmtMoney(latePenalty)} late ({bLateMins}min × ${penaltyRate})</span>
+                                  <button onClick={e => { e.stopPropagation(); setLateMinutes(prev => ({ ...prev, [b.barber_id]: 0 })) }}
+                                    style={{ background: 'rgba(255,107,107,.12)', border: '1px solid rgba(255,107,107,.30)', borderRadius: 6, color: '#ff9999', fontSize: 9, padding: '2px 6px', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit' }}>Reset</button>
+                                </div>
                               </div>
                             ) : fmtMoney(b.barber_total)}
                           </td>
