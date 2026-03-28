@@ -1398,13 +1398,10 @@ export function BookingModal({
                     })}
                   </div>
                   {selectedSvcs.length > 0 && (() => {
-                    let totalBase = 0
-                    for (const s of selectedSvcs) { totalBase += s.price ? Number(String(s.price).replace(/[^\d.]/g, '')) : 0 }
-                    const calc = calcTotal(totalBase, shopSettings)
+                    const totalDur = durMin
                     return (
-                      <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: 'rgba(10,132,255,.06)', border: '1px solid rgba(10,132,255,.12)', fontSize: 12, color: 'rgba(10,132,255,.80)', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>{durMin}min · {selectedSvcs.length} service{selectedSvcs.length > 1 ? 's' : ''}</span>
-                        <span style={{ fontSize: 14, fontWeight: 900 }}>${calc.total.toFixed(2)}</span>
+                      <div style={{ marginTop: 10, padding: '6px 12px', borderRadius: 10, background: 'rgba(10,132,255,.04)', border: '1px solid rgba(10,132,255,.08)', fontSize: 12, color: 'rgba(10,132,255,.60)', fontWeight: 600, textAlign: 'center' }}>
+                        {totalDur}min · {selectedSvcs.length} service{selectedSvcs.length > 1 ? 's' : ''}
                       </div>
                     )
                   })()}
