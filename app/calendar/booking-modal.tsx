@@ -1440,11 +1440,13 @@ export function BookingModal({
                       </select>
                     </div>
                   )}
+                  {(notes || isNew) && (
                   <div>
                     <label style={lbl}>Notes</label>
                     <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes…" rows={2} className="bm-input"
                       style={{ ...inp, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
                   </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1473,8 +1475,8 @@ export function BookingModal({
               </>
             )}
 
-            {/* Upload reference photo — not for students */}
-            {!isModelEvent && <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />}
+            {/* Upload reference photo — only for new bookings */}
+            {!isModelEvent && isNew && <PhotoUpload value={photoUrl} onChange={(url) => setPhotoUrl(url)} />}
 
             {/* Payment — owner/admin only, NOT for new bookings or model/training */}
             {isOwnerOrAdmin && existingEvent && !isNew && !isModelEvent && (
