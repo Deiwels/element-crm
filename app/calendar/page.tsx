@@ -1270,6 +1270,7 @@ export default function CalendarPage() {
 
   const todayEvents = events.filter(e => {
     if (e.date !== todayStr) return false
+    if (e.status === 'cancelled') return false
     if (isBarber && myBarberId && e.type !== 'block' && e.barberId !== myBarberId) return false
     // Student: show model + training bookings
     if (isStudent) return e._raw?.booking_type === 'model' || e._raw?.booking_type === 'training'
