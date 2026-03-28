@@ -670,7 +670,7 @@ export default function PayrollPage() {
                                     e.stopPropagation()
                                     if (!window.confirm(`Reset all late penalties for ${b.barber_name}?`)) return
                                     try {
-                                      await apiFetch(`/api/payroll/rules/${encodeURIComponent(b.barber_id)}`, { method: 'PUT', body: JSON.stringify({ ...bRule, late_reset_at: new Date().toISOString() }) })
+                                      await apiFetch(`/api/payroll/rules/${encodeURIComponent(b.barber_id)}`, { method: 'POST', body: JSON.stringify({ ...bRule, late_reset_at: new Date().toISOString() }) })
                                       setLateMinutes(prev => ({ ...prev, [b.barber_id]: 0 }))
                                       setRules(prev => ({ ...prev, [b.barber_id]: { ...bRule, late_reset_at: new Date().toISOString() } }))
                                     } catch (err: any) { alert('Failed to reset: ' + err.message) }
