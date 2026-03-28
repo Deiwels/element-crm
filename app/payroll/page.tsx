@@ -441,25 +441,30 @@ export default function PayrollPage() {
       } catch (_) {}
 
       const lateMins: Record<string, number> = {}
+      const currentRules = rulesData?.rules || {}
       attRecords.forEach((r: any) => {
         if (!r.clock_in || !r.barber_id) return
         const sched = barberSchedules[r.barber_id]
         if (!sched) return
+        // Check late_reset_at — skip attendance records before this timestamp
+        const bRule = currentRules[r.barber_id] || {}
+        if (bRule.late_reset_at) {
+          const resetAt = new Date(bRule.late_reset_at)
+          const clockDate = new Date(r.clock_in)
+          if (!isNaN(resetAt.getTime()) && clockDate <= resetAt) return
+        }
         const clockIn = new Date(r.clock_in)
         if (isNaN(clockIn.getTime())) return
         const dow = clockIn.getDay()
-        // Check if this day is in schedule
         const days = Array.isArray(sched.days) ? sched.days : []
         if (!days.includes(dow)) return
         const schedStartMin = Number(sched.startMin ?? sched.start_min ?? 480)
-        // Get clock_in in Chicago time
         const chicagoTime = new Date(clockIn.toLocaleString('en-US', { timeZone: 'America/Chicago' }))
         const clockInMin = chicagoTime.getHours() * 60 + chicagoTime.getMinutes()
         const late = clockInMin - schedStartMin
         if (late > 0) {
           const key = r.barber_id
           lateMins[key] = (lateMins[key] || 0) + late
-          // Also by user_id
           lateMins[r.user_id] = (lateMins[r.user_id] || 0) + late
         }
       })
@@ -661,7 +666,15 @@ export default function PayrollPage() {
                                 <span>{fmtMoney(adjustedTotal)}</span>
                                 <div style={{ fontSize: 10, color: '#ff6b6b', fontWeight: 600, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                                   <span>−{fmtMoney(latePenalty)} late ({bLateMins}min × ${penaltyRate})</span>
-                                  <button onClick={e => { e.stopPropagation(); setLateMinutes(prev => ({ ...prev, [b.barber_id]: 0 })) }}
+                                  <button onClick={async e => {
+                                    e.stopPropagation()
+                                    if (!window.confirm(`Reset all late penalties for ${b.barber_name}?`)) return
+                                    try {
+                                      await apiFetch(`/api/payroll/rules/${encodeURIComponent(b.barber_id)}`, { method: 'PUT', body: JSON.stringify({ ...bRule, late_reset_at: new Date().toISOString() }) })
+                                      setLateMinutes(prev => ({ ...prev, [b.barber_id]: 0 }))
+                                      setRules(prev => ({ ...prev, [b.barber_id]: { ...bRule, late_reset_at: new Date().toISOString() } }))
+                                    } catch (err: any) { alert('Failed to reset: ' + err.message) }
+                                  }}
                                     style={{ background: 'rgba(255,107,107,.12)', border: '1px solid rgba(255,107,107,.30)', borderRadius: 6, color: '#ff9999', fontSize: 9, padding: '2px 6px', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit' }}>Reset</button>
                                 </div>
                               </div>
