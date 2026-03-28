@@ -213,20 +213,34 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
       if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h * MAX / w); w = MAX } else { w = Math.round(w * MAX / h); h = MAX } }
       const out = document.createElement('canvas'); out.width = w; out.height = h
       const octx = out.getContext('2d')!
-      // Apply CSS filter via ctx.filter (works on fresh canvas from blob img)
-      const filterStr = cssFilter !== 'none' ? cssFilter : ''
-      if (filterStr) try { octx.filter = filterStr } catch {}
       // Rotation
       if (rotation) { octx.translate(w / 2, h / 2); octx.rotate((rotation * Math.PI) / 180); octx.translate(-w / 2, -h / 2) }
       const dw = rotated ? h : w, dh = rotated ? w : h
       octx.drawImage(img, 0, 0, dw, dh)
-      // Reset filter for draw overlay
-      try { octx.filter = 'none' } catch {}
-      // Draw overlay on top (without filter)
-      if (dc && dc.width > 0) {
-        const mcCanvas = mainCanvasRef.current
-        if (mcCanvas) octx.drawImage(dc, 0, 0, w, h)
+      // Apply filters via pixel manipulation (ctx.filter not supported on iOS)
+      const needsFilter = filter !== 'none' || brightness !== 100 || contrast !== 100 || saturation !== 100
+      if (needsFilter && w > 0 && h > 0) {
+        const imageData = octx.getImageData(0, 0, w, h)
+        const d = imageData.data
+        const br = brightness / 100, co = contrast / 100, sat = saturation / 100, fId = filter
+        for (let i = 0; i < d.length; i += 4) {
+          let r = d[i], g = d[i+1], b = d[i+2]
+          if (br !== 1) { r *= br; g *= br; b *= br }
+          if (co !== 1) { r = ((r/255-0.5)*co+0.5)*255; g = ((g/255-0.5)*co+0.5)*255; b = ((b/255-0.5)*co+0.5)*255 }
+          if (fId === 'bw') { const gray = r*0.299+g*0.587+b*0.114; r=gray; g=gray; b=gray }
+          else if (fId === 'sepia') { const gray = r*0.299+g*0.587+b*0.114; r=Math.min(255,gray+40); g=Math.min(255,gray+20); b=Math.max(0,gray-20) }
+          else if (fId === 'contrast') { const f2=1.3; r=((r/255-0.5)*f2+0.5)*255*1.1; g=((g/255-0.5)*f2+0.5)*255*1.1; b=((b/255-0.5)*f2+0.5)*255*1.1 }
+          else if (fId === 'warm') { r=Math.min(255,r*1.1+10); g=Math.min(255,g*1.05); b=b*0.9 }
+          else if (fId === 'cool') { r=r*0.9; g=Math.min(255,g*1.02); b=Math.min(255,b*1.1+10) }
+          else if (fId === 'vivid') { const avg=(r+g+b)/3; r=r+(r-avg)*0.6; g=g+(g-avg)*0.6; b=b+(b-avg)*0.6 }
+          else if (fId === 'fade') { const avg=(r+g+b)/3; r=(r+(avg-r)*0.3)*1.1; g=(g+(avg-g)*0.3)*1.1; b=(b+(avg-b)*0.3)*1.1 }
+          if (sat !== 1) { const gray=r*0.299+g*0.587+b*0.114; r=gray+(r-gray)*sat; g=gray+(g-gray)*sat; b=gray+(b-gray)*sat }
+          d[i]=Math.max(0,Math.min(255,r)); d[i+1]=Math.max(0,Math.min(255,g)); d[i+2]=Math.max(0,Math.min(255,b))
+        }
+        octx.putImageData(imageData, 0, 0)
       }
+      // Draw overlay on top
+      if (dc && dc.width > 0) octx.drawImage(dc, 0, 0, w, h)
       let q = 0.82, dataUrl = out.toDataURL('image/jpeg', q)
       while (dataUrl.length > 600000 && q > 0.3) { q -= 0.08; dataUrl = out.toDataURL('image/jpeg', q) }
       onSave(dataUrl)
