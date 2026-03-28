@@ -94,7 +94,14 @@ export default function DashboardPage() {
   const [clockError, setClockError] = useState('')
   const [clockSuccess, setClockSuccess] = useState<'in'|'out'|null>(null)
   const [clockErrorAnim, setClockErrorAnim] = useState(false)
-  const [clockOutSummary, setClockOutSummary] = useState<{ hours: string; earnings: string; tips: string; clients: number; services: string } | null>(null)
+  const [clockOutSummary, setClockOutSummary] = useState<{ hours: string; earnings: string; tips: string; clients: number; services: string } | null>(() => {
+    // Restore clock-out summary from localStorage if same day
+    try {
+      const saved = JSON.parse(localStorage.getItem('ELEMENT_CLOCKOUT_SUMMARY') || 'null')
+      if (saved && saved.date === isoToday()) return saved.data
+    } catch {}
+    return null
+  })
   const [elapsedStr, setElapsedStr] = useState('')
   const [staffOnClock, setStaffOnClock] = useState<any[]>([])
   const [attHistory, setAttHistory] = useState<any[]>([])
@@ -345,21 +352,26 @@ export default function DashboardPage() {
           const totalMins = data?.duration_minutes || todayMinutes
           const h = Math.floor(totalMins / 60)
           const m = totalMins % 60
-          setClockOutSummary({
+          const summaryData = {
             hours: h > 0 ? `${h}h ${m}m` : `${m}m`,
             earnings: money(mine?.barber_total || 0),
             tips: money(mine?.tips_total || 0),
             clients: mine?.client_count || 0,
             services: money(mine?.barber_service_share || 0),
-          })
+          }
+          setClockOutSummary(summaryData)
+          try { localStorage.setItem('ELEMENT_CLOCKOUT_SUMMARY', JSON.stringify({ date: isoToday(), data: summaryData })) } catch {}
         } catch {
           const totalMins = data?.duration_minutes || todayMinutes
           const h = Math.floor(totalMins / 60)
           const m = totalMins % 60
-          setClockOutSummary({ hours: h > 0 ? `${h}h ${m}m` : `${m}m`, earnings: '—', tips: '—', clients: 0, services: '—' })
+          const fallbackData = { hours: h > 0 ? `${h}h ${m}m` : `${m}m`, earnings: '—', tips: '—', clients: 0, services: '—' }
+          setClockOutSummary(fallbackData)
+          try { localStorage.setItem('ELEMENT_CLOCKOUT_SUMMARY', JSON.stringify({ date: isoToday(), data: fallbackData })) } catch {}
         }
         setClockSuccess('out')
-        setTimeout(() => { setClockSuccess(null); setClockOutSummary(null); loadAll() }, 3500)
+        // After animation, keep summary visible (don't clear it — stays until midnight)
+        setTimeout(() => { setClockSuccess(null) }, 3500)
       } else {
         setClockSuccess('in')
         setTimeout(() => { setClockSuccess(null); loadAll() }, 1400)
@@ -498,17 +510,16 @@ export default function DashboardPage() {
           }
         `}</style>
         {/* Clock out summary overlay */}
-        {clockSuccess === 'out' && clockOutSummary ? (
-          <div className="clock-summary" style={{ borderRadius: 18, border: '1px solid rgba(143,240,177,.30)', background: 'linear-gradient(180deg,rgba(143,240,177,.08),rgba(0,0,0,.40))', boxShadow: '0 10px 40px rgba(0,0,0,.35), 0 0 20px rgba(143,240,177,.10)', padding: '20px 18px', marginBottom: 14 }}>
-            {/* Header with checkmark */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <svg width="32" height="32" viewBox="0 0 60 60">
-                <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(143,240,177,.60)" strokeWidth="2.5" strokeDasharray="160" strokeDashoffset="160" strokeLinecap="round" style={{ animation: 'clockRingDraw .5s ease-out .1s forwards' }} />
-                <polyline points="20,32 27,39 40,24" fill="none" stroke="#8ff0b1" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="32" strokeDashoffset="32" style={{ animation: 'clockCheckDraw .3s ease-out .35s forwards' }} />
-              </svg>
+        {clockOutSummary && !clockedIn ? (
+          <div className={clockSuccess === 'out' ? 'clock-out-success-card' : ''} style={{ borderRadius: 18, border: '1px solid rgba(143,240,177,.20)', background: 'linear-gradient(180deg,rgba(143,240,177,.06),rgba(0,0,0,.30))', boxShadow: '0 10px 40px rgba(0,0,0,.35)', padding: '18px 16px', marginBottom: 14 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(143,240,177,.10)', border: '1px solid rgba(143,240,177,.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8ff0b1" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
               <div>
-                <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.14em', textTransform: 'uppercase', fontSize: 14, color: '#c9ffe1' }}>Done!</div>
-                <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginTop: 2 }}>{clockOutSummary.hours} <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,.45)' }}>today</span></div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: '#c9ffe1' }}>Clocked out</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', marginTop: 1 }}>{clockOutSummary.hours} <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,.40)' }}>today</span></div>
               </div>
             </div>
             {/* Stats grid */}
