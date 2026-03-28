@@ -299,14 +299,28 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
   }
 
   async function saveClientNotes() {
-    if (!selected?.id || selected.id.startsWith('local_')) { setEditingNotes(false); return }
     setSavingNotes(true)
     try {
-      await apiFetch(`/api/clients/${encodeURIComponent(selected.id)}`, {
+      let cid = selected?.id || ''
+      // If no client ID, try to find by name
+      if (!cid || cid.startsWith('local_')) {
+        const name = selected?.name || ''
+        if (name) {
+          const data = await apiFetch(`/api/clients?q=${encodeURIComponent(name)}`)
+          const list = Array.isArray(data) ? data : (data?.clients || [])
+          const match = list.find((c: any) => c.name === name)
+          if (match?.id) {
+            cid = match.id
+            setSelected(prev => prev ? { ...prev, id: cid } : prev)
+          }
+        }
+      }
+      if (!cid || cid.startsWith('local_')) { setEditingNotes(false); setSavingNotes(false); return }
+      await apiFetch(`/api/clients/${encodeURIComponent(cid)}`, {
         method: 'PATCH', body: JSON.stringify({ notes: clientNotes })
       })
       setSelected(prev => prev ? { ...prev, notes: clientNotes } : prev)
-    } catch {}
+    } catch (e: any) { console.warn('Save notes failed:', e?.message) }
     setSavingNotes(false); setEditingNotes(false)
   }
 
