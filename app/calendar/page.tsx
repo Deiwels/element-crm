@@ -2277,7 +2277,6 @@ export default function CalendarPage() {
           ...(hasStudents ? [{
             label: 'Training', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#d4b8ff" strokeWidth="2.2" strokeLinecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>, bg: 'rgba(168,107,255,.18)', brd: 'rgba(168,107,255,.35)', col: '#d4b8ff', fn: () => { setContextMenu(null); setTrainingModal({ barberId: contextMenu.barberId, barberName: cmBarber?.name || '', min: contextMenu.min }) }
           }] : []),
-          { label: 'Block', icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffd0d0" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>, bg: 'rgba(255,107,107,.12)', brd: 'rgba(255,107,107,.25)', col: '#ffd0d0', fn: () => { setContextMenu(null); openCreateBlock(contextMenu.barberId, contextMenu.min) } },
         ]
         // Clamp position to screen
         const top = Math.max(8, Math.min(contextMenu.y - 24, window.innerHeight - 120))
