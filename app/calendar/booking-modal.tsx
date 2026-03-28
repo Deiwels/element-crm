@@ -1015,6 +1015,7 @@ export function BookingModal({
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const isModelEvent = isStudent || !!existingEvent?.isModelEvent
+  const isPaidEvent = !!existingEvent?.paid
 
   const isNew = !existingEvent?._raw?.id
 
@@ -1334,8 +1335,8 @@ export function BookingModal({
                   <div>
                     <label style={lbl}>Barber</label>
                     <select value={selBarberId} onChange={e => handleBarberChange(e.target.value)}
-                      disabled={!isOwnerOrAdmin} className="bm-input"
-                      style={{ ...inp, opacity: isOwnerOrAdmin ? 1 : 0.6, cursor: isOwnerOrAdmin ? 'auto' : 'not-allowed' }}>
+                      disabled={!isOwnerOrAdmin || isPaidEvent} className="bm-input"
+                      style={{ ...inp, opacity: (isOwnerOrAdmin && !isPaidEvent) ? 1 : 0.5, cursor: (isOwnerOrAdmin && !isPaidEvent) ? 'auto' : 'not-allowed' }}>
                       {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
                   </div>
@@ -1353,14 +1354,14 @@ export function BookingModal({
                         if (newStatus === 'arrived') {
                           setTimeout(() => { try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: 'arrived', notes, photoUrl }) } catch {} }, 50)
                         }
-                      }} className="bm-input" style={inp}>
+                      }} disabled={isPaidEvent} className="bm-input" style={{ ...inp, opacity: isPaidEvent ? 0.5 : 1 }}>
                         {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                   )}
                   <div>
                     <label style={lbl}>Time</label>
-                    <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} className="bm-input" style={inp}>
+                    <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} disabled={isPaidEvent} className="bm-input" style={{ ...inp, opacity: isPaidEvent ? 0.5 : 1 }}>
                       {slots.map(m => <option key={m} value={m}>{minToHHMM(m)}</option>)}
                     </select>
                   </div>
@@ -1382,8 +1383,9 @@ export function BookingModal({
                       const calc = calcTotal(bp, shopSettings)
                       const priceLabel = bp > 0 ? `$${calc.total.toFixed(2)}` : ''
                       return (
-                        <button key={s.id} type="button" className={`bm-svc-btn${active ? ' bm-svc-active bm-svc-pop' : ''}`}
+                        <button key={s.id} type="button" disabled={isPaidEvent} className={`bm-svc-btn${active ? ' bm-svc-active bm-svc-pop' : ''}`}
                           onClick={(e) => {
+                            if (isPaidEvent) return
                             const adding = !active
                             setServiceIds(prev => active ? prev.filter(id => id !== s.id) : [...prev, s.id])
                             if (adding && priceLabel) {
@@ -1457,13 +1459,15 @@ export function BookingModal({
 
             {/* Footer */}
             <div className="bm-section" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 14, marginTop: 4, borderTop: '1px solid rgba(255,255,255,.06)', flexWrap: 'wrap' as const }}>
-              {!isNew && (
+              {!isNew && !isPaidEvent && (
                 <button onClick={onDelete} className="bm-footer-btn" style={{ height: 44, padding: '0 18px', borderRadius: 999, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, letterSpacing: '.02em' }}>Delete</button>
               )}
               <button onClick={onClose} className="bm-footer-btn" style={{ height: 44, padding: '0 18px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.70)', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit', fontSize: 13 }}>Close</button>
+              {!isPaidEvent && (
               <button onClick={handleSave} disabled={saving} className="bm-footer-btn" style={{ height: 44, padding: '0 24px', borderRadius: 999, border: isModelEvent ? '1px solid rgba(168,107,255,.50)' : '1px solid rgba(10,132,255,.40)', background: isModelEvent ? 'rgba(168,107,255,.14)' : 'rgba(10,132,255,.12)', color: isModelEvent ? '#d4b8ff' : '#d7ecff', cursor: 'pointer', fontWeight: 900, fontFamily: 'inherit', fontSize: 13, opacity: saving ? .5 : 1, boxShadow: saving ? 'none' : isModelEvent ? '0 0 16px rgba(168,107,255,.15)' : '0 0 16px rgba(10,132,255,.15)' }}>
                 {saving ? 'Saving…' : isModelEvent ? (isNew ? 'Book model' : 'Save') : 'Save'}
               </button>
+              )}
             </div>
           </div>
         </div>
