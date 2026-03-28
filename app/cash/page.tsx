@@ -112,7 +112,7 @@ export default function CashPage() {
     setLoading(true)
     try {
       const [paymentsData, reportsData] = await Promise.all([
-        apiFetch(`/api/payments?from=${fromDate}T00:00:00Z&to=${toDate}T23:59:59Z`),
+        apiFetch(`/api/payments?from=${fromDate}&to=${toDate}`),
         apiFetch(`/api/cash-reports?from=${fromDate}&to=${toDate}`)
       ])
       // Use same data source as Payments page — /api/payments (merged Square + local)
