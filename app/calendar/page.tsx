@@ -1305,8 +1305,10 @@ export default function CalendarPage() {
   function onDragEnd() {
     if (!drag) return
     const ev = events.find(e => e.id === drag.eventId); if (!ev) { setDrag(null); return }
-    const newBarber = barbers[drag.ghostBarberIdx]; if (!newBarber) { setDrag(null); return }
-    if (newBarber.id !== ev.barberId || drag.ghostMin !== ev.startMin) {
+    const newBarber = visibleBarbers[drag.ghostBarberIdx]; if (!newBarber) { setDrag(null); return }
+    // Only show move confirm if actually moved (different barber or time changed by at least 5min)
+    const timeDiff = Math.abs(drag.ghostMin - ev.startMin)
+    if (newBarber.id !== ev.barberId || timeDiff >= 5) {
       setDragConfirm({ eventId: ev.id, newBarberId: newBarber.id, newBarberName: newBarber.name, newMin: drag.ghostMin })
     }
     setDrag(null)
