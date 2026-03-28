@@ -104,15 +104,37 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
     ctx.save()
     ctx.translate(w / 2, h / 2)
     ctx.rotate((rotation * Math.PI) / 180)
-    const f = FILTERS.find(x => x.id === filter)
-    const parts: string[] = []
-    if (f?.css) parts.push(f.css)
-    if (brightness !== 100) parts.push(`brightness(${brightness}%)`)
-    if (contrast !== 100) parts.push(`contrast(${contrast}%)`)
-    if (saturation !== 100) parts.push(`saturate(${saturation}%)`)
-    if (parts.length) ctx.filter = parts.join(' ')
     ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2)
     ctx.restore()
+    // Apply filters via pixel manipulation (ctx.filter not supported in iOS WebView)
+    const needsFilter = filter !== 'none' || brightness !== 100 || contrast !== 100 || saturation !== 100
+    if (needsFilter && w > 0 && h > 0) {
+      const imageData = ctx.getImageData(0, 0, w, h)
+      const d = imageData.data
+      const br = brightness / 100
+      const co = contrast / 100
+      const sat = saturation / 100
+      const fId = filter
+      for (let i = 0; i < d.length; i += 4) {
+        let r = d[i], g = d[i+1], b = d[i+2]
+        // Brightness
+        if (br !== 1) { r *= br; g *= br; b *= br }
+        // Contrast
+        if (co !== 1) { r = ((r/255 - 0.5) * co + 0.5) * 255; g = ((g/255 - 0.5) * co + 0.5) * 255; b = ((b/255 - 0.5) * co + 0.5) * 255 }
+        // Filter presets
+        if (fId === 'bw') { const gray = r * 0.299 + g * 0.587 + b * 0.114; r = gray; g = gray; b = gray }
+        else if (fId === 'sepia') { const gray = r * 0.299 + g * 0.587 + b * 0.114; r = gray + 40; g = gray + 20; b = gray - 20 }
+        else if (fId === 'contrast') { const f2 = 1.3; r = ((r/255-0.5)*f2+0.5)*255; g = ((g/255-0.5)*f2+0.5)*255; b = ((b/255-0.5)*f2+0.5)*255; r *= 1.1; g *= 1.1; b *= 1.1 }
+        else if (fId === 'warm') { r = Math.min(255, r * 1.1 + 10); g = Math.min(255, g * 1.05); b = b * 0.9 }
+        else if (fId === 'cool') { r = r * 0.9; g = Math.min(255, g * 1.02); b = Math.min(255, b * 1.1 + 10) }
+        else if (fId === 'vivid') { const avg = (r+g+b)/3; r = r + (r-avg)*0.6; g = g + (g-avg)*0.6; b = b + (b-avg)*0.6 }
+        else if (fId === 'fade') { const avg = (r+g+b)/3; r = r + (avg-r)*0.3; g = g + (avg-g)*0.3; b = b + (avg-b)*0.3; r *= 1.1; g *= 1.1; b *= 1.1 }
+        // Saturation
+        if (sat !== 1) { const gray = r * 0.299 + g * 0.587 + b * 0.114; r = gray + (r - gray) * sat; g = gray + (g - gray) * sat; b = gray + (b - gray) * sat }
+        d[i] = Math.max(0, Math.min(255, r)); d[i+1] = Math.max(0, Math.min(255, g)); d[i+2] = Math.max(0, Math.min(255, b))
+      }
+      ctx.putImageData(imageData, 0, 0)
+    }
     // Sync draw canvas size
     const dc = drawCanvasRef.current
     if (dc && (dc.width !== w || dc.height !== h)) {
