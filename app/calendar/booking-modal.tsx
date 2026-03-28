@@ -1329,18 +1329,50 @@ export function BookingModal({
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Barber */}
-                <div className="bm-section">
-                  <label style={lbl}>Barber</label>
-                  <select value={selBarberId} onChange={e => handleBarberChange(e.target.value)}
-                    disabled={!isOwnerOrAdmin}
-                    className="bm-input"
-                    style={{ ...inp, opacity: isOwnerOrAdmin ? 1 : 0.6, cursor: isOwnerOrAdmin ? 'auto' : 'not-allowed', maxWidth: 220 }}>
-                    {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
+                {/* Barber + Status + Time + Duration — compact grid */}
+                <div className="bm-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={lbl}>Barber</label>
+                    <select value={selBarberId} onChange={e => handleBarberChange(e.target.value)}
+                      disabled={!isOwnerOrAdmin} className="bm-input"
+                      style={{ ...inp, opacity: isOwnerOrAdmin ? 1 : 0.6, cursor: isOwnerOrAdmin ? 'auto' : 'not-allowed' }}>
+                      {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </div>
+                  {!isNew && (
+                    <div>
+                      <label style={lbl}>Status</label>
+                      <select value={status} onChange={e => {
+                        const newStatus = e.target.value
+                        setStatus(newStatus)
+                        if (newStatus === 'cancelled' || newStatus === 'noshow') {
+                          if (window.confirm(`Mark as ${newStatus}? This will save and close.`)) {
+                            setTimeout(() => { try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: newStatus, notes, photoUrl }) } catch {} }, 50)
+                          } else { setStatus(status) }
+                        }
+                        if (newStatus === 'arrived') {
+                          setTimeout(() => { try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: 'arrived', notes, photoUrl }) } catch {} }, 50)
+                        }
+                      }} className="bm-input" style={inp}>
+                        {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label style={lbl}>Time</label>
+                    <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} className="bm-input" style={inp}>
+                      {slots.map(m => <option key={m} value={m}>{minToHHMM(m)}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lbl}>Duration → end</label>
+                    <div style={{ height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', padding: '0 12px', display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,.50)', fontWeight: 600 }}>
+                      {durMin}min → {minToHHMM(selStartMin + durMin)}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Services */}
+                {/* Services + Payment unified */}
                 <div className="bm-section" style={{ padding: '14px 16px', borderRadius: 16, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)' }}>
                   <label style={{ ...lbl, marginBottom: 10 }}>Services {serviceIds.length > 0 && <span style={{ color: 'rgba(10,132,255,.60)', fontWeight: 600 }}>({serviceIds.length} selected)</span>}</label>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 7 }}>
@@ -1354,28 +1386,11 @@ export function BookingModal({
                           onClick={(e) => {
                             const adding = !active
                             setServiceIds(prev => active ? prev.filter(id => id !== s.id) : [...prev, s.id])
-                            // Float price animation
                             if (adding && priceLabel) {
-                              const btn = e.currentTarget
-                              const float = document.createElement('span')
-                              float.className = 'bm-price-float'
-                              float.textContent = '+' + priceLabel
-                              btn.style.position = 'relative'
-                              btn.appendChild(float)
-                              setTimeout(() => float.remove(), 600)
+                              const btn = e.currentTarget; const float = document.createElement('span'); float.className = 'bm-price-float'; float.textContent = '+' + priceLabel; btn.style.position = 'relative'; btn.appendChild(float); setTimeout(() => float.remove(), 600)
                             }
                           }}
-                          style={{
-                            height: 42, padding: '0 10px', borderRadius: 12,
-                            border: `1px solid ${active ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.08)'}`,
-                            background: active ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.03)',
-                            color: active ? '#d7ecff' : 'rgba(255,255,255,.50)',
-                            cursor: 'pointer', fontSize: 11, fontWeight: active ? 800 : 500,
-                            fontFamily: 'inherit',
-                            boxShadow: active ? '0 0 14px rgba(10,132,255,.18)' : 'none',
-                            display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-start', justifyContent: 'center', gap: 1,
-                            textAlign: 'left' as const,
-                          }}>
+                          style={{ height: 42, padding: '0 10px', borderRadius: 12, border: `1px solid ${active ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.08)'}`, background: active ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.03)', color: active ? '#d7ecff' : 'rgba(255,255,255,.50)', cursor: 'pointer', fontSize: 11, fontWeight: active ? 800 : 500, fontFamily: 'inherit', boxShadow: active ? '0 0 14px rgba(10,132,255,.18)' : 'none', display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-start', justifyContent: 'center', gap: 1, textAlign: 'left' as const }}>
                           <span style={{ lineHeight: 1.2 }}>{s.name}{active ? ' ✓' : ''}</span>
                           {priceLabel && <span style={{ fontSize: 10, opacity: .6 }}>{priceLabel}</span>}
                         </button>
@@ -1395,58 +1410,14 @@ export function BookingModal({
                   })()}
                 </div>
 
-                {/* Time & Duration */}
-                <div className="bm-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={lbl}>Time</label>
-                    <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} className="bm-input" style={inp}>
-                      {slots.map(m => <option key={m} value={m}>{minToHHMM(m)}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={lbl}>Duration → end</label>
-                    <div style={{ height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', padding: '0 12px', display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,.50)', fontWeight: 600 }}>
-                      {durMin}min → {minToHHMM(selStartMin + durMin)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Status & Notes */}
-                <div className="bm-section" style={{ display: 'grid', gridTemplateColumns: !isNew ? '1fr 1fr' : '1fr', gap: 10 }}>
-                  {!isNew && (
-                    <div>
-                      <label style={lbl}>Status</label>
-                      <select value={status} onChange={e => {
-                        const newStatus = e.target.value
-                        setStatus(newStatus)
-                        // Auto-save and close for terminal statuses
-                        if (newStatus === 'cancelled' || newStatus === 'noshow') {
-                          if (window.confirm(`Mark as ${newStatus}? This will save and close.`)) {
-                            setTimeout(() => {
-                              try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: newStatus, notes, photoUrl }) } catch {}
-                            }, 50)
-                          } else {
-                            setStatus(status) // revert
-                          }
-                        }
-                        // Auto-save arrived immediately (sends notification to barbers chat)
-                        if (newStatus === 'arrived') {
-                          setTimeout(() => {
-                            try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: 'arrived', notes, photoUrl }) } catch {}
-                          }, 50)
-                        }
-                      }} className="bm-input" style={inp}>
-                        {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                  )}
-                  {(notes || isNew) && (
-                  <div>
+                {/* Notes — only if has content or new */}
+                {(notes || isNew) && (
+                  <div className="bm-section">
                     <label style={lbl}>Notes</label>
                     <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes…" rows={2} className="bm-input"
                       style={{ ...inp, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
                   </div>
-                  )}
+                )}
                 </div>
               </div>
             )}
