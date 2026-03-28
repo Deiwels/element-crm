@@ -442,14 +442,18 @@ export default function PayrollPage() {
 
       const lateMins: Record<string, number> = {}
       const currentRules = rulesData?.rules || {}
+      // Load late resets from localStorage as backup
+      let localResets: Record<string, string> = {}
+      try { localResets = JSON.parse(localStorage.getItem('ELEMENT_LATE_RESETS') || '{}') } catch {}
       attRecords.forEach((r: any) => {
         if (!r.clock_in || !r.barber_id) return
         const sched = barberSchedules[r.barber_id]
         if (!sched) return
         // Check late_reset_at — skip attendance records before this timestamp
         const bRule = currentRules[r.barber_id] || {}
-        if (bRule.late_reset_at) {
-          const resetAt = new Date(bRule.late_reset_at)
+        const resetStr = bRule.late_reset_at || localResets[r.barber_id] || ''
+        if (resetStr) {
+          const resetAt = new Date(resetStr)
           const clockDate = new Date(r.clock_in)
           if (!isNaN(resetAt.getTime()) && clockDate <= resetAt) return
         }
@@ -670,9 +674,12 @@ export default function PayrollPage() {
                                     e.stopPropagation()
                                     if (!window.confirm(`Reset all late penalties for ${b.barber_name}?`)) return
                                     try {
-                                      await apiFetch(`/api/payroll/rules/${encodeURIComponent(b.barber_id)}`, { method: 'POST', body: JSON.stringify({ ...bRule, late_reset_at: new Date().toISOString() }) })
+                                      const resetTime = new Date().toISOString()
+                                      await apiFetch(`/api/payroll/rules/${encodeURIComponent(b.barber_id)}`, { method: 'POST', body: JSON.stringify({ ...bRule, late_reset_at: resetTime }) })
+                                      // Also persist in localStorage as backup (server may not save late_reset_at)
+                                      try { const key = 'ELEMENT_LATE_RESETS'; const resets = JSON.parse(localStorage.getItem(key) || '{}'); resets[b.barber_id] = resetTime; localStorage.setItem(key, JSON.stringify(resets)) } catch {}
                                       setLateMinutes(prev => ({ ...prev, [b.barber_id]: 0 }))
-                                      setRules(prev => ({ ...prev, [b.barber_id]: { ...bRule, late_reset_at: new Date().toISOString() } }))
+                                      setRules(prev => ({ ...prev, [b.barber_id]: { ...bRule, late_reset_at: resetTime } as any }))
                                     } catch (err: any) { alert('Failed to reset: ' + err.message) }
                                   }}
                                     style={{ background: 'rgba(255,107,107,.12)', border: '1px solid rgba(255,107,107,.30)', borderRadius: 6, color: '#ff9999', fontSize: 9, padding: '2px 6px', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit' }}>Reset</button>
