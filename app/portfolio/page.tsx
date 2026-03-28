@@ -50,24 +50,27 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
 
   const COLORS = ['#ffffff','#000000','#ff3b30','#ff9500','#ffcc00','#34c759','#007aff','#af52de','#ff2d55','#8e8e93']
 
+  const imgDataUrl = useRef<string>('')
+
   useEffect(() => {
-    // Load image via blob to avoid tainted canvas on iOS
+    // Load image as data URL to guarantee clean (non-tainted) canvas on iOS
     async function loadImg() {
       try {
         let blob: Blob
         if (src.startsWith('data:')) {
-          // Data URL — convert to blob
-          const r = await fetch(src)
-          blob = await r.blob()
-        } else if (src.startsWith('blob:')) {
+          imgDataUrl.current = src
           const r = await fetch(src)
           blob = await r.blob()
         } else {
-          // Remote URL — fetch as blob to avoid CORS taint
           const r = await fetch(src)
           blob = await r.blob()
+          // Convert blob to data URL for guaranteed same-origin
+          imgDataUrl.current = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.readAsDataURL(blob)
+          })
         }
-        const blobUrl = URL.createObjectURL(blob)
         const img = new Image()
         img.onload = () => {
           imgRef.current = img
@@ -85,12 +88,11 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
             if (dc) { dc.width = w; dc.height = h }
           }, 50)
         }
-        img.src = blobUrl
+        img.src = imgDataUrl.current
       } catch (e) {
         console.warn('Image load failed:', e)
-        // Last resort — load directly (may taint canvas but at least shows image)
         const img = new Image()
-        img.onload = () => { imgRef.current = img; setTimeout(() => renderBase(), 100) }
+        img.onload = () => { imgRef.current = img; imgDataUrl.current = src; setTimeout(() => renderBase(), 100) }
         img.src = src
       }
     }
@@ -203,8 +205,11 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
   }
 
   function handleSave() {
-    const img = imgRef.current; const dc = drawCanvasRef.current
-    if (!img) { alert('Image not loaded'); return }
+    const dc = drawCanvasRef.current
+    if (!imgDataUrl.current) { alert('Image not loaded'); return }
+    // Create fresh image from data URL to guarantee clean canvas
+    const img = new Image()
+    img.onload = () => {
     try {
       const MAX = 1200
       const rotated = rotation % 180 !== 0
@@ -248,6 +253,9 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
       console.warn('Save failed:', e)
       alert('Could not save. Try a different photo.')
     }
+    }
+    img.onerror = () => alert('Could not load image for saving.')
+    img.src = imgDataUrl.current
   }
 
   const TOOLS: { id: EditorTool; label: string; icon: string }[] = [
