@@ -2115,7 +2115,8 @@ export default function CalendarPage() {
 
                       const tinyCol = isMobile && pageBarbers.length > 2
                       const isArrived = ev.status === 'arrived'
-                      const isPaid = !!ev.paid
+                      const isDone = ev.status === 'done' || ev.status === 'completed'
+                      const isPaid = !!ev.paid || isDone
                       return (
                         <div key={ev.id} className={`cal-event${isArrived ? ' arrived-pulse' : ''}${isPaid ? ' cal-event-paid' : ''}${drag?.eventId===ev.id ? ' cal-event-dragging' : ''}`}
                           style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, ...(isArrived ? {} : drag?.eventId===ev.id ? {} : { border: `1px solid ${isPaid ? barber.color + '20' : 'rgba(255,255,255,.10)'}`, background: (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}${isPaid ? '18' : '26'},${barber.color}${isPaid ? '08' : '12'})` }), padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, transition: 'transform .15s, box-shadow .15s' }}
