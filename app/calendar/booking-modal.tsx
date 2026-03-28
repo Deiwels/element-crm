@@ -1418,7 +1418,6 @@ export function BookingModal({
                       style={{ ...inp, height: 'auto', padding: '10px 12px', resize: 'vertical' as const, lineHeight: 1.5 }} />
                   </div>
                 )}
-                </div>
               </div>
             )}
 
