@@ -845,7 +845,7 @@ function PaymentPanel({ ev, services, onPayment, allEvents, barberId, onOpenEven
   async function handleRefund() {
     const backendId = ev?._raw?.id
     if (!backendId) return
-    const method = String(ev?._raw?.payment_method || ev?.paymentMethod || payMethod || '').toLowerCase()
+    const method = String(ev?._raw?.payment_method || (ev as any)?.paymentMethod || (ev as any)?.payment_method || '').toLowerCase()
     const isTerminal = method === 'terminal' || method === 'square'
     if (isTerminal) {
       if (!window.confirm('Issue a full refund via Square for this terminal payment?')) return
