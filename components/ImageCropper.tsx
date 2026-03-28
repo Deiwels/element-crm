@@ -160,17 +160,50 @@ export default function ImageCropper({ src, onSave, onClose, shape = 'square' }:
   // Save
   const handleSave = useCallback(() => {
     const img = new Image()
+    img.crossOrigin = 'anonymous'
     img.onload = () => {
       const canvas = document.createElement('canvas')
       canvas.width = OUTPUT_SIZE; canvas.height = OUTPUT_SIZE
       const ctx = canvas.getContext('2d')!
-      if (combinedFilter) ctx.filter = combinedFilter
       const fitted = fitImage(img.width, img.height, CROP_SIZE)
       const drawScale = scale * (fitted.w / img.width)
       const outScale = OUTPUT_SIZE / CROP_SIZE
       // Rotation
       if (rotation) { ctx.translate(OUTPUT_SIZE / 2, OUTPUT_SIZE / 2); ctx.rotate((rotation * Math.PI) / 180); ctx.translate(-OUTPUT_SIZE / 2, -OUTPUT_SIZE / 2) }
       ctx.drawImage(img, 0, 0, img.width, img.height, offset.x * outScale, offset.y * outScale, img.width * drawScale * outScale, img.height * drawScale * outScale)
+      // Apply filters via pixel manipulation (iOS Safari doesn't support ctx.filter)
+      const hasFilter = filter !== 'none' || brightness !== 0 || contrast !== 0 || saturation !== 0 || warmth !== 0
+      if (hasFilter) {
+        try {
+          const imageData = ctx.getImageData(0, 0, OUTPUT_SIZE, OUTPUT_SIZE)
+          const d = imageData.data
+          const bFactor = (100 + brightness) / 100
+          const cFactor = (100 + contrast) / 100
+          const sFactor = (100 + saturation) / 100
+          for (let i = 0; i < d.length; i += 4) {
+            let r = d[i], g = d[i+1], b = d[i+2]
+            // Brightness
+            if (brightness !== 0) { r *= bFactor; g *= bFactor; b *= bFactor }
+            // Contrast
+            if (contrast !== 0) { r = (r - 128) * cFactor + 128; g = (g - 128) * cFactor + 128; b = (b - 128) * cFactor + 128 }
+            // Saturation
+            if (saturation !== 0) { const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b; r = gray + (r - gray) * sFactor; g = gray + (g - gray) * sFactor; b = gray + (b - gray) * sFactor }
+            // Warmth
+            if (warmth > 0) { const t = warmth / 100; const gray = 0.2126*r+0.7152*g+0.0722*b; r=r*(1-t*0.3)+gray*t*0.4+r*t*0.1; g=g*(1-t*0.1); b=b*(1-t*0.2) }
+            else if (warmth < 0) { const t = -warmth / 100; b = b + (255-b)*t*0.15; r = r*(1-t*0.05) }
+            // Filter presets
+            if (filter === 'bw') { const gray = 0.2126*r+0.7152*g+0.0722*b; r=g=b=gray }
+            else if (filter === 'sepia') { const gray = 0.2126*r+0.7152*g+0.0722*b; r=Math.min(255,gray*1.2+40); g=Math.min(255,gray*1.0+20); b=Math.min(255,gray*0.8) }
+            else if (filter === 'contrast') { r=(r-128)*1.3+128; g=(g-128)*1.3+128; b=(b-128)*1.3+128 }
+            else if (filter === 'warm') { r=Math.min(255,r*1.08); b=b*0.92 }
+            else if (filter === 'cool') { b=Math.min(255,b*1.1); r=r*0.95 }
+            d[i] = Math.max(0, Math.min(255, r))
+            d[i+1] = Math.max(0, Math.min(255, g))
+            d[i+2] = Math.max(0, Math.min(255, b))
+          }
+          ctx.putImageData(imageData, 0, 0)
+        } catch (e) { console.warn('Filter apply error:', e) }
+      }
       // Vignette
       if (vignette > 0) {
         const g = ctx.createRadialGradient(OUTPUT_SIZE / 2, OUTPUT_SIZE / 2, OUTPUT_SIZE * 0.3, OUTPUT_SIZE / 2, OUTPUT_SIZE / 2, OUTPUT_SIZE * 0.7)
@@ -181,6 +214,7 @@ export default function ImageCropper({ src, onSave, onClose, shape = 'square' }:
       while (out.length > 900000 && q > 0.35) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q) }
       onSave(out)
     }
+    img.onerror = () => { console.warn('Image load failed for save'); onSave(src) }
     img.src = src
   }, [src, offset, scale, combinedFilter, rotation, vignette, onSave])
 
