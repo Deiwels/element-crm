@@ -1034,6 +1034,15 @@ export function BookingModal({
       // Pre-fill client card if we have client info from existing event
       if (existingEvent.clientName) {
         setSelectedClient({ id: '', name: existingEvent.clientName, phone: existingEvent.clientPhone || '', visitCount: 0 })
+        // Try to find real client ID for notes saving
+        if (existingEvent.clientName !== 'BLOCKED' && existingEvent.clientName !== 'Client') {
+          apiFetch(`/api/clients?q=${encodeURIComponent(existingEvent.clientName)}`)
+            .then((data: any) => {
+              const list = Array.isArray(data) ? data : (data?.clients || [])
+              const match = list.find((c: any) => c.name === existingEvent.clientName)
+              if (match?.id) setSelectedClient(prev => prev ? { ...prev, id: match.id, notes: match.notes || '' } : prev)
+            }).catch(() => {})
+        }
       } else {
         setSelectedClient(null)
       }
