@@ -2214,7 +2214,7 @@ export default function CalendarPage() {
 
         {/* Mobile bottom date dots — Apple-style pill for current day */}
         {isMobile && (() => {
-          const dots: { date: Date; day: number; label: string; isCurrent: boolean; isToday: boolean }[] = []
+          const dots: { date: Date; day: number; label: string; dayName: string; isCurrent: boolean; isToday: boolean }[] = []
           for (let i = -3; i <= 3; i++) {
             const d = new Date(anchor); d.setDate(d.getDate() + i)
             const today = new Date(); today.setHours(0,0,0,0)
@@ -2223,6 +2223,7 @@ export default function CalendarPage() {
               date: d,
               day: d.getDate(),
               label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+              dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
               isCurrent: i === 0,
               isToday: dNorm.getTime() === today.getTime(),
             })
@@ -2240,10 +2241,10 @@ export default function CalendarPage() {
                     setTimeout(() => { setAnchor(targetDate); setDayTransition('in'); setTimeout(() => setDayTransition('idle'), 220) }, 180)
                   }}
                   style={{
-                    height: 30,
-                    padding: dot.isCurrent ? '0 14px' : '0',
+                    height: dot.isCurrent ? 38 : 30,
+                    padding: dot.isCurrent ? '2px 14px' : '0',
                     width: dot.isCurrent ? 'auto' : 30,
-                    minWidth: dot.isCurrent ? 76 : 30,
+                    minWidth: dot.isCurrent ? 80 : 30,
                     borderRadius: 999,
                     border: `1px solid ${dot.isCurrent ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.15)'}`,
                     background: dot.isCurrent ? 'rgba(0,0,0,.85)' : 'rgba(0,0,0,.60)',
@@ -2253,11 +2254,11 @@ export default function CalendarPage() {
                     fontSize: dot.isCurrent ? 11 : 11,
                     fontFamily: 'inherit',
                     letterSpacing: dot.isCurrent ? '.02em' : 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    display: 'flex', flexDirection: dot.isCurrent ? 'column' as const : 'row' as const, alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0,
                     position: 'relative',
                   }}>
-                  {dot.isCurrent ? dot.label : dot.day}
+                  {dot.isCurrent ? (<><div style={{ lineHeight: 1 }}>{dot.label}</div><div style={{ fontSize: 8, opacity: .5, lineHeight: 1, marginTop: 1 }}>{dot.dayName}</div></>) : dot.day}
                   {dot.isToday && !dot.isCurrent && <div style={{ position: 'absolute', bottom: 3, width: 3, height: 3, borderRadius: 999, background: 'rgba(10,132,255,.90)' }} />}
                 </button>
               ))}
