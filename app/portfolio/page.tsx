@@ -51,51 +51,48 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
   const COLORS = ['#ffffff','#000000','#ff3b30','#ff9500','#ffcc00','#34c759','#007aff','#af52de','#ff2d55','#8e8e93']
 
   useEffect(() => {
-    // Convert any URL to a blob URL first to avoid CORS/tainted canvas issues
+    // Load image via blob to avoid tainted canvas on iOS
     async function loadImg() {
-      let blobUrl = src
-      if (!src.startsWith('data:') && !src.startsWith('blob:')) {
-        try {
-          const r = await fetch(src, { mode: 'cors' })
-          const blob = await r.blob()
-          blobUrl = URL.createObjectURL(blob)
-        } catch {
-          // If CORS fetch fails, try no-cors (will be opaque but at least loads)
-          try {
-            const r2 = await fetch(src)
-            const blob = await r2.blob()
-            blobUrl = URL.createObjectURL(blob)
-          } catch { blobUrl = src }
+      try {
+        let blob: Blob
+        if (src.startsWith('data:')) {
+          // Data URL — convert to blob
+          const r = await fetch(src)
+          blob = await r.blob()
+        } else if (src.startsWith('blob:')) {
+          const r = await fetch(src)
+          blob = await r.blob()
+        } else {
+          // Remote URL — fetch as blob to avoid CORS taint
+          const r = await fetch(src)
+          blob = await r.blob()
         }
+        const blobUrl = URL.createObjectURL(blob)
+        const img = new Image()
+        img.onload = () => {
+          imgRef.current = img
+          setTimeout(() => {
+            const canvas = mainCanvasRef.current
+            if (!canvas || !img.naturalWidth) return
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return
+            const w = img.naturalWidth
+            const h = img.naturalHeight
+            canvas.width = w; canvas.height = h
+            cw.current = w; ch.current = h
+            ctx.drawImage(img, 0, 0)
+            const dc = drawCanvasRef.current
+            if (dc) { dc.width = w; dc.height = h }
+          }, 50)
+        }
+        img.src = blobUrl
+      } catch (e) {
+        console.warn('Image load failed:', e)
+        // Last resort — load directly (may taint canvas but at least shows image)
+        const img = new Image()
+        img.onload = () => { imgRef.current = img; setTimeout(() => renderBase(), 100) }
+        img.src = src
       }
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => {
-        imgRef.current = img
-        // Force render with timeout to ensure refs are ready
-        setTimeout(() => {
-          const canvas = mainCanvasRef.current
-          if (!canvas || !img || !img.naturalWidth) return
-          const ctx = canvas.getContext('2d')
-          if (!ctx) return
-          const w = img.naturalWidth || img.width
-          const h = img.naturalHeight || img.height
-          if (!w || !h) return
-          canvas.width = w; canvas.height = h
-          cw.current = w; ch.current = h
-          ctx.drawImage(img, 0, 0)
-          // Sync draw canvas
-          const dc = drawCanvasRef.current
-          if (dc) { dc.width = w; dc.height = h }
-        }, 50)
-      }
-      img.onerror = () => {
-        // Fallback: try without crossOrigin
-        const img2 = new Image()
-        img2.onload = () => { imgRef.current = img2; setTimeout(() => renderBase(), 100) }
-        img2.src = blobUrl
-      }
-      img.src = blobUrl
     }
     loadImg()
   }, [src])
@@ -230,16 +227,35 @@ function PhotoEditor({ src, onSave, onClose }: { src: string; onSave: (dataUrl: 
 
   function handleSave() {
     const mc = mainCanvasRef.current; const dc = drawCanvasRef.current; if (!mc) return
-    const MAX = 1200
-    let w = mc.width, h = mc.height
-    if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h * MAX / w); w = MAX } else { w = Math.round(w * MAX / h); h = MAX } }
-    const out = document.createElement('canvas'); out.width = w; out.height = h
-    const octx = out.getContext('2d')!
-    octx.drawImage(mc, 0, 0, w, h)
-    if (dc) octx.drawImage(dc, 0, 0, w, h)
-    let q = 0.80, dataUrl = out.toDataURL('image/jpeg', q)
-    while (dataUrl.length > 600000 && q > 0.3) { q -= 0.08; dataUrl = out.toDataURL('image/jpeg', q) }
-    onSave(dataUrl)
+    try {
+      const MAX = 1200
+      let w = mc.width, h = mc.height
+      if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h * MAX / w); w = MAX } else { w = Math.round(w * MAX / h); h = MAX } }
+      const out = document.createElement('canvas'); out.width = w; out.height = h
+      const octx = out.getContext('2d')!
+      octx.drawImage(mc, 0, 0, w, h)
+      if (dc) octx.drawImage(dc, 0, 0, w, h)
+      let q = 0.80, dataUrl = out.toDataURL('image/jpeg', q)
+      while (dataUrl.length > 600000 && q > 0.3) { q -= 0.08; dataUrl = out.toDataURL('image/jpeg', q) }
+      onSave(dataUrl)
+    } catch (e) {
+      console.warn('Save failed, trying fallback:', e)
+      // Fallback: re-render from original image without getImageData
+      try {
+        const img = imgRef.current; if (!img) return
+        const out = document.createElement('canvas')
+        const MAX = 1200
+        let w = img.naturalWidth, h = img.naturalHeight
+        if (w > MAX || h > MAX) { if (w > h) { h = Math.round(h * MAX / w); w = MAX } else { w = Math.round(w * MAX / h); h = MAX } }
+        out.width = w; out.height = h
+        const ctx = out.getContext('2d')!
+        if (rotation) { ctx.translate(w/2, h/2); ctx.rotate((rotation*Math.PI)/180); ctx.translate(-w/2, -h/2) }
+        ctx.drawImage(img, 0, 0, w, h)
+        let q = 0.80, dataUrl = out.toDataURL('image/jpeg', q)
+        while (dataUrl.length > 600000 && q > 0.3) { q -= 0.08; dataUrl = out.toDataURL('image/jpeg', q) }
+        onSave(dataUrl)
+      } catch { alert('Could not save image. Try uploading a different photo.') }
+    }
   }
 
   const TOOLS: { id: EditorTool; label: string; icon: string }[] = [
