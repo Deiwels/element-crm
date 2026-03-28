@@ -111,30 +111,49 @@ export default function CashPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [paymentsData, reportsData] = await Promise.all([
+      const [paymentsData, bookingsData, reportsData] = await Promise.all([
         apiFetch(`/api/payments?from=${fromDate}T00:00:00Z&to=${toDate}T23:59:59Z`),
+        apiFetch(`/api/bookings?from=${fromDate}T00:00:00.000Z&to=${new Date(new Date(toDate + 'T23:59:59Z').getTime() + 86400000).toISOString()}`),
         apiFetch(`/api/cash-reports?from=${fromDate}&to=${toDate}`)
       ])
-      const payments = paymentsData?.payments || []
+      // Use bookings as source of truth for cash/zelle — they have correct paid + payment_method
+      const bookings = (bookingsData?.bookings || []).filter((b: any) => b.paid && (b.payment_method === 'cash' || b.payment_method === 'zelle'))
+      // Merge: prefer bookings data, fallback to payments for non-booking entries
+      const bookingIds = new Set(bookings.map((b: any) => String(b.id)))
+      const payments = (paymentsData?.payments || []).filter((p: any) => {
+        if (p.status !== 'paid') return false
+        const method = String(p.method || p.source || '').toLowerCase()
+        if (method !== 'cash' && method !== 'zelle') return false
+        // Skip if we have this booking already
+        if (p.booking_id && bookingIds.has(String(p.booking_id))) return false
+        if (p.source === 'square' || p.provider === 'square_terminal') return false
+        return true
+      })
       const reports: CashReport[] = reportsData?.reports || []
       const reportMap = new Map(reports.map(r => [r.date, r]))
       const byDate = new Map<string, { cashTotal: number; zelleTotal: number; cashTips: number; zelleTips: number; cashCount: number; zelleCount: number }>()
       const start = new Date(fromDate + 'T00:00:00'), end = new Date(toDate + 'T00:00:00')
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) byDate.set(localDateStr(d), { cashTotal: 0, zelleTotal: 0, cashTips: 0, zelleTips: 0, cashCount: 0, zelleCount: 0 })
-      const seenBookingIds = new Set<string>()
+      // Count from bookings (source of truth)
+      for (const b of bookings) {
+        const date = String(b.start_at || '').slice(0, 10)
+        if (!date) continue
+        const entry = byDate.get(date) || { cashTotal: 0, zelleTotal: 0, cashTips: 0, zelleTips: 0, cashCount: 0, zelleCount: 0 }
+        const amt = Number(b.service_amount || b.amount || b.price || 0)
+        const tip = Number(b.tip || b.tip_amount || 0)
+        const method = String(b.payment_method || '').toLowerCase()
+        if (method === 'cash') { entry.cashTotal += amt; entry.cashTips += tip; entry.cashCount++ }
+        else if (method === 'zelle') { entry.zelleTotal += amt; entry.zelleTips += tip; entry.zelleCount++ }
+        byDate.set(date, entry)
+      }
+      // Add any orphan payments not linked to bookings
       for (const p of payments) {
-        if (p.status !== 'paid') continue
-        const method = String(p.method || p.source || '').toLowerCase()
-        if (method !== 'cash' && method !== 'zelle') continue
         const date = String(p.date || '').slice(0, 10)
         if (!date) continue
-        // Deduplicate by booking_id — prevent double counting
-        const bkId = String(p.booking_id || p.id || '')
-        if (bkId && seenBookingIds.has(bkId + method)) continue
-        if (bkId) seenBookingIds.add(bkId + method)
         const entry = byDate.get(date) || { cashTotal: 0, zelleTotal: 0, cashTips: 0, zelleTips: 0, cashCount: 0, zelleCount: 0 }
         const amt = Number(p.service_amount || p.amount || 0)
         const tip = Number(p.tip || 0)
+        const method = String(p.method || p.source || '').toLowerCase()
         if (method === 'cash') { entry.cashTotal += amt; entry.cashTips += tip; entry.cashCount++ }
         else if (method === 'zelle') { entry.zelleTotal += amt; entry.zelleTips += tip; entry.zelleCount++ }
         byDate.set(date, entry)
