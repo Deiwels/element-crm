@@ -1559,7 +1559,7 @@ export default function CalendarPage() {
       // Update status to done on backend
       if (ev._raw?.id) {
         apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, {
-          method: 'PATCH', body: JSON.stringify({ status: 'completed' })
+          method: 'PATCH', body: JSON.stringify({ status: 'completed', tip, tip_amount: tip, payment_method: method })
         }).catch(() => {})
       }
     }
