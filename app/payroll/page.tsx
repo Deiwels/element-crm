@@ -2,8 +2,7 @@
 import Shell from '@/components/Shell'
 import { useEffect, useState, useCallback, useRef } from 'react'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
-const API_KEY = 'R1403ss81fxrx*rx1403'
+import { apiFetch } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Tier { type: 'revenue' | 'clients'; threshold: number; pct: number }
@@ -27,17 +26,6 @@ const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate()-n);
 const fmtDate = (iso: string) => { try { const d = new Date(iso+'T00:00:00'); return d.toLocaleDateString([], { month:'short', day:'numeric', year:'numeric' }) } catch { return iso } }
 const fmtMoney = (n: number) => '$' + (Math.round((n||0)*100)/100).toFixed(2)
 const initials = (name: string) => { const p = (name||'').split(' '); return (p[0]?.[0]||'')+(p[1]?.[0]||'') }
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch(API + path, { credentials: 'include',
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, ...(opts?.headers || {}) }
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
 
 // ─── DatePicker ───────────────────────────────────────────────────────────────
 function DatePicker({ from, to, onChange, onClose }: {

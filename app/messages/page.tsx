@@ -2,18 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import Shell from '@/components/Shell'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
-const API_KEY = 'R1403ss81fxrx*rx1403'
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('ELEMENT_TOKEN') || '' : ''
-  const res = await fetch(API + path, { credentials: 'include', ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, ...(opts?.headers || {}) }
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
+import { apiFetch } from '@/lib/api'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type ChatType = 'general' | 'barbers' | 'admins' | 'students'

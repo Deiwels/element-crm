@@ -2,8 +2,7 @@
 import Shell from '@/components/Shell'
 import { useEffect, useState, useCallback } from 'react'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
-const API_KEY = 'R1403ss81fxrx*rx1403'
+import { apiFetch } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Client {
@@ -51,16 +50,6 @@ function Chip({ status }: { status: string }) {
   </span>
 }
 
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch(API + path, { credentials: 'include',
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, ...(opts?.headers||{}) }
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
 
 // ─── AddClientModal ───────────────────────────────────────────────────────────
 function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: Client) => void }) {

@@ -357,7 +357,14 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
     else setStatus('ok')
 
     fetch(`${API}/api/auth/me`, { credentials: 'include', headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
-      .then(r => r.json())
+      .then(r => {
+        if (r.status === 401 || r.status === 403) {
+          localStorage.removeItem('ELEMENT_TOKEN'); localStorage.removeItem('ELEMENT_USER')
+          window.location.href = '/signin'
+          throw new Error('Token expired')
+        }
+        return r.json()
+      })
       .then(async (d: any) => {
         if (!d.user) return
         // Preserve barber_id from localStorage if backend returns empty

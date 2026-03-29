@@ -1,8 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
-const API_KEY = 'R1403ss81fxrx*rx1403'
+import { apiFetch, API, API_KEY } from '@/lib/api'
 
 // ─── Shop settings — always fresh, no permanent cache ────────────────────────
 async function getShopSettings() {
@@ -113,16 +112,6 @@ function maskPhone(phone: string) {
   return phone ? '***' : '—'
 }
 
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch(API + path, { credentials: 'include',
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts?.headers || {}) }
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
 
 // ─── ClientSearch ─────────────────────────────────────────────────────────────
 function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: {

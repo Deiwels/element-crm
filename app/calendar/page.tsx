@@ -4,7 +4,7 @@ import Shell from '@/components/Shell'
 import { BookingModal } from '@/app/calendar/booking-modal'
 import ImageCropper from '@/components/ImageCropper'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
+import { apiFetch } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Barber {
@@ -57,16 +57,6 @@ const clamp = (min: number) => Math.max(START_HOUR * 60, Math.min(min, END_HOUR 
 const timeStrToMin = (s: string) => { const [h,m] = s.split(':').map(Number); return (h||0)*60+(m||0) }
 const minToTimeStr = (min: number) => `${pad2(Math.floor(min/60))}:${pad2(min%60)}`
 
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch(API + path, { credentials: 'include',
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts?.headers || {}) },
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
 
 // ─── Status Chip ──────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, { border: string; bg: string; color: string }> = {

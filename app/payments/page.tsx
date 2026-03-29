@@ -2,8 +2,7 @@
 import Shell from '@/components/Shell'
 import { useEffect, useState, useCallback, useRef } from 'react'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
-const API_KEY = 'R1403ss81fxrx*rx1403'
+import { apiFetch } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Payment {
@@ -24,17 +23,6 @@ const fmtDateFull  = (iso: string) => { try { return new Date(iso+'T00:00:00').t
 const methodLabel  = (m: string) => ({ card:'Card', applepay:'Apple Pay', cash:'Cash', zelle:'Zelle', terminal:'Terminal', other:'Other' }[m?.toLowerCase()] || m || '—')
 const initials     = (name: string) => { const p = (name||'').split(' '); return (p[0]?.[0]||'')+(p[1]?.[0]||'') }
 const isSquareId   = (s: string) => s.length > 14 && /^[A-Za-z0-9]{14,}$/.test(s.replace(/\s/g,''))
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch(API + path, { credentials: 'include',
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, ...(opts?.headers || {}) }
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
 
 // ─── StatusChip ───────────────────────────────────────────────────────────────
 function StatusChip({ status }: { status: string }) {
