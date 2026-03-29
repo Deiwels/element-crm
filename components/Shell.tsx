@@ -1,9 +1,10 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { clearAuthCookie } from '@/lib/auth-cookie'
+import { useEffect, useState, useCallback } from 'react'
+import { clearAuthCookie, setAuthCookie } from '@/lib/auth-cookie'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import ImageCropper from '@/components/ImageCropper'
+import { hasPinSetup, verifyPin, getCredentials, getPinUsername } from '@/lib/pin'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 const API_KEY = 'R1403ss81fxrx*rx1403'
@@ -308,8 +309,55 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   const [status, setStatus] = useState<'loading' | 'ok' | 'noauth'>('loading')
   const [showProfile, setShowProfile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [unreadChat, setUnreadChat] = useState<string | null>(null) // color of latest unread chat type
+  const [unreadChat, setUnreadChat] = useState<string | null>(null)
+  const [showPinOverlay, setShowPinOverlay] = useState(false)
+  const [pinInput, setPinInput] = useState('')
+  const [pinError, setPinError] = useState('')
+  const [pinLoading, setPinLoading] = useState(false)
   const pathname = usePathname()
+
+  // Listen for PIN-required events from api.ts
+  useEffect(() => {
+    const handler = () => { if (hasPinSetup()) setShowPinOverlay(true); else { localStorage.removeItem('ELEMENT_USER'); window.location.href = '/signin' } }
+    window.addEventListener('element-pin-required', handler)
+    return () => window.removeEventListener('element-pin-required', handler)
+  }, [])
+
+  const handlePinSubmit = useCallback(async (enteredPin: string) => {
+    setPinError('')
+    setPinLoading(true)
+    try {
+      const valid = await verifyPin(enteredPin)
+      if (!valid) { setPinError('Wrong PIN'); setPinLoading(false); setPinInput(''); return }
+      const creds = await getCredentials(enteredPin)
+      if (!creds) { setPinError('PIN data corrupted. Please login with password.'); setPinLoading(false); return }
+      // Re-login with saved credentials
+      const res = await fetch(`${API}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+        credentials: 'include',
+        body: JSON.stringify({ username: creds.username, password: creds.password }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Login failed')
+      const token = data.token || data.access_token || ''
+      if (token) localStorage.setItem('ELEMENT_TOKEN', token)
+      const userData = { ...(data.user || {}) }
+      localStorage.setItem('ELEMENT_USER', JSON.stringify(userData))
+      setAuthCookie(userData.role + ':' + (userData.uid || ''))
+      setUser(userData)
+      setShowPinOverlay(false)
+      setPinInput('')
+    } catch (e: any) {
+      setPinError(e.message || 'Login failed. Try password.')
+    }
+    setPinLoading(false)
+  }, [])
+
+  // Auto-submit when 4 digits entered
+  useEffect(() => {
+    if (pinInput.length === 4 && showPinOverlay) handlePinSubmit(pinInput)
+  }, [pinInput, showPinOverlay, handlePinSubmit])
 
   // Swipe to open/close sidebar — sets flag to block other swipe handlers
   useEffect(() => {
@@ -359,7 +407,9 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
     fetch(`${API}/api/auth/me`, { credentials: 'include', headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
       .then(r => {
         if (r.status === 401) {
-          localStorage.removeItem('ELEMENT_TOKEN'); localStorage.removeItem('ELEMENT_USER')
+          localStorage.removeItem('ELEMENT_TOKEN')
+          if (hasPinSetup()) { setShowPinOverlay(true); throw new Error('Token expired — PIN required') }
+          localStorage.removeItem('ELEMENT_USER')
           window.location.href = '/signin'
           throw new Error('Token expired')
         }
@@ -394,7 +444,12 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
       .catch(() => {})
   }, [])
 
-  useEffect(() => { if (status === 'noauth') window.location.href = '/signin' }, [status])
+  useEffect(() => {
+    if (status === 'noauth') {
+      if (hasPinSetup()) setShowPinOverlay(true)
+      else window.location.href = '/signin'
+    }
+  }, [status])
 
   // Poll for unread messages — check latest message per chat type
   useEffect(() => {
@@ -489,6 +544,47 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
   return (
     <>
+      {/* PIN Overlay */}
+      {showPinOverlay && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.95)', backdropFilter: 'blur(20px)', padding: 20, fontFamily: 'Inter, system-ui, sans-serif' }}>
+          <div style={{ width: '100%', maxWidth: 360, textAlign: 'center' }}>
+            <div style={{ fontFamily: '"Julius Sans One", sans-serif', letterSpacing: '.22em', textTransform: 'uppercase', fontSize: 18, marginBottom: 6, color: '#e9e9e9' }}>Element</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.40)', marginBottom: 8 }}>Session expired</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 28 }}>Enter your PIN to continue as <strong style={{ color: '#d7ecff' }}>{user?.name || getPinUsername()}</strong></div>
+            {/* PIN dots */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 24 }}>
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,.20)', background: i < pinInput.length ? '#d7ecff' : 'transparent', transition: 'background .15s' }} />
+              ))}
+            </div>
+            {pinError && <div style={{ padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', fontSize: 12, marginBottom: 16 }}>{pinError}</div>}
+            {/* Number pad */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 260, margin: '0 auto' }}>
+              {[1,2,3,4,5,6,7,8,9,null,0,'del'].map((n, i) => (
+                <button key={i} type="button" disabled={pinLoading}
+                  onClick={() => {
+                    if (n === 'del') { setPinInput(p => p.slice(0, -1)); setPinError('') }
+                    else if (n !== null && pinInput.length < 4) { setPinInput(p => p + n); setPinError('') }
+                  }}
+                  style={{
+                    height: 56, borderRadius: 14, border: 'none',
+                    background: n === null ? 'transparent' : 'rgba(255,255,255,.06)',
+                    color: n === 'del' ? 'rgba(255,255,255,.40)' : '#e9e9e9',
+                    fontSize: n === 'del' ? 14 : 22, fontWeight: 600, cursor: n === null ? 'default' : 'pointer',
+                    fontFamily: 'inherit', transition: 'background .1s',
+                    visibility: n === null ? 'hidden' : 'visible',
+                  }}>
+                  {n === 'del' ? '\u232B' : n}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => { setShowPinOverlay(false); localStorage.removeItem('ELEMENT_USER'); clearAuthCookie(); window.location.href = '/signin' }}
+              style={{ marginTop: 24, background: 'none', border: 'none', color: 'rgba(255,255,255,.30)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '.06em' }}>
+              Login with password
+            </button>
+          </div>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}

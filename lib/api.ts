@@ -18,8 +18,13 @@ export async function apiFetch(path: string, opts?: RequestInit) {
   if (res.status === 401) {
     if (typeof window !== 'undefined' && !path.includes('/auth/login')) {
       localStorage.removeItem('ELEMENT_TOKEN')
-      localStorage.removeItem('ELEMENT_USER')
-      window.location.href = '/signin'
+      // If PIN is set up, show PIN screen instead of full logout
+      if (localStorage.getItem('ELEMENT_PIN_HASH')) {
+        window.dispatchEvent(new CustomEvent('element-pin-required'))
+      } else {
+        localStorage.removeItem('ELEMENT_USER')
+        window.location.href = '/signin'
+      }
     }
   }
   const data = await res.json()
