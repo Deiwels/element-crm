@@ -1570,12 +1570,12 @@ export default function CalendarPage() {
     <Shell page="calendar">
       {/* Loading overlay — shown on initial load */}
       {loading && events.length === 0 && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', gap: 16 }}>
-          <div style={{ fontFamily: '"Julius Sans One", sans-serif', letterSpacing: '.22em', textTransform: 'uppercase', fontSize: 20, color: '#e9e9e9' }}>Element</div>
-          <div style={{ width: 28, height: 28 }}>
-            <svg viewBox="0 0 24 24" fill="none" style={{ animation: 'calLoadSpin 1s linear infinite', width: '100%', height: '100%' }}>
-              <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,.10)" strokeWidth="2.5" />
-              <path d="M12 2a10 10 0 0 1 10 10" stroke="#d7ecff" strokeWidth="2.5" strokeLinecap="round" />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', gap: 16 }}>
+          <div style={{ position: 'relative', width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src="/Element_logo-05.jpg" alt="Element" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover' }} />
+            <svg viewBox="0 0 80 80" fill="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', animation: 'calLoadSpin 1.2s linear infinite' }}>
+              <circle cx="40" cy="40" r="38" stroke="rgba(255,255,255,.08)" strokeWidth="2.5" />
+              <path d="M40 2a38 38 0 0 1 38 38" stroke="#d7ecff" strokeWidth="2.5" strokeLinecap="round" />
             </svg>
           </div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', letterSpacing: '.08em' }}>Loading calendar…</div>

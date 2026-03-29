@@ -695,22 +695,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* KPIs — barber sees their own earnings, owner sees totals */}
-        <div className="dash-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
-          {isBarber ? <>
-            <KpiCard title="My bookings today" value={String(total)} sub={`${upcoming} upcoming`} color="blue" />
-            <KpiCard title={`My earnings · ${getDateRange(earningsPeriod, earningsOffset).label}`} value={money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
-            <KpiCard title="My clients today" value={String(barberClients)} sub={paid > 0 ? `${paid} paid` : 'today'} color="gold" />
-            <KpiCard title="No-shows" value={String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
-          </> : <>
-            <KpiCard title="Bookings today" value={String(total)} sub={`${upcoming} upcoming`} color="blue" />
-            <KpiCard title="Paid / Unpaid" value={`${paid}/${total}`} sub={total - paid > 0 ? `${total - paid} unpaid` : 'all paid ✓'} color={paid === total && total > 0 ? 'ok' : 'gold'} />
-            <KpiCard title="No-shows" value={String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
-            <KpiCard title="Barbers working" value={String(Object.keys(byBarber).length)} sub="today" color="blue" />
-          </>}
-        </div>
-
-        {/* Barber: earnings breakdown — right after KPIs */}
+        {/* Barber: earnings breakdown — right after clock in/out */}
         {isBarber ? (
               <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14, marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -751,6 +736,21 @@ export default function DashboardPage() {
                 )}
           </div>
         ) : null}
+
+        {/* KPIs — barber sees their own earnings, owner sees totals */}
+        <div className="dash-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
+          {isBarber ? <>
+            <KpiCard title="My bookings today" value={String(total)} sub={`${upcoming} upcoming`} color="blue" />
+            <KpiCard title={`My earnings · ${getDateRange(earningsPeriod, earningsOffset).label}`} value={money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
+            <KpiCard title="My clients" value={String(barberClients)} sub={paid > 0 ? `${paid} paid` : ''} color="gold" />
+            <KpiCard title="No-shows" value={String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
+          </> : <>
+            <KpiCard title="Bookings today" value={String(total)} sub={`${upcoming} upcoming`} color="blue" />
+            <KpiCard title="Paid / Unpaid" value={`${paid}/${total}`} sub={total - paid > 0 ? `${total - paid} unpaid` : 'all paid ✓'} color={paid === total && total > 0 ? 'ok' : 'gold'} />
+            <KpiCard title="No-shows" value={String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
+            <KpiCard title="Barbers working" value={String(Object.keys(byBarber).length)} sub="today" color="blue" />
+          </>}
+        </div>
 
         {/* Main grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 14 }}>
