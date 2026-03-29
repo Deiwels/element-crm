@@ -28,6 +28,31 @@ interface BarberPayroll {
 const money = (n: number) => '$' + Number(n || 0).toFixed(2)
 const fmtTime = (iso?: string) => { try { return new Date(iso!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) } catch { return '—' } }
 const isoToday = () => { const d = new Date(); const p = (n: number) => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}` }
+const isoDate = (d: Date) => { const p = (n: number) => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}` }
+type EarningsPeriod = 'today' | 'week' | 'month'
+function getDateRange(period: EarningsPeriod, offset: number): { from: string; to: string; label: string } {
+  const now = new Date()
+  if (period === 'today') {
+    const d = new Date(now); d.setDate(d.getDate() + offset)
+    const iso = isoDate(d)
+    const label = offset === 0 ? 'Today' : offset === -1 ? 'Yesterday' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    return { from: iso, to: iso, label }
+  }
+  if (period === 'week') {
+    // Pay week: Sunday to Saturday
+    const dow = now.getDay()
+    const sun = new Date(now); sun.setDate(now.getDate() - dow + offset * 7)
+    const sat = new Date(sun); sat.setDate(sun.getDate() + 6)
+    const label = offset === 0 ? 'This week' : offset === -1 ? 'Last week'
+      : `${sun.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} — ${sat.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+    return { from: isoDate(sun), to: isoDate(sat), label }
+  }
+  // month
+  const m = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+  const last = new Date(m.getFullYear(), m.getMonth() + 1, 0)
+  const label = offset === 0 ? 'This month' : m.toLocaleDateString(undefined, { month: 'long', year: now.getFullYear() !== m.getFullYear() ? 'numeric' : undefined })
+  return { from: isoDate(m), to: isoDate(last), label }
+}
 const fmtDateLong = () => new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 
 const STATUS_STYLE: Record<string, React.CSSProperties> = {
@@ -111,6 +136,9 @@ export default function DashboardPage() {
   const [attOpen, setAttOpen] = useState(false)
   const [attLoading, setAttLoading] = useState(false)
 
+  const [earningsPeriod, setEarningsPeriod] = useState<EarningsPeriod>('today')
+  const [earningsOffset, setEarningsOffset] = useState(0)
+
   // Get current user from localStorage
   const [user] = useState(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null }
@@ -125,9 +153,10 @@ export default function DashboardPage() {
     const token = localStorage.getItem('ELEMENT_TOKEN') || ''
     const headers: Record<string,string> = { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, Accept: 'application/json' }
     const today = isoToday()
-    setLoading(true)
+    const range = getDateRange(earningsPeriod, earningsOffset)
+    if (!bookings.length && !myPayroll) setLoading(true) // only show loading on first load
     try {
-      // Load barbers for name lookup
+      // Load barbers for name lookup — bookings for today (calendar), payroll for selected period
       const [bkRes, brRes] = await Promise.all([
         fetch(`${API}/api/bookings?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`, { headers }),
         fetch(`${API}/api/barbers`, { headers }),
@@ -188,10 +217,10 @@ export default function DashboardPage() {
         } catch {}
       }
 
-      // Payroll for barber — load their personal stats from payroll API
+      // Payroll for barber — load their personal stats for selected period
       if (isBarber && myBarberId) {
         try {
-          const pr = await fetch(`${API}/api/payroll?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`, { credentials: 'include', headers })
+          const pr = await fetch(`${API}/api/payroll?from=${range.from}T00:00:00.000Z&to=${range.to}T23:59:59.999Z`, { credentials: 'include', headers })
           const prData = await pr.json()
           const mine = (prData?.barbers || []).find((b: BarberPayroll) => b.barber_id === myBarberId)
           setMyPayroll(mine || null)
@@ -211,7 +240,7 @@ export default function DashboardPage() {
       setClockedIn(!!attStatus.clocked_in)
       setClockInTime(attStatus.clock_in || null)
       setTodayMinutes(attStatus.today_minutes || 0)
-    } catch { setClockedIn(false) }
+    } catch { /* don't reset clock status on fetch error */ }
     // Admin: load who's on clock today
     if (!isBarber) {
       try {
@@ -231,7 +260,7 @@ export default function DashboardPage() {
       } catch { setPhoneAccessLog([]) }
     }
     setLoading(false)
-  }, [isBarber, myBarberId])
+  }, [isBarber, myBarberId, earningsPeriod, earningsOffset])
 
   useEffect(() => { loadAll() }, [loadAll])
   useEffect(() => { const t = setInterval(loadAll, 30000); return () => clearInterval(t) }, [loadAll])
@@ -330,6 +359,9 @@ export default function DashboardPage() {
     try {
       let lat = 0, lng = 0
       try {
+        if (!navigator.geolocation) throw new Error('Location is not supported by your browser. Please use a different device.')
+        const perm = await navigator.permissions?.query({ name: 'geolocation' }).catch(() => null)
+        if (perm && perm.state === 'denied') throw new Error('Location access is disabled. Please enable location in your device settings and try again.')
         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
         })
@@ -337,7 +369,13 @@ export default function DashboardPage() {
       } catch (gpsErr: any) {
         // For clock OUT — proceed without GPS (server allows it, caps to schedule end)
         if (wasClocked) { lat = 0; lng = 0 }
-        else throw gpsErr // Clock IN requires GPS
+        else {
+          const msg = gpsErr?.code === 1 ? 'Location access denied. Please enable location in your device settings and try again.'
+            : gpsErr?.code === 2 ? 'Location unavailable. Please check that location services are turned on.'
+            : gpsErr?.code === 3 ? 'Location request timed out. Please try again.'
+            : gpsErr?.message || 'Location is required for clock-in. Please enable location services.'
+          throw new Error(msg)
+        }
       }
       const endpoint = clockedIn ? '/api/attendance/clock-out' : '/api/attendance/clock-in'
       const token = localStorage.getItem('ELEMENT_TOKEN') || ''
@@ -657,25 +695,65 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Barber: earnings breakdown — right after clock in/out */}
+        {isBarber ? (
+              <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14, marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)' }}>My earnings</div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {(['today', 'week', 'month'] as EarningsPeriod[]).map(p => (
+                      <button key={p} onClick={() => { setEarningsPeriod(p); setEarningsOffset(0) }} style={{
+                        height: 24, padding: '0 8px', borderRadius: 6, border: `1px solid ${earningsPeriod === p ? 'rgba(10,132,255,.45)' : 'rgba(255,255,255,.10)'}`,
+                        background: earningsPeriod === p ? 'rgba(10,132,255,.12)' : 'transparent',
+                        color: earningsPeriod === p ? '#d7ecff' : 'rgba(255,255,255,.35)', fontSize: 9, fontWeight: 700,
+                        cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '.06em', textTransform: 'uppercase',
+                      }}>{p === 'today' ? 'Day' : p === 'week' ? 'Week' : 'Month'}</button>
+                    ))}
+                  </div>
+                </div>
+                {/* Period navigation */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 10 }}>
+                  <button onClick={() => setEarningsOffset(o => o - 1)} style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.50)', cursor: 'pointer', fontSize: 14, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&lsaquo;</button>
+                  <div style={{ fontSize: 12, color: earningsOffset === 0 ? 'rgba(255,255,255,.60)' : '#d7ecff', fontWeight: 600, minWidth: 120, textAlign: 'center' }}>
+                    {getDateRange(earningsPeriod, earningsOffset).label}
+                  </div>
+                  <button onClick={() => setEarningsOffset(o => Math.min(0, o + 1))} disabled={earningsOffset >= 0} style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: earningsOffset >= 0 ? 'rgba(255,255,255,.15)' : 'rgba(255,255,255,.50)', cursor: earningsOffset >= 0 ? 'not-allowed' : 'pointer', fontSize: 14, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&rsaquo;</button>
+                </div>
+                {loading && !myPayroll ? <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 12 }}>Loading…</div> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[
+                      { label: 'Services', value: money(myPayroll?.barber_service_share || 0), color: '#d7ecff' },
+                      { label: 'Tips', value: money(barberTips), color: '#8ff0b1' },
+                      { label: 'Total payout', value: money(barberEarnings), color: '#fff', big: true },
+                    ].map(row => (
+                      <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: row.big ? 'rgba(10,132,255,.08)' : 'rgba(0,0,0,.14)', borderColor: row.big ? 'rgba(10,132,255,.30)' : 'rgba(255,255,255,.08)' }}>
+                        <span style={{ fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)' }}>{row.label}</span>
+                        <span style={{ fontWeight: 900, fontSize: row.big ? 18 : 14, color: row.color }}>{row.value}</span>
+                      </div>
+                    ))}
+                    {!myPayroll && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', marginTop: 4 }}>Updates every 2 minutes</div>}
+                  </div>
+                )}
+          </div>
+        ) : null}
+
         {/* KPIs — barber sees their own earnings, owner sees totals */}
         <div className="dash-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
           {isBarber ? <>
-            <KpiCard title="My bookings today" value={loading ? '…' : String(total)} sub={`${upcoming} upcoming`} color="blue" />
-            <KpiCard title="My earnings today" value={loading ? '…' : money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
-            <KpiCard title="My clients today" value={loading ? '…' : String(barberClients)} sub={paid > 0 ? `${paid} paid` : 'today'} color="gold" />
-            <KpiCard title="No-shows" value={loading ? '…' : String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
+            <KpiCard title="My bookings today" value={String(total)} sub={`${upcoming} upcoming`} color="blue" />
+            <KpiCard title={`My earnings · ${getDateRange(earningsPeriod, earningsOffset).label}`} value={money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
+            <KpiCard title="My clients" value={String(barberClients)} sub={paid > 0 ? `${paid} paid` : ''} color="gold" />
+            <KpiCard title="No-shows" value={String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
           </> : <>
-            <KpiCard title="Bookings today" value={loading ? '…' : String(total)} sub={`${upcoming} upcoming`} color="blue" />
-            <KpiCard title="Paid / Unpaid" value={loading ? '…' : `${paid}/${total}`} sub={total - paid > 0 ? `${total - paid} unpaid` : 'all paid ✓'} color={paid === total && total > 0 ? 'ok' : 'gold'} />
-            <KpiCard title="No-shows" value={loading ? '…' : String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
-            <KpiCard title="Barbers working" value={loading ? '…' : String(Object.keys(byBarber).length)} sub="today" color="blue" />
+            <KpiCard title="Bookings today" value={String(total)} sub={`${upcoming} upcoming`} color="blue" />
+            <KpiCard title="Paid / Unpaid" value={`${paid}/${total}`} sub={total - paid > 0 ? `${total - paid} unpaid` : 'all paid ✓'} color={paid === total && total > 0 ? 'ok' : 'gold'} />
+            <KpiCard title="No-shows" value={String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
+            <KpiCard title="Barbers working" value={String(Object.keys(byBarber).length)} sub="today" color="blue" />
           </>}
         </div>
 
         {/* Main grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 14 }}>
-
-          {/* Right column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
             {/* Quick actions */}
@@ -691,27 +769,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Barber: earnings breakdown. Owner: by barber bars */}
-            {isBarber ? (
-              <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
-                <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>My earnings today</div>
-                {loading ? <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 12 }}>Loading…</div> : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[
-                      { label: 'Services', value: money(myPayroll?.barber_service_share || 0), color: '#d7ecff' },
-                      { label: 'Tips', value: money(barberTips), color: '#8ff0b1' },
-                      { label: 'Total payout', value: money(barberEarnings), color: '#fff', big: true },
-                    ].map(row => (
-                      <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: row.big ? 'rgba(10,132,255,.08)' : 'rgba(0,0,0,.14)', borderColor: row.big ? 'rgba(10,132,255,.30)' : 'rgba(255,255,255,.08)' }}>
-                        <span style={{ fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)' }}>{row.label}</span>
-                        <span style={{ fontWeight: 900, fontSize: row.big ? 18 : 14, color: row.color }}>{row.value}</span>
-                      </div>
-                    ))}
-                    {!myPayroll && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', marginTop: 4 }}>Updates every 2 minutes</div>}
-                  </div>
-                )}
-              </div>
-            ) : (
+            {/* Owner: today by barber */}
+            {!isBarber && (
               <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
                 <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Today by barber</div>
                 {Object.entries(byBarber).sort((a, b) => b[1] - a[1]).map(([name, count]) => (
@@ -727,25 +786,6 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Recent activity */}
-            <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
-              <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Recent activity</div>
-              {[...bookings].sort((a, b) => String(b.start_at||'').localeCompare(String(a.start_at||''))).slice(0, 6).map((b, i) => {
-                const dotColors: Record<string,string> = { booked:'#0a84ff', arrived:'#8ff0b1', done:'#ffcf3f', noshow:'#ff6b6b', cancelled:'#ff6b6b' }
-                const dc = b.paid ? '#8ff0b1' : (dotColors[b.status||''] || 'rgba(255,255,255,.25)')
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 999, background: dc, flexShrink: 0, marginTop: 5, display: 'inline-block' }} />
-                    <span style={{ fontSize: 12, lineHeight: 1.4, flex: 1 }}>
-                      <strong>{decHtml(b.client_name || 'Client')}</strong> — {decHtml(b.service_name || 'service')}
-                      {!isBarber && <> · <em style={{ color: 'rgba(255,255,255,.40)' }}>{b.barber_name || b.barber}</em></>}
-                    </span>
-                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', whiteSpace: 'nowrap' }}>{fmtTime(b.start_at)}</span>
-                  </div>
-                )
-              })}
-              {bookings.length === 0 && !loading && <div style={{ color: 'rgba(255,255,255,.30)', fontSize: 12 }}>No activity yet</div>}
-            </div>
           </div>
         </div>
           {/* ── OWNER/ADMIN ONLY: Shop Status + Banner + Barbers ── */}

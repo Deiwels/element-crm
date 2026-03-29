@@ -2,19 +2,8 @@
 import Shell from '@/components/Shell'
 import { useEffect, useState, useCallback } from 'react'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
-const API_KEY = 'R1403ss81fxrx*rx1403'
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch(API + path, { credentials: 'include',
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, ...(opts?.headers || {}) }
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
+import { apiFetch } from '@/lib/api'
+import { hasPinSetup, clearPin } from '@/lib/pin'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Fee { id: string; label: string; type: 'percent'|'fixed'; value: number; applies_to: string; enabled: boolean }
@@ -809,6 +798,22 @@ export default function SettingsPage() {
 
             {/* ── USERS ── */}
             {tab === 'users' && <UsersTab />}
+
+            {/* ── PIN RESET (visible on all tabs) ── */}
+            <div style={{ marginTop: 24, padding: '14px 16px', borderRadius: 16, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#e9e9e9' }}>Quick PIN</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 2 }}>{hasPinSetup() ? 'PIN is set up for fast login' : 'No PIN set — login with password each time'}</div>
+                </div>
+                {hasPinSetup() && (
+                  <button onClick={() => { clearPin(); showToast('PIN reset — you will set a new one on next login') }}
+                    style={{ height: 32, padding: '0 14px', borderRadius: 10, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                    Reset PIN
+                  </button>
+                )}
+              </div>
+            </div>
 
           </>)}
         </div>

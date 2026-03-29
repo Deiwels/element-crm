@@ -1,9 +1,10 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { clearAuthCookie } from '@/lib/auth-cookie'
+import { useEffect, useState, useCallback } from 'react'
+import { clearAuthCookie, setAuthCookie } from '@/lib/auth-cookie'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import ImageCropper from '@/components/ImageCropper'
+import { hasPinSetup, verifyPin, getCredentials, getPinUsername } from '@/lib/pin'
 
 const API = 'https://element-crm-api-431945333485.us-central1.run.app'
 const API_KEY = 'R1403ss81fxrx*rx1403'
@@ -103,7 +104,27 @@ function ProfileModal({ user, onClose, onUpdated }: {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
-  const [tab, setTab] = useState<'profile' | 'password'>('profile')
+  const [tab, setTab] = useState<'profile' | 'password' | 'notifications'>('profile')
+  const [notifPrefs, setNotifPrefs] = useState({
+    push_booking_confirm: true,
+    push_reminder_24h: true,
+    push_reminder_2h: true,
+    push_reschedule: true,
+    push_cancel: true,
+    push_waitlist: true,
+    push_arrived: true,
+    push_chat_messages: true,
+  })
+  // Load notification prefs from user object (comes from /api/auth/me)
+  useEffect(() => {
+    const stored = localStorage.getItem('ELEMENT_USER')
+    if (stored) {
+      try {
+        const u = JSON.parse(stored)
+        if (u?.notification_prefs) setNotifPrefs(prev => ({ ...prev, ...u.notification_prefs }))
+      } catch {}
+    }
+  }, [])
 
   useEffect(() => {
     if (!user.barber_id || user.photo) return
@@ -194,6 +215,27 @@ function ProfileModal({ user, onClose, onUpdated }: {
     setSaving(false)
   }
 
+  async function saveNotifications() {
+    setSaving(true); setMsg(''); setErr('')
+    try {
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      const res = await fetch(`${API}/api/users/${encodeURIComponent(user.uid)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY },
+        body: JSON.stringify({ notification_prefs: notifPrefs })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error')
+      // Update local storage so prefs persist
+      try {
+        const stored = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}')
+        localStorage.setItem('ELEMENT_USER', JSON.stringify({ ...stored, notification_prefs: notifPrefs }))
+      } catch {}
+      setMsg('Notification preferences saved ✓')
+    } catch (e: any) { setErr(e.message) }
+    setSaving(false)
+  }
+
   const glassModal: React.CSSProperties = {
     position: 'fixed', inset: 0, zIndex: 200,
     background: 'rgba(0,0,0,.50)',
@@ -229,10 +271,10 @@ function ProfileModal({ user, onClose, onUpdated }: {
         </div>
 
         <div style={{ display: 'flex', gap: 6, padding: '12px 18px 0' }}>
-          {(['profile', 'password'] as const).map(t => (
+          {(['profile', 'password', 'notifications'] as const).map(t => (
             <button key={t} onClick={() => { setTab(t); setMsg(''); setErr('') }}
               style={{ height: 32, padding: '0 14px', borderRadius: 999, cursor: 'pointer', fontWeight: 900, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.08em', fontFamily: 'inherit', border: `1px solid ${tab === t ? 'rgba(255,255,255,.25)' : 'rgba(255,255,255,.08)'}`, background: tab === t ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.03)', color: tab === t ? '#fff' : 'rgba(255,255,255,.45)' }}>
-              {t === 'profile' ? 'Profile' : 'Password'}
+              {t === 'profile' ? 'Profile' : t === 'password' ? 'Password' : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>}
             </button>
           ))}
         </div>
@@ -293,6 +335,32 @@ function ProfileModal({ user, onClose, onUpdated }: {
             </div>
           </>}
 
+          {tab === 'notifications' && <>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginBottom: 4 }}>Choose which push notifications you receive in the Element Team app.</div>
+            {([
+              { key: 'push_booking_confirm', label: 'Booking confirmation', sub: 'When a new appointment is booked' },
+              { key: 'push_reschedule', label: 'Reschedule', sub: 'When appointment time changes' },
+              { key: 'push_cancel', label: 'Cancellation', sub: 'When appointment is cancelled' },
+              { key: 'push_waitlist', label: 'Waitlist', sub: 'When a spot opens up' },
+              { key: 'push_arrived', label: 'Client arrived', sub: 'When a client checks in' },
+              { key: 'push_chat_messages', label: 'Chat messages', sub: 'New messages in team chat' },
+            ] as { key: keyof typeof notifPrefs; label: string; sub: string }[]).map(item => (
+              <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#e9e9e9' }}>{item.label}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 2 }}>{item.sub}</div>
+                </div>
+                <button onClick={() => setNotifPrefs(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                  style={{ width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer', padding: 2, transition: 'background .2s', background: notifPrefs[item.key] ? 'rgba(143,240,177,.35)' : 'rgba(255,255,255,.10)', position: 'relative', flexShrink: 0 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 999, background: notifPrefs[item.key] ? '#8ff0b1' : 'rgba(255,255,255,.30)', transition: 'transform .2s, background .2s', transform: notifPrefs[item.key] ? 'translateX(18px)' : 'translateX(0)' }} />
+                </button>
+              </div>
+            ))}
+            <button onClick={saveNotifications} disabled={saving} style={{ height: 42, borderRadius: 12, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.10)', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1, marginTop: 4 }}>
+              {saving ? 'Saving…' : 'Save preferences'}
+            </button>
+          </>}
+
           {msg && <div style={{ fontSize: 12, color: '#c9ffe1', padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(143,240,177,.22)', background: 'rgba(143,240,177,.06)' }}>{msg}</div>}
           {err && <div style={{ fontSize: 12, color: '#ffd0d0', padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(255,107,107,.22)', background: 'rgba(255,107,107,.06)' }}>{err}</div>}
         </div>
@@ -308,8 +376,55 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
   const [status, setStatus] = useState<'loading' | 'ok' | 'noauth'>('loading')
   const [showProfile, setShowProfile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [unreadChat, setUnreadChat] = useState<string | null>(null) // color of latest unread chat type
+  const [unreadChat, setUnreadChat] = useState<string | null>(null)
+  const [showPinOverlay, setShowPinOverlay] = useState(false)
+  const [pinInput, setPinInput] = useState('')
+  const [pinError, setPinError] = useState('')
+  const [pinLoading, setPinLoading] = useState(false)
   const pathname = usePathname()
+
+  // Listen for PIN-required events from api.ts
+  useEffect(() => {
+    const handler = () => { if (hasPinSetup()) setShowPinOverlay(true); else { localStorage.removeItem('ELEMENT_USER'); window.location.href = '/signin' } }
+    window.addEventListener('element-pin-required', handler)
+    return () => window.removeEventListener('element-pin-required', handler)
+  }, [])
+
+  const handlePinSubmit = useCallback(async (enteredPin: string) => {
+    setPinError('')
+    setPinLoading(true)
+    try {
+      const valid = await verifyPin(enteredPin)
+      if (!valid) { setPinError('Wrong PIN'); setPinLoading(false); setPinInput(''); return }
+      const creds = await getCredentials(enteredPin)
+      if (!creds) { setPinError('PIN data corrupted. Please login with password.'); setPinLoading(false); return }
+      // Re-login with saved credentials
+      const res = await fetch(`${API}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+        credentials: 'include',
+        body: JSON.stringify({ username: creds.username, password: creds.password }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Login failed')
+      const token = data.token || data.access_token || ''
+      if (token) localStorage.setItem('ELEMENT_TOKEN', token)
+      const userData = { ...(data.user || {}) }
+      localStorage.setItem('ELEMENT_USER', JSON.stringify(userData))
+      setAuthCookie(userData.role + ':' + (userData.uid || ''))
+      setUser(userData)
+      setShowPinOverlay(false)
+      setPinInput('')
+    } catch (e: any) {
+      setPinError(e.message || 'Login failed. Try password.')
+    }
+    setPinLoading(false)
+  }, [])
+
+  // Auto-submit when 4 digits entered
+  useEffect(() => {
+    if (pinInput.length === 4 && showPinOverlay) handlePinSubmit(pinInput)
+  }, [pinInput, showPinOverlay, handlePinSubmit])
 
   // Swipe to open/close sidebar — sets flag to block other swipe handlers
   useEffect(() => {
@@ -357,7 +472,16 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
     else setStatus('ok')
 
     fetch(`${API}/api/auth/me`, { credentials: 'include', headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
-      .then(r => r.json())
+      .then(r => {
+        if (r.status === 401) {
+          localStorage.removeItem('ELEMENT_TOKEN')
+          if (hasPinSetup()) { setShowPinOverlay(true); throw new Error('Token expired — PIN required') }
+          localStorage.removeItem('ELEMENT_USER')
+          window.location.href = '/signin'
+          throw new Error('Token expired')
+        }
+        return r.json()
+      })
       .then(async (d: any) => {
         if (!d.user) return
         // Preserve barber_id from localStorage if backend returns empty
@@ -387,7 +511,12 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
       .catch(() => {})
   }, [])
 
-  useEffect(() => { if (status === 'noauth') window.location.href = '/signin' }, [status])
+  useEffect(() => {
+    if (status === 'noauth') {
+      if (hasPinSetup()) setShowPinOverlay(true)
+      else window.location.href = '/signin'
+    }
+  }, [status])
 
   // Poll for unread messages — check latest message per chat type
   useEffect(() => {
@@ -482,6 +611,47 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
   return (
     <>
+      {/* PIN Overlay */}
+      {showPinOverlay && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.95)', backdropFilter: 'blur(20px)', padding: 20, fontFamily: 'Inter, system-ui, sans-serif' }}>
+          <div style={{ width: '100%', maxWidth: 360, textAlign: 'center' }}>
+            <div style={{ fontFamily: '"Julius Sans One", sans-serif', letterSpacing: '.22em', textTransform: 'uppercase', fontSize: 18, marginBottom: 6, color: '#e9e9e9' }}>Element</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.40)', marginBottom: 8 }}>Session expired</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 28 }}>Enter your PIN to continue as <strong style={{ color: '#d7ecff' }}>{user?.name || getPinUsername()}</strong></div>
+            {/* PIN dots */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 24 }}>
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,.20)', background: i < pinInput.length ? '#d7ecff' : 'transparent', transition: 'background .15s' }} />
+              ))}
+            </div>
+            {pinError && <div style={{ padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(255,107,107,.30)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', fontSize: 12, marginBottom: 16 }}>{pinError}</div>}
+            {/* Number pad */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 260, margin: '0 auto' }}>
+              {[1,2,3,4,5,6,7,8,9,null,0,'del'].map((n, i) => (
+                <button key={i} type="button" disabled={pinLoading}
+                  onClick={() => {
+                    if (n === 'del') { setPinInput(p => p.slice(0, -1)); setPinError('') }
+                    else if (n !== null && pinInput.length < 4) { setPinInput(p => p + n); setPinError('') }
+                  }}
+                  style={{
+                    height: 56, borderRadius: 14, border: 'none',
+                    background: n === null ? 'transparent' : 'rgba(255,255,255,.06)',
+                    color: n === 'del' ? 'rgba(255,255,255,.40)' : '#e9e9e9',
+                    fontSize: n === 'del' ? 14 : 22, fontWeight: 600, cursor: n === null ? 'default' : 'pointer',
+                    fontFamily: 'inherit', transition: 'background .1s',
+                    visibility: n === null ? 'hidden' : 'visible',
+                  }}>
+                  {n === 'del' ? '\u232B' : n}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => { setShowPinOverlay(false); localStorage.removeItem('ELEMENT_USER'); clearAuthCookie(); window.location.href = '/signin' }}
+              style={{ marginTop: 24, background: 'none', border: 'none', color: 'rgba(255,255,255,.30)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '.06em' }}>
+              Login with password
+            </button>
+          </div>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}

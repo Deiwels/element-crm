@@ -1,8 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
-const API_KEY = 'R1403ss81fxrx*rx1403'
+import { apiFetch, API, API_KEY } from '@/lib/api'
 
 // ─── Shop settings — always fresh, no permanent cache ────────────────────────
 async function getShopSettings() {
@@ -60,10 +59,40 @@ interface Client {
   notes?: string
   photo_url?: string
   visitCount?: number
+  client_status?: string
+  no_shows?: number
 }
 
-interface Barber { id: string; name: string; color: string }
+interface Barber { id: string; name: string; color: string; schedule?: any; work_schedule?: any }
 interface Service { id: string; name: string; durationMin: number; price?: string; barberIds: string[] }
+
+function getBarberWorkingHours(barbers: Barber[], barberId: string, dateStr: string): { startMin: number; endMin: number } | null {
+  const barber = barbers.find(b => b.id === barberId)
+  if (!barber) return { startMin: 480, endMin: 1260 }
+  const sch = barber.schedule || barber.work_schedule
+  if (!sch) return { startMin: 480, endMin: 1260 }
+  const d = new Date(dateStr + 'T12:00:00')
+  const dow = d.getDay()
+  // Per-day array format [Sun..Sat]
+  if (Array.isArray(sch)) {
+    const day = sch[dow]
+    if (!day || day.enabled === false) return null
+    return { startMin: Number(day.startMin ?? day.start_min ?? 480), endMin: Number(day.endMin ?? day.end_min ?? 1260) }
+  }
+  // Object format with perDay
+  const perDay = sch.perDay || sch.per_day
+  if (Array.isArray(perDay) && perDay[dow]) {
+    const day = perDay[dow]
+    if (day.enabled === false) return null
+    const sm = day.startMin ?? day.start_min
+    const em = day.endMin ?? day.end_min
+    if (sm != null) return { startMin: Number(sm), endMin: Number(em ?? 1260) }
+  }
+  // Fallback to global startMin/endMin
+  const days: number[] = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6]
+  if (!days.includes(dow)) return null
+  return { startMin: Number(sch.startMin ?? sch.start_min ?? 480), endMin: Number(sch.endMin ?? sch.end_min ?? 1260) }
+}
 
 interface BookingModalProps {
   isOpen: boolean
@@ -96,7 +125,7 @@ interface BookingModalProps {
   onSave: (data: {
     clientName: string; clientPhone: string; clientId?: string
     barberId: string; serviceId: string; serviceIds: string[]; date: string; startMin: number
-    durMin: number; status: string; notes: string; photoUrl?: string
+    durMin: number; status: string; notes: string; photoUrl?: string; _forceArrivedNotify?: boolean
   }) => void
   onDelete: () => void
   onPayment: (method: string, tip: number) => void
@@ -106,6 +135,14 @@ interface BookingModalProps {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const minToHHMM = (min: number) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
+const _is24h = (() => { try { const f = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return f.hourCycle === 'h23' || f.hourCycle === 'h24' } catch { return false } })()
+const minToDisplay = (min: number) => {
+  const h = Math.floor(min / 60), m = min % 60
+  if (_is24h) return `${pad2(h)}:${pad2(m)}`
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return `${h12}:${pad2(m)} ${period}`
+}
 
 function maskPhone(phone: string) {
   const digits = phone.replace(/\D/g, '')
@@ -113,16 +150,6 @@ function maskPhone(phone: string) {
   return phone ? '***' : '—'
 }
 
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch(API + path, { credentials: 'include',
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts?.headers || {}) }
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
 
 // ─── ClientSearch ─────────────────────────────────────────────────────────────
 function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: {
@@ -208,6 +235,8 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
           email: String(c.email || ''),
           notes: String(c.notes || ''),
           visitCount: Number(c.visit_count || c.visits || 0),
+          client_status: String(c.client_status || c.status || 'new'),
+          no_shows: Number(c.no_shows || 0),
         })).filter((c: Client) => c.name)
         if (mapped.length > 0) {
           setResults(mapped); setOpen(true); setNotFound(false)
@@ -342,7 +371,38 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginTop: 2 }}>
                 {isOwnerOrAdmin ? (selected.phone || 'No phone') : maskPhone(selected.phone || '')}
                 {selected.visitCount ? ` · ${selected.visitCount} visit${selected.visitCount !== 1 ? 's' : ''}` : ' · New client'}
+                {(selected.no_shows || 0) > 0 && <span style={{ color: '#ff6b6b' }}> · {selected.no_shows} no-show{(selected.no_shows || 0) !== 1 ? 's' : ''}</span>}
               </div>
+              {/* Client status scale */}
+              {(() => {
+                const st = (status === 'noshow' || (selected.no_shows || 0) > 0) ? 'at_risk' : (selected.client_status || 'new')
+                const statuses = [
+                  { key: 'at_risk', label: 'Risk', color: '#ff6b6b', bg: 'rgba(255,107,107,.15)', border: 'rgba(255,107,107,.35)' },
+                  { key: 'new', label: 'New', color: '#7abaff', bg: 'rgba(10,132,255,.15)', border: 'rgba(10,132,255,.35)' },
+                  { key: 'active', label: 'Active', color: '#8ff0b1', bg: 'rgba(143,240,177,.15)', border: 'rgba(143,240,177,.35)' },
+                  { key: 'vip', label: 'VIP', color: '#ffd700', bg: 'rgba(255,215,0,.15)', border: 'rgba(255,215,0,.40)' },
+                ]
+                const activeIdx = statuses.findIndex(s => s.key === st || (st === 'risk' && s.key === 'at_risk'))
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 5 }}>
+                    {statuses.map((s, i) => {
+                      const isActive = i === activeIdx
+                      return (
+                        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <span style={{
+                            fontSize: 8, fontWeight: 900, letterSpacing: '.06em', textTransform: 'uppercase',
+                            padding: '2px 6px', borderRadius: 4,
+                            border: `1px solid ${isActive ? s.border : 'rgba(255,255,255,.06)'}`,
+                            background: isActive ? s.bg : 'transparent',
+                            color: isActive ? s.color : 'rgba(255,255,255,.18)',
+                          }}>{s.label}</span>
+                          {i < statuses.length - 1 && <span style={{ fontSize: 8, color: 'rgba(255,255,255,.12)' }}>›</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </div>
           </div>
           <button onClick={clear} style={{ height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 }}>Change</button>
@@ -1043,18 +1103,18 @@ export function BookingModal({
       setClientName(existingEvent.clientName || '')
       setServiceIds(existingEvent.serviceIds?.length ? existingEvent.serviceIds : existingEvent.serviceId ? [existingEvent.serviceId] : [])
       setStatus(existingEvent.status || 'booked')
-      setNotes(existingEvent.notes || '')
+      setNotes((existingEvent.notes || '').replace(/Reference photo attached on website:\s*\S+/gi, '').trim())
       setPhotoUrl('')
       // Pre-fill client card if we have client info from existing event
       if (existingEvent.clientName) {
-        setSelectedClient({ id: '', name: existingEvent.clientName, phone: existingEvent.clientPhone || '', visitCount: 0 })
+        setSelectedClient({ id: '', name: existingEvent.clientName, phone: existingEvent.clientPhone || '', visitCount: 0, client_status: existingEvent._raw?.client_status || 'new', no_shows: Number(existingEvent._raw?.no_shows || 0) })
         // Try to find real client ID for notes saving
         if (existingEvent.clientName !== 'BLOCKED' && existingEvent.clientName !== 'Client') {
           apiFetch(`/api/clients?q=${encodeURIComponent(existingEvent.clientName)}`)
             .then((data: any) => {
               const list = Array.isArray(data) ? data : (data?.clients || [])
               const match = list.find((c: any) => c.name === existingEvent.clientName)
-              if (match?.id) setSelectedClient(prev => prev ? { ...prev, id: match.id, notes: match.notes || '' } : prev)
+              if (match?.id) setSelectedClient(prev => prev ? { ...prev, id: match.id, notes: match.notes || '', client_status: match.client_status || prev.client_status, no_shows: Number(match.no_shows || prev.no_shows || 0), visitCount: Number(match.visit_count || match.visits || prev.visitCount || 0) } : prev)
             }).catch(() => {})
         }
       } else {
@@ -1104,18 +1164,42 @@ export function BookingModal({
     return [...list].sort((a, b) => (b.durationMin || 30) - (a.durationMin || 30))
   })()
 
-  // Time slots 5min — filter by availability
+  // Time slots — only barber's working hours, filtered by availability
+  const workHours = getBarberWorkingHours(barbers, selBarberId, date)
+  const schedStart = workHours?.startMin ?? 480
+  const schedEnd = workHours?.endMin ?? 1260
   const allSlots: number[] = []
-  for (let m = 0; m <= 24 * 60 - 5; m += 5) allSlots.push(m)
+  for (let m = schedStart; m + durMin <= schedEnd; m += 5) allSlots.push(m)
   // Get busy intervals for selected barber (exclude current event being edited)
   const busyIntervals = (allEvents || [])
-    .filter(e => e.barberId === selBarberId && e.clientName !== 'BLOCKED' && e.id !== existingEvent?.id)
+    .filter(e => e.barberId === selBarberId && e.date === date && e.clientName !== 'BLOCKED' && e.id !== existingEvent?.id)
     .map(e => ({ start: e.startMin, end: e.startMin + (e.durMin || 30) }))
   const slots = allSlots.filter(m => {
     const end = m + durMin
-    // Check no overlap with any busy interval
     return !busyIntervals.some(b => m < b.end && end > b.start)
   })
+  // Auto-snap: only for non-admin users — admins can book at any tapped time
+  if (!isOwnerOrAdmin && slots.length > 0 && !slots.includes(selStartMin)) {
+    const closest = slots.reduce((a, b) => Math.abs(b - selStartMin) < Math.abs(a - selStartMin) ? b : a)
+    if (closest !== selStartMin) setTimeout(() => setSelStartMin(closest), 0)
+  }
+
+  // Optimal slots — minimize gaps between appointments
+  const optimalSlots = (() => {
+    if (busyIntervals.length === 0) return []
+    const sorted = [...busyIntervals].sort((a, b) => a.start - b.start)
+    const scored = slots.map(m => {
+      const end = m + durMin
+      const afterBooking = sorted.some(b => b.end === m) || m === schedStart
+      const beforeBooking = sorted.some(b => b.start === end) || end === schedEnd
+      const score = (afterBooking ? 2 : 0) + (beforeBooking ? 2 : 0)
+      // Also score slots close to bookings (within 5 min)
+      const nearAfter = !afterBooking && sorted.some(b => m - b.end >= 0 && m - b.end <= 5)
+      const nearBefore = !beforeBooking && sorted.some(b => b.start - end >= 0 && b.start - end <= 5)
+      return { m, score: score + (nearAfter ? 1 : 0) + (nearBefore ? 1 : 0) }
+    })
+    return scored.filter(s => s.score >= 2).sort((a, b) => b.score - a.score).map(s => s.m).slice(0, 6)
+  })()
 
   async function handleSave() {
     setFormError('')
@@ -1299,7 +1383,7 @@ export function BookingModal({
                 {isNew ? (isModelEvent ? 'New model appointment' : 'New appointment') : (isModelEvent ? `Model — ${existingEvent?.clientName}` : `Edit — ${existingEvent?.clientName}`)}
               </div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 4, letterSpacing: '.08em' }}>
-                {date} · {barberName} · {minToHHMM(selStartMin)}
+                {date} · {barberName} · {minToDisplay(selStartMin)}
               </div>
             </div>
             <button onClick={onClose} className="bm-footer-btn" style={{ width: 34, height: 34, borderRadius: 10, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontFamily: 'inherit' }}>✕</button>
@@ -1343,7 +1427,7 @@ export function BookingModal({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
                     <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 2 }}>Time</div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>{minToHHMM(selStartMin)} — {minToHHMM(selStartMin + durMin)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{minToDisplay(selStartMin)} — {minToDisplay(selStartMin + durMin)}</div>
                   </div>
                   <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
                     <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 2 }}>Mentor</div>
@@ -1384,7 +1468,7 @@ export function BookingModal({
                           } else { setStatus(status) }
                         }
                         if (newStatus === 'arrived') {
-                          setTimeout(() => { try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: 'arrived', notes, photoUrl }) } catch {} }, 50)
+                          setTimeout(() => { try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: 'arrived', notes, photoUrl, _forceArrivedNotify: true }) } catch {} }, 50)
                         }
                       }} disabled={isPaidEvent} className="bm-input" style={{ ...inp, opacity: isPaidEvent ? 0.5 : 1 }}>
                         {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
@@ -1392,20 +1476,46 @@ export function BookingModal({
                     </div>
                   )}
                   <div>
-                    <label style={lbl}>Time {slots.length < allSlots.length && <span style={{ color: 'rgba(10,132,255,.50)', fontWeight: 400 }}>({slots.length} available)</span>}</label>
-                    <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} disabled={isPaidEvent} className="bm-input" style={{ ...inp, opacity: isPaidEvent ? 0.5 : 1 }}>
-                      {slots.map(m => {
-                        const h = Math.floor(m / 60), mm = m % 60
-                        const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
-                        const ampm = h < 12 ? 'AM' : 'PM'
-                        return <option key={m} value={m}>{hour}:{String(mm).padStart(2,'0')} {ampm}</option>
-                      })}
-                    </select>
+                    <label style={lbl}>Time {workHours ? <span style={{ color: 'rgba(255,255,255,.30)', fontWeight: 400 }}>({slots.length} free)</span> : <span style={{ color: '#ff6b6b', fontWeight: 400 }}>Day off</span>}</label>
+                    {optimalSlots.length > 0 && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 9, color: 'rgba(143,240,177,.50)', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 4, fontWeight: 700 }}>Best — no gaps</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+                          {optimalSlots.map(m => {
+                            const isActive = m === selStartMin
+                            return <button key={`opt-${m}`} type="button" onClick={() => !isPaidEvent && setSelStartMin(m)} style={{
+                              height: 34, borderRadius: 10,
+                              border: `1px solid ${isActive ? 'rgba(143,240,177,.55)' : 'rgba(143,240,177,.20)'}`,
+                              background: isActive ? 'rgba(143,240,177,.14)' : 'rgba(143,240,177,.04)',
+                              color: isActive ? '#8ff0b1' : 'rgba(143,240,177,.65)', fontWeight: isActive ? 800 : 600,
+                              fontSize: 11, cursor: isPaidEvent ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                              transition: 'all .15s ease', opacity: isPaidEvent ? 0.5 : 1,
+                            }}>{minToDisplay(m)}</button>
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {slots.length > 0 ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, maxHeight: 180, overflowY: 'auto', padding: 2 }}>
+                        {slots.map(m => {
+                          const isActive = m === selStartMin
+                          return <button key={m} type="button" onClick={() => !isPaidEvent && setSelStartMin(m)} style={{
+                            height: 34, borderRadius: 10, border: `1px solid ${isActive ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.08)'}`,
+                            background: isActive ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.03)',
+                            color: isActive ? '#d7ecff' : 'rgba(255,255,255,.50)', fontWeight: isActive ? 800 : 500,
+                            fontSize: 11, cursor: isPaidEvent ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                            transition: 'all .15s ease', opacity: isPaidEvent ? 0.5 : 1,
+                          }}>{minToDisplay(m)}</button>
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ padding: '12px 0', fontSize: 12, color: 'rgba(255,255,255,.30)', textAlign: 'center' }}>No available slots</div>
+                    )}
                   </div>
                   <div>
                     <label style={lbl}>Duration → end</label>
                     <div style={{ height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', padding: '0 12px', display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,.50)', fontWeight: 600 }}>
-                      {durMin}min → {minToHHMM(selStartMin + durMin)}
+                      {durMin}min → {minToDisplay(selStartMin + durMin)}
                     </div>
                   </div>
                 </div>

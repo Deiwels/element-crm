@@ -4,7 +4,7 @@ import Shell from '@/components/Shell'
 import { BookingModal } from '@/app/calendar/booking-modal'
 import ImageCropper from '@/components/ImageCropper'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
+import { apiFetch, API, API_KEY } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Barber {
@@ -45,8 +45,11 @@ const DAY_DEFAULTS: DaySchedule[] = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const minToHHMM = (min: number) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
+// Detect device 12h/24h preference (cached)
+const _is24h = (() => { try { const f = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return f.hourCycle === 'h23' || f.hourCycle === 'h24' } catch { return false } })()
 const minToAMPM = (min: number) => {
   const h = Math.floor(min / 60), m = min % 60
+  if (_is24h) return `${pad2(h)}:${pad2(m)}`
   const period = h >= 12 ? 'PM' : 'AM'
   const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
   return m === 0 ? `${h12} ${period}` : `${h12}:${pad2(m)} ${period}`
@@ -57,16 +60,6 @@ const clamp = (min: number) => Math.max(START_HOUR * 60, Math.min(min, END_HOUR 
 const timeStrToMin = (s: string) => { const [h,m] = s.split(':').map(Number); return (h||0)*60+(m||0) }
 const minToTimeStr = (min: number) => `${pad2(Math.floor(min/60))}:${pad2(min%60)}`
 
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch(API + path, { credentials: 'include',
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts?.headers || {}) },
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
 
 // ─── Status Chip ──────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, { border: string; bg: string; color: string }> = {
@@ -1483,10 +1476,14 @@ export default function CalendarPage() {
     const ev = events.find(e => e.id === modal.eventId); if (!ev) return
     const svcIds: string[] = patch.serviceIds || (patch.serviceId ? [patch.serviceId] : [])
     const svcNames = svcIds.map(id => services.find(s => s.id === id)?.name).filter(Boolean).join(' + ')
-    const updated = { ...ev, ...patch, serviceIds: svcIds, serviceName: svcNames || ev.serviceName }
+    const updated = { ...ev, ...patch, serviceIds: svcIds, serviceName: svcNames || ev.serviceName,
+      // 1 no-show = immediately at_risk
+      ...(patch.status === 'noshow' ? { _raw: { ...ev._raw, client_status: 'at_risk' } } : {})
+    }
     setEvents(prev => prev.map(e => e.id === ev.id ? updated : e))
     // Track arrived + send notification BEFORE save (so it works even if save fails)
-    const shouldNotifyArrived = patch.status === 'arrived' && !arrivedIdsRef.current.has(ev.id) && !arrivedIdsRef.current.has(String(ev._raw?.id || ''))
+    // _forceArrivedNotify bypasses dedup — user explicitly changed status to arrived
+    const shouldNotifyArrived = patch.status === 'arrived' && (patch._forceArrivedNotify || (!arrivedIdsRef.current.has(ev.id) && !arrivedIdsRef.current.has(String(ev._raw?.id || ''))))
     if (patch.status === 'arrived') {
       if (ev._raw?.id) markArrived(String(ev._raw.id))
       if (ev.id) markArrived(String(ev.id))
@@ -1495,7 +1492,13 @@ export default function CalendarPage() {
       const barberName = barbers.find(b => b.id === updated.barberId)?.name || updated.barberName || ''
       const clientName = updated.clientName || 'Client'
       const msgText = `📍 ${clientName} arrived — ${barberName}`
-      apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: 'barbers', text: msgText }) })
+      // Send as system notification (API key only, no user token) so it works even with expired session
+      fetch(`${API}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+        body: JSON.stringify({ chatType: 'barbers', text: msgText, system: true })
+      })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
         .then(() => showToast('Client arrived — barbers notified'))
         .catch(() => showToast('Arrived saved'))
     }
@@ -1512,15 +1515,11 @@ export default function CalendarPage() {
       } else {
         const patchStart = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         const patchEnd = new Date(patchStart.getTime() + (updated.durMin || 30) * 60000)
-        const apiStatus = updated.status === 'arrived' ? 'booked' : updated.status
-        const patchBody: any = { barber_id: updated.barberId, service_id: svcIds.join(',') || updated.serviceId || '', service_name: svcNames || updated.serviceName || '', client_name: updated.clientName, status: apiStatus, end_at: patchEnd.toISOString(), start_at: patchStart.toISOString() }
+        const patchBody: any = { barber_id: updated.barberId, service_id: svcIds.join(',') || updated.serviceId || '', service_name: svcNames || updated.serviceName || '', client_name: updated.clientName, status: updated.status, end_at: patchEnd.toISOString(), start_at: patchStart.toISOString() }
         if (updated.clientPhone) patchBody.client_phone = updated.clientPhone
         if (updated.notes != null) patchBody.notes = updated.notes || ''
         if (updated.photoUrl) patchBody.reference_photo_url = updated.photoUrl
         await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify(patchBody) })
-        if (updated.status === 'arrived') {
-          apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ status: 'arrived' }) }).catch(() => {})
-        }
       }
     } catch(e: any) {
       // Rollback optimistic update on error
@@ -1563,11 +1562,25 @@ export default function CalendarPage() {
         }).catch(() => {})
       }
     }
-    setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, status: 'done', paymentMethod: method, tipAmount: tip } : e))
+    setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, status: 'done', paymentMethod: method, tipAmount: tip, _raw: { ...e._raw, tip, tip_amount: tip, paid: true, payment_method: method } } : e))
   }
 
   return (
     <Shell page="calendar">
+      {/* Loading overlay — shown on initial load */}
+      {loading && events.length === 0 && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', gap: 16 }}>
+          <div style={{ position: 'relative', width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src="/Element_logo-05.jpg" alt="Element" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover' }} />
+            <svg viewBox="0 0 80 80" fill="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', animation: 'calLoadSpin 1.2s linear infinite' }}>
+              <circle cx="40" cy="40" r="38" stroke="rgba(255,255,255,.08)" strokeWidth="2.5" />
+              <path d="M40 2a38 38 0 0 1 38 38" stroke="#d7ecff" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', letterSpacing: '.08em' }}>Loading calendar…</div>
+          <style>{`@keyframes calLoadSpin { to { transform: rotate(360deg) } }`}</style>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         .cal-container { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -1825,7 +1838,7 @@ export default function CalendarPage() {
         {(() => {
           // On mobile: show ALL barbers with narrower columns
           const pageBarbers = visibleBarbers
-          const timeColW = isMobile ? 24 : 90
+          const timeColW = isMobile ? 24 : 45
           // Dynamic column min-width: shrink columns to fit all barbers on screen
           const mobileColMin = isMobile && pageBarbers.length > 1
             ? Math.max(60, Math.floor((window.innerWidth - timeColW) / pageBarbers.length))
@@ -1870,13 +1883,13 @@ export default function CalendarPage() {
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
                 {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => {
                   const h = START_HOUR + i
-                  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
-                  const ampm = h < 12 ? 'AM' : 'PM'
+                  const label = _is24h ? `${pad2(h)}` : (() => { const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h; return String(h12) })()
+                  const ampm = _is24h ? '' : (h < 12 ? 'AM' : 'PM')
                   return (
                     <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*slotH*12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', paddingTop: isMobile ? 2 : 8, color: 'rgba(255,255,255,.35)', fontSize: isMobile ? 9 : 11, lineHeight: 1, fontWeight: isMobile ? 600 : 400 }}>
-                      <span>{hour}</span>
-                      {isMobile && <span style={{ fontSize: 7, opacity: .5, marginTop: 1 }}>{ampm}</span>}
-                      {!isMobile && <span> {ampm}</span>}
+                      <span>{label}</span>
+                      {!_is24h && isMobile && <span style={{ fontSize: 7, opacity: .5, marginTop: 1 }}>{ampm}</span>}
+                      {!_is24h && !isMobile && <span> {ampm}</span>}
                     </div>
                   )
                 })}
@@ -2129,22 +2142,35 @@ export default function CalendarPage() {
                       const isArrived = ev.status === 'arrived'
                       const isDone = ev.status === 'done' || ev.status === 'completed'
                       const isPaid = !!ev.paid || isDone
+                      const isNoshow = ev.status === 'noshow'
+                      // Hide no-show if another booking overlaps the same slot for this barber
+                      if (isNoshow) {
+                        const hasReplacement = colEvents.some(other => other.id !== ev.id && other.status !== 'noshow' && other.status !== 'cancelled' && other.startMin < ev.startMin + ev.durMin && other.startMin + other.durMin > ev.startMin)
+                        if (hasReplacement) return null
+                      }
                       return (
                         <div key={ev.id} className={`cal-event${isArrived ? ' arrived-pulse' : ''}${isPaid ? ' cal-event-paid' : ''}${drag?.eventId===ev.id ? ' cal-event-dragging' : ''}`}
-                          style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, ...(isArrived ? {} : drag?.eventId===ev.id ? {} : { border: `1px solid ${isPaid ? barber.color + '20' : 'rgba(255,255,255,.10)'}`, background: (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}${isPaid ? '18' : '26'},${barber.color}${isPaid ? '08' : '12'})` }), padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, transition: 'transform .15s, box-shadow .15s' }}
+                          style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, ...(isArrived ? {} : drag?.eventId===ev.id ? {} : { border: `1px solid ${isPaid ? barber.color + '20' : isNoshow ? 'rgba(255,107,107,.15)' : 'rgba(255,255,255,.10)'}`, background: isNoshow ? 'rgba(255,107,107,.06)' : (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}${isPaid ? '18' : '26'},${barber.color}${isPaid ? '08' : '12'})` }), ...(isNoshow ? { opacity: 0.35 } : {}), padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : isNoshow ? 2 : 5, transition: 'transform .15s, box-shadow .15s' }}
                           onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; e.stopPropagation(); clearTimeout(eventLongPressTimer.current); const touch = e.touches[0]; const evCopy = ev; const biCopy = bi; eventLongPressTimer.current = setTimeout(() => { const fakeEvt = { preventDefault(){}, stopPropagation(){}, touches: [touch] } as any; startDrag(fakeEvt, evCopy, biCopy) }, 400) }}
                           onTouchEnd={() => clearTimeout(eventLongPressTimer.current)}
                           onTouchMove={() => clearTimeout(eventLongPressTimer.current)}
                           onClick={e => { e.stopPropagation(); if (!drag) setModal({ open: true, eventId: ev.id, isNew: false }) }}>
                           {tinyCol ? (<>
-                            <div style={{ fontWeight: 900, fontSize: 9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.clientName.split(' ')[0]}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <span style={{ fontWeight: 900, fontSize: 9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{ev.clientName.split(' ')[0]}</span>
+                              {(() => { const cs = ev._raw?.client_status || (ev.status === 'noshow' ? 'at_risk' : ''); const m: Record<string,{l:string,c:string,bg:string}> = { vip:{l:'V',c:'#ffd700',bg:'rgba(255,215,0,.25)'}, active:{l:'A',c:'#8ff0b1',bg:'rgba(143,240,177,.20)'}, new:{l:'N',c:'#7abaff',bg:'rgba(10,132,255,.25)'}, at_risk:{l:'!',c:'#ff6b6b',bg:'rgba(255,107,107,.25)'}, risk:{l:'!',c:'#ff6b6b',bg:'rgba(255,107,107,.25)'} }; const b = m[cs]; return b ? <span style={{ fontSize: 7, fontWeight: 900, color: b.c, background: b.bg, borderRadius: 3, padding: '0 2px', lineHeight: '11px', flexShrink: 0 }}>{b.l}</span> : null })()}
+                            </div>
                             {height > 24 && <div style={{ fontSize: 7, color: 'rgba(255,255,255,.45)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{minToAMPM(ev.startMin)}</div>}
                             {height > 36 && ev.serviceName && ev.serviceName !== 'Service' && <div style={{ fontSize: 7, color: 'rgba(255,255,255,.35)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.serviceName.split(' + ')[0]}</div>}
-                            {height > 48 && <div style={{ fontSize: 7, color: ev.paid ? 'rgba(143,240,177,.70)' : 'rgba(255,255,255,.30)' }}>{ev.paid ? '✓' : ev.status?.charAt(0).toUpperCase()}</div>}
+                            {height > 36 && <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 1 }}>
+                              {ev.paid && <span style={{ fontSize: 6, color: 'rgba(143,240,177,.70)', fontWeight: 700 }}>✓</span>}
+                              {(ev._raw?.reference_photo_url || ev._raw?.client_photo || ev._raw?.haircut_photo || ev._raw?.photo_url || ev._raw?.attachment_url) && <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#7abaff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>}
+                              {ev.notes && ev.notes.replace(/Reference photo attached on website:\s*\S+/gi, '').trim() && <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#ffd18a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>}
+                            </div>}
                           </>) : (<>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
-                            <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>{ev.clientName}{ev._raw?.client_status === 'vip' ? <span style={{ fontSize: 8, fontWeight: 900, color: '#ffd700', background: 'rgba(255,215,0,.18)', border: '1px solid rgba(255,215,0,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>VIP</span> : ev._raw?.client_status === 'new' ? <span style={{ fontSize: 8, fontWeight: 900, color: '#7abaff', background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>NEW</span> : ev._raw?.client_status === 'at_risk' ? <span style={{ fontSize: 9, fontWeight: 900, color: '#ff6b6b', background: 'rgba(255,107,107,.18)', border: '1px solid rgba(255,107,107,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>!</span> : ev._raw?.client_status === 'active' ? <span style={{ width: 5, height: 5, borderRadius: 999, background: '#8ff0b1', flexShrink: 0 }} /> : null}</div>
+                            <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>{ev.clientName}{(() => { const cs = ev._raw?.client_status; const badges: Record<string,{label:string,color:string,bg:string,border:string}> = { vip:{label:'VIP',color:'#ffd700',bg:'rgba(255,215,0,.18)',border:'rgba(255,215,0,.35)'}, active:{label:'ACTIVE',color:'#8ff0b1',bg:'rgba(143,240,177,.14)',border:'rgba(143,240,177,.30)'}, new:{label:'NEW',color:'#7abaff',bg:'rgba(10,132,255,.18)',border:'rgba(10,132,255,.35)'}, at_risk:{label:'RISK',color:'#ff6b6b',bg:'rgba(255,107,107,.18)',border:'rgba(255,107,107,.35)'} }; const b = badges[cs] || badges[(cs === 'risk' ? 'at_risk' : '')]; return b ? <span style={{ fontSize: 7, fontWeight: 900, letterSpacing: '.04em', color: b.color, background: b.bg, border: `1px solid ${b.border}`, borderRadius: 4, padding: '1px 4px', lineHeight: '12px', flexShrink: 0 }}>{b.label}</span> : null })()}</div>
                             <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                               {ev._raw?.booking_type === 'model' && <Chip label="Model" type="model" />}
                               {ev._raw?.booking_type === 'training' && <Chip label="Training" type="model" />}
@@ -2153,14 +2179,29 @@ export default function CalendarPage() {
                                   ? <Chip label="✓ Done" type="paid" />
                                   : <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); if (ev._raw?.id) { apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'PATCH',body:JSON.stringify({status:'completed'})}).then(()=>setEvents(prev=>prev.map(x=>x.id===ev.id?{...x,status:'completed'}:x))).catch(console.warn) } else { setEvents(prev=>prev.map(x=>x.id===ev.id?{...x,status:'completed'}:x)) } }} style={{ height: 20, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.50)', cursor: 'pointer', fontSize: 9, fontWeight: 700, fontFamily: 'inherit' }}>Mark done</button>
                               ) : (
-                                ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />
+                                ev.paid ? <>{ev.tipAmount != null && ev.tipAmount > 0 && <Chip label={`$${ev.tipAmount.toFixed(0)} tip`} type="paid" />}<Chip label="Paid" type="paid" /></> : <Chip label={ev.status} type={ev.status} />
                               )}
                             </div>
                           </div>
                           <div style={{ marginTop: 2, fontSize: height > 40 ? 11 : 9, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-                            {minToAMPM(ev.startMin)}
+                            <span>{minToAMPM(ev.startMin)}</span>
                             {ev.serviceName && ev.serviceName !== 'Service' && <span style={{ color: 'rgba(255,255,255,.40)' }}> · {ev.serviceName}</span>}
                           </div>
+                          {/* Photo & notes indicators — below service */}
+                          {height > 50 && ((ev._raw?.reference_photo_url || ev._raw?.client_photo || ev._raw?.haircut_photo || ev._raw?.photo_url || ev._raw?.attachment_url) || (ev.notes && ev.notes.replace(/Reference photo attached on website:\s*\S+/gi, '').trim())) && (
+                            <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
+                              {(ev._raw?.reference_photo_url || ev._raw?.client_photo || ev._raw?.haircut_photo || ev._raw?.photo_url || ev._raw?.attachment_url) && (
+                                <span title="Has reference photo" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 5, background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.30)', flexShrink: 0 }}>
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#7abaff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                                </span>
+                              )}
+                              {ev.notes && ev.notes.replace(/Reference photo attached on website:\s*\S+/gi, '').trim() && (
+                                <span title="Has notes" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 5, background: 'rgba(255,207,63,.14)', border: '1px solid rgba(255,207,63,.25)', flexShrink: 0 }}>
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffd18a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                </span>
+                              )}
+                            </div>
+                          )}
                           </>)}
                         </div>
                       )

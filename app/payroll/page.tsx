@@ -2,8 +2,7 @@
 import Shell from '@/components/Shell'
 import { useEffect, useState, useCallback, useRef } from 'react'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
-const API_KEY = 'R1403ss81fxrx*rx1403'
+import { apiFetch } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Tier { type: 'revenue' | 'clients'; threshold: number; pct: number }
@@ -27,17 +26,6 @@ const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate()-n);
 const fmtDate = (iso: string) => { try { const d = new Date(iso+'T00:00:00'); return d.toLocaleDateString([], { month:'short', day:'numeric', year:'numeric' }) } catch { return iso } }
 const fmtMoney = (n: number) => '$' + (Math.round((n||0)*100)/100).toFixed(2)
 const initials = (name: string) => { const p = (name||'').split(' '); return (p[0]?.[0]||'')+(p[1]?.[0]||'') }
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-  const res = await fetch(API + path, { credentials: 'include',
-    ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, ...(opts?.headers || {}) }
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
 
 // ─── DatePicker ───────────────────────────────────────────────────────────────
 function DatePicker({ from, to, onChange, onClose }: {
@@ -491,11 +479,28 @@ export default function PayrollPage() {
         }
         const clockIn = new Date(r.clock_in)
         if (isNaN(clockIn.getTime())) return
-        const dow = clockIn.getDay()
-        const days = Array.isArray(sched.days) ? sched.days : []
-        if (!days.includes(dow)) return
-        const schedStartMin = Number(sched.startMin ?? sched.start_min ?? 480)
         const chicagoTime = new Date(clockIn.toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+        const dow = chicagoTime.getDay()
+        // Read per-day schedule first, fallback to global startMin
+        let schedStartMin: number | null = null
+        const perDay = sched.perDay || sched.per_day
+        if (Array.isArray(sched) && sched[dow]) {
+          const day = sched[dow]
+          if (day.enabled === false) return
+          const sm = day.startMin ?? day.start_min
+          schedStartMin = sm != null ? Number(sm) : null
+        } else if (Array.isArray(perDay) && perDay[dow]) {
+          const day = perDay[dow]
+          if (day.enabled === false) return
+          const sm = day.startMin ?? day.start_min
+          schedStartMin = sm != null ? Number(sm) : null
+        } else {
+          const days = Array.isArray(sched.days) ? sched.days : []
+          if (!days.includes(dow)) return
+          const gs = sched.startMin ?? sched.start_min
+          schedStartMin = gs != null ? Number(gs) : null
+        }
+        if (schedStartMin == null) return
         const clockInMin = chicagoTime.getHours() * 60 + chicagoTime.getMinutes()
         const late = clockInMin - schedStartMin
         if (late > 0) {

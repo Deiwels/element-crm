@@ -2,8 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Shell from '@/components/Shell'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
-const API_KEY = 'R1403ss81fxrx*rx1403'
+import { apiFetch, API, API_KEY } from '@/lib/api'
 
 const isoToday = () => { const d = new Date(); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
 const fmtTime = (iso?: string) => { if (!iso) return '—'; try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) } catch { return '—' } }
@@ -29,15 +28,29 @@ interface UserSummary {
 function getScheduleStartMin(barber: Barber | undefined, dayOfWeek: number): number | null {
   const sch = barber?.schedule || barber?.work_schedule
   if (!sch) return null
+  // Format 1: per-day array [Sun..Sat]
   if (Array.isArray(sch)) {
     const day = sch[dayOfWeek]
-    if (!day || !day.enabled) return null
-    return day.startMin ?? null
+    if (!day || day.enabled === false) return null
+    const sm = day.startMin ?? day.start_min
+    return sm != null ? Number(sm) : null
   }
-  if (typeof sch === 'object' && sch.startMin !== undefined) {
-    const days: number[] = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6]
-    if (!days.includes(dayOfWeek)) return null
-    return Number(sch.startMin)
+  if (typeof sch === 'object') {
+    // Format 2: { perDay: [...], startMin, endMin, days }
+    const perDay = sch.perDay || sch.per_day
+    if (Array.isArray(perDay) && perDay[dayOfWeek]) {
+      const day = perDay[dayOfWeek]
+      if (day.enabled === false) return null
+      const sm = day.startMin ?? day.start_min
+      if (sm != null) return Number(sm)
+    }
+    // Fallback to global startMin
+    const globalStart = sch.startMin ?? sch.start_min
+    if (globalStart !== undefined) {
+      const days: number[] = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6]
+      if (!days.includes(dayOfWeek)) return null
+      return Number(globalStart)
+    }
   }
   return null
 }
@@ -83,15 +96,6 @@ export default function AttendancePage() {
   const isOwner = user?.role === 'owner'
   const isAdmin = user?.role === 'admin'
   const canManage = isOwner || isAdmin
-
-  async function apiFetch(path: string) {
-    const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-    const res = await fetch(`${API}${path}`, {
-      credentials: 'include',
-      headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, Accept: 'application/json' }
-    })
-    return res.json()
-  }
 
   async function forceClockOut(attendanceId: string, userName: string, userId: string) {
     if (!window.confirm(`Clock out ${userName} now?`)) return

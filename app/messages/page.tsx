@@ -2,18 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import Shell from '@/components/Shell'
 
-const API = 'https://element-crm-api-431945333485.us-central1.run.app'
-const API_KEY = 'R1403ss81fxrx*rx1403'
-
-async function apiFetch(path: string, opts?: RequestInit) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('ELEMENT_TOKEN') || '' : ''
-  const res = await fetch(API + path, { credentials: 'include', ...opts,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, ...(opts?.headers || {}) }
-  })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status)
-  return data
-}
+import { apiFetch } from '@/lib/api'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type ChatType = 'general' | 'barbers' | 'admins' | 'students'
@@ -572,7 +561,9 @@ export default function MessagesPage() {
 
   // Initial load + polling
   useEffect(() => {
-    setLoading(true)
+    // Only show loading on first load when no data yet
+    const hasData = messages.length > 0 || requests.length > 0 || applications.length > 0
+    if (!hasData) setLoading(true)
     if (activeTab === 'requests') {
       loadRequests().then(() => setLoading(false))
     } else if (activeTab === 'applications') {
@@ -815,6 +806,20 @@ export default function MessagesPage() {
 
   return (
     <Shell page="Messages">
+      {/* Loading overlay — first load only */}
+      {loading && messages.length === 0 && requests.length === 0 && applications.length === 0 && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', gap: 16 }}>
+          <div style={{ position: 'relative', width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src="/Element_logo-05.jpg" alt="Element" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover' }} />
+            <svg viewBox="0 0 80 80" fill="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', animation: 'msgLoadSpin 1.2s linear infinite' }}>
+              <circle cx="40" cy="40" r="38" stroke="rgba(255,255,255,.08)" strokeWidth="2.5" />
+              <path d="M40 2a38 38 0 0 1 38 38" stroke="#d7ecff" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', letterSpacing: '.08em' }}>Loading messages…</div>
+          <style>{`@keyframes msgLoadSpin { to { transform: rotate(360deg) } }`}</style>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&family=Julius+Sans+One&display=swap');
         .msg-input:focus { border-color: rgba(10,132,255,.40) !important; box-shadow: 0 0 0 3px rgba(10,132,255,.10) !important; }
@@ -886,7 +891,7 @@ export default function MessagesPage() {
         {activeTab === 'applications' ? (
           /* Applications tab */
           <div className="msg-list" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-            {loading && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
+            {loading && !messages.length && !requests.length && !applications.length && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
             {!loading && applications.length === 0 && (
               <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.20)' }}>
                 <div style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="1.5" strokeLinecap="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div>
@@ -953,7 +958,7 @@ export default function MessagesPage() {
                 Requests are created automatically when you change your schedule, photo, or profile in Calendar Settings.
               </div>
             )}
-            {loading && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
+            {loading && !messages.length && !requests.length && !applications.length && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
             {!loading && requests.length === 0 && (
               <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.20)' }}>
                 <div style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="17" x2="13" y2="17"/></svg></div>
@@ -968,7 +973,7 @@ export default function MessagesPage() {
           <>
             <div ref={listRef} className="msg-list" onScroll={onScroll}
               style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 12, paddingBottom: 8 }}>
-              {loading && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
+              {loading && !messages.length && !requests.length && !applications.length && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
               {!loading && messages.length === 0 && (
                 <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.20)' }}>
                   <div style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
