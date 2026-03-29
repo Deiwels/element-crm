@@ -786,25 +786,6 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Recent activity */}
-            <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
-              <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Recent activity</div>
-              {[...bookings].sort((a, b) => String(b.start_at||'').localeCompare(String(a.start_at||''))).slice(0, 6).map((b, i) => {
-                const dotColors: Record<string,string> = { booked:'#0a84ff', arrived:'#8ff0b1', done:'#ffcf3f', noshow:'#ff6b6b', cancelled:'#ff6b6b' }
-                const dc = b.paid ? '#8ff0b1' : (dotColors[b.status||''] || 'rgba(255,255,255,.25)')
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 999, background: dc, flexShrink: 0, marginTop: 5, display: 'inline-block' }} />
-                    <span style={{ fontSize: 12, lineHeight: 1.4, flex: 1 }}>
-                      <strong>{decHtml(b.client_name || 'Client')}</strong> — {decHtml(b.service_name || 'service')}
-                      {!isBarber && <> · <em style={{ color: 'rgba(255,255,255,.40)' }}>{b.barber_name || b.barber}</em></>}
-                    </span>
-                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', whiteSpace: 'nowrap' }}>{fmtTime(b.start_at)}</span>
-                  </div>
-                )
-              })}
-              {bookings.length === 0 && !loading && <div style={{ color: 'rgba(255,255,255,.30)', fontSize: 12 }}>No activity yet</div>}
-            </div>
           </div>
         </div>
           {/* ── OWNER/ADMIN ONLY: Shop Status + Banner + Barbers ── */}
