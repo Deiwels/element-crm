@@ -339,8 +339,6 @@ function ProfileModal({ user, onClose, onUpdated }: {
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginBottom: 4 }}>Choose which push notifications you receive in the Element Team app.</div>
             {([
               { key: 'push_booking_confirm', label: 'Booking confirmation', sub: 'When a new appointment is booked' },
-              { key: 'push_reminder_24h', label: '24h reminder', sub: 'Day before appointment' },
-              { key: 'push_reminder_2h', label: '2h reminder', sub: '2 hours before appointment' },
               { key: 'push_reschedule', label: 'Reschedule', sub: 'When appointment time changes' },
               { key: 'push_cancel', label: 'Cancellation', sub: 'When appointment is cancelled' },
               { key: 'push_waitlist', label: 'Waitlist', sub: 'When a spot opens up' },
