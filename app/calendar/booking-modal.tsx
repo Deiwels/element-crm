@@ -1141,6 +1141,23 @@ export function BookingModal({
     if (closest !== selStartMin) setTimeout(() => setSelStartMin(closest), 0)
   }
 
+  // Optimal slots — minimize gaps between appointments
+  const optimalSlots = (() => {
+    if (busyIntervals.length === 0) return []
+    const sorted = [...busyIntervals].sort((a, b) => a.start - b.start)
+    const scored = slots.map(m => {
+      const end = m + durMin
+      const afterBooking = sorted.some(b => b.end === m) || m === schedStart
+      const beforeBooking = sorted.some(b => b.start === end) || end === schedEnd
+      const score = (afterBooking ? 2 : 0) + (beforeBooking ? 2 : 0)
+      // Also score slots close to bookings (within 5 min)
+      const nearAfter = !afterBooking && sorted.some(b => m - b.end >= 0 && m - b.end <= 5)
+      const nearBefore = !beforeBooking && sorted.some(b => b.start - end >= 0 && b.start - end <= 5)
+      return { m, score: score + (nearAfter ? 1 : 0) + (nearBefore ? 1 : 0) }
+    })
+    return scored.filter(s => s.score >= 2).sort((a, b) => b.score - a.score).map(s => s.m).slice(0, 6)
+  })()
+
   async function handleSave() {
     setFormError('')
     if (!isModelEvent && !clientName.trim()) { setFormError('Enter client name'); return }
@@ -1417,6 +1434,27 @@ export function BookingModal({
                   )}
                   <div>
                     <label style={lbl}>Time {workHours ? <span style={{ color: 'rgba(255,255,255,.30)', fontWeight: 400 }}>({slots.length} free)</span> : <span style={{ color: '#ff6b6b', fontWeight: 400 }}>Day off</span>}</label>
+                    {optimalSlots.length > 0 && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 9, color: 'rgba(143,240,177,.50)', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 4, fontWeight: 700 }}>Best — no gaps</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+                          {optimalSlots.map(m => {
+                            const h = Math.floor(m / 60), mm = m % 60
+                            const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
+                            const ampm = h < 12 ? 'AM' : 'PM'
+                            const isActive = m === selStartMin
+                            return <button key={`opt-${m}`} type="button" onClick={() => !isPaidEvent && setSelStartMin(m)} style={{
+                              height: 34, borderRadius: 10,
+                              border: `1px solid ${isActive ? 'rgba(143,240,177,.55)' : 'rgba(143,240,177,.20)'}`,
+                              background: isActive ? 'rgba(143,240,177,.14)' : 'rgba(143,240,177,.04)',
+                              color: isActive ? '#8ff0b1' : 'rgba(143,240,177,.65)', fontWeight: isActive ? 800 : 600,
+                              fontSize: 11, cursor: isPaidEvent ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                              transition: 'all .15s ease', opacity: isPaidEvent ? 0.5 : 1,
+                            }}>{hour}:{String(mm).padStart(2,'0')} {ampm}</button>
+                          })}
+                        </div>
+                      </div>
+                    )}
                     {slots.length > 0 ? (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, maxHeight: 180, overflowY: 'auto', padding: 2 }}>
                         {slots.map(m => {
