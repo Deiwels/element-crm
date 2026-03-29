@@ -211,7 +211,7 @@ export default function DashboardPage() {
       setClockedIn(!!attStatus.clocked_in)
       setClockInTime(attStatus.clock_in || null)
       setTodayMinutes(attStatus.today_minutes || 0)
-    } catch { setClockedIn(false) }
+    } catch { /* don't reset clock status on fetch error */ }
     // Admin: load who's on clock today
     if (!isBarber) {
       try {
