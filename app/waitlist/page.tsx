@@ -183,9 +183,18 @@ export default function WaitlistPage() {
     } catch (e: any) { alert(e.message) }
   }
 
-  const filtered = filter
-    ? entries.filter(e => e.barber_id === filter)
-    : entries
+  const isBarber = user?.role === 'barber'
+  const isStudent = user?.role === 'student'
+  const myBarberId = user?.barber_id || ''
+
+  const filtered = (() => {
+    let list = entries
+    // Barber sees only their own waitlist
+    if (isBarber && myBarberId) list = list.filter(e => e.barber_id === myBarberId)
+    // Manual filter on top
+    if (filter) list = list.filter(e => e.barber_id === filter)
+    return list
+  })()
 
   const inp: React.CSSProperties = { width: '100%', height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 14px', outline: 'none', fontSize: 14, fontFamily: 'inherit' }
   const lbl: React.CSSProperties = { fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }
@@ -209,7 +218,7 @@ export default function WaitlistPage() {
           .wl-services-wrap button { flex: 1 1 auto !important; min-width: 0 !important; text-align: center !important; }
         }
       `}</style>
-      <div style={{ maxWidth: 700, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ maxWidth: 700, margin: '0 auto', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 16, height: '100vh', overflowY: 'auto' }}>
 
         {/* Header */}
         <div className="wl-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', position: 'relative' }}>
