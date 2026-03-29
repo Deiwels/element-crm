@@ -1476,7 +1476,10 @@ export default function CalendarPage() {
     const ev = events.find(e => e.id === modal.eventId); if (!ev) return
     const svcIds: string[] = patch.serviceIds || (patch.serviceId ? [patch.serviceId] : [])
     const svcNames = svcIds.map(id => services.find(s => s.id === id)?.name).filter(Boolean).join(' + ')
-    const updated = { ...ev, ...patch, serviceIds: svcIds, serviceName: svcNames || ev.serviceName }
+    const updated = { ...ev, ...patch, serviceIds: svcIds, serviceName: svcNames || ev.serviceName,
+      // 1 no-show = immediately at_risk
+      ...(patch.status === 'noshow' ? { _raw: { ...ev._raw, client_status: 'at_risk' } } : {})
+    }
     setEvents(prev => prev.map(e => e.id === ev.id ? updated : e))
     // Track arrived + send notification BEFORE save (so it works even if save fails)
     // _forceArrivedNotify bypasses dedup — user explicitly changed status to arrived
