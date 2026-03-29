@@ -375,7 +375,7 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
               </div>
               {/* Client status scale */}
               {(() => {
-                const st = selected.client_status || 'new'
+                const st = (status === 'noshow' || (selected.no_shows || 0) > 0) ? 'at_risk' : (selected.client_status || 'new')
                 const statuses = [
                   { key: 'at_risk', label: 'Risk', color: '#ff6b6b', bg: 'rgba(255,107,107,.15)', border: 'rgba(255,107,107,.35)' },
                   { key: 'new', label: 'New', color: '#7abaff', bg: 'rgba(10,132,255,.15)', border: 'rgba(10,132,255,.35)' },
