@@ -1815,7 +1815,7 @@ export default function CalendarPage() {
         {(() => {
           // On mobile: show ALL barbers with narrower columns
           const pageBarbers = visibleBarbers
-          const timeColW = isMobile ? 24 : 90
+          const timeColW = isMobile ? 24 : 45
           // Dynamic column min-width: shrink columns to fit all barbers on screen
           const mobileColMin = isMobile && pageBarbers.length > 1
             ? Math.max(60, Math.floor((window.innerWidth - timeColW) / pageBarbers.length))
