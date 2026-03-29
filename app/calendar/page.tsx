@@ -1568,6 +1568,20 @@ export default function CalendarPage() {
 
   return (
     <Shell page="calendar">
+      {/* Loading overlay — shown on initial load */}
+      {loading && events.length === 0 && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', gap: 16 }}>
+          <div style={{ fontFamily: '"Julius Sans One", sans-serif', letterSpacing: '.22em', textTransform: 'uppercase', fontSize: 20, color: '#e9e9e9' }}>Element</div>
+          <div style={{ width: 28, height: 28 }}>
+            <svg viewBox="0 0 24 24" fill="none" style={{ animation: 'calLoadSpin 1s linear infinite', width: '100%', height: '100%' }}>
+              <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,.10)" strokeWidth="2.5" />
+              <path d="M12 2a10 10 0 0 1 10 10" stroke="#d7ecff" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', letterSpacing: '.08em' }}>Loading calendar…</div>
+          <style>{`@keyframes calLoadSpin { to { transform: rotate(360deg) } }`}</style>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Julius+Sans+One&display=swap');
         .cal-container { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
