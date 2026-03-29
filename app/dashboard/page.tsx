@@ -154,7 +154,7 @@ export default function DashboardPage() {
     const headers: Record<string,string> = { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, Accept: 'application/json' }
     const today = isoToday()
     const range = getDateRange(earningsPeriod, earningsOffset)
-    setLoading(true)
+    if (!bookings.length && !myPayroll) setLoading(true) // only show loading on first load
     try {
       // Load barbers for name lookup — bookings for today (calendar), payroll for selected period
       const [bkRes, brRes] = await Promise.all([
@@ -698,15 +698,15 @@ export default function DashboardPage() {
         {/* KPIs — barber sees their own earnings, owner sees totals */}
         <div className="dash-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
           {isBarber ? <>
-            <KpiCard title="My bookings today" value={loading ? '…' : String(total)} sub={`${upcoming} upcoming`} color="blue" />
-            <KpiCard title={`My earnings · ${getDateRange(earningsPeriod, earningsOffset).label}`} value={loading ? '…' : money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
-            <KpiCard title="My clients today" value={loading ? '…' : String(barberClients)} sub={paid > 0 ? `${paid} paid` : 'today'} color="gold" />
-            <KpiCard title="No-shows" value={loading ? '…' : String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
+            <KpiCard title="My bookings today" value={String(total)} sub={`${upcoming} upcoming`} color="blue" />
+            <KpiCard title={`My earnings · ${getDateRange(earningsPeriod, earningsOffset).label}`} value={money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
+            <KpiCard title="My clients today" value={String(barberClients)} sub={paid > 0 ? `${paid} paid` : 'today'} color="gold" />
+            <KpiCard title="No-shows" value={String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
           </> : <>
-            <KpiCard title="Bookings today" value={loading ? '…' : String(total)} sub={`${upcoming} upcoming`} color="blue" />
-            <KpiCard title="Paid / Unpaid" value={loading ? '…' : `${paid}/${total}`} sub={total - paid > 0 ? `${total - paid} unpaid` : 'all paid ✓'} color={paid === total && total > 0 ? 'ok' : 'gold'} />
-            <KpiCard title="No-shows" value={loading ? '…' : String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
-            <KpiCard title="Barbers working" value={loading ? '…' : String(Object.keys(byBarber).length)} sub="today" color="blue" />
+            <KpiCard title="Bookings today" value={String(total)} sub={`${upcoming} upcoming`} color="blue" />
+            <KpiCard title="Paid / Unpaid" value={`${paid}/${total}`} sub={total - paid > 0 ? `${total - paid} unpaid` : 'all paid ✓'} color={paid === total && total > 0 ? 'ok' : 'gold'} />
+            <KpiCard title="No-shows" value={String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
+            <KpiCard title="Barbers working" value={String(Object.keys(byBarber).length)} sub="today" color="blue" />
           </>}
         </div>
 
@@ -735,7 +735,7 @@ export default function DashboardPage() {
                   </div>
                   <button onClick={() => setEarningsOffset(o => Math.min(0, o + 1))} disabled={earningsOffset >= 0} style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: earningsOffset >= 0 ? 'rgba(255,255,255,.15)' : 'rgba(255,255,255,.50)', cursor: earningsOffset >= 0 ? 'not-allowed' : 'pointer', fontSize: 14, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&rsaquo;</button>
                 </div>
-                {loading ? <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 12 }}>Loading…</div> : (
+                {loading && !myPayroll ? <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 12 }}>Loading…</div> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {[
                       { label: 'Services', value: money(myPayroll?.barber_service_share || 0), color: '#d7ecff' },
