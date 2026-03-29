@@ -2157,10 +2157,21 @@ export default function CalendarPage() {
                               )}
                             </div>
                           </div>
-                          <div style={{ marginTop: 2, fontSize: height > 40 ? 11 : 9, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-                            {minToAMPM(ev.startMin)}
+                          <div style={{ marginTop: 2, fontSize: height > 40 ? 11 : 9, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <span>{minToAMPM(ev.startMin)}</span>
                             {ev.serviceName && ev.serviceName !== 'Service' && <span style={{ color: 'rgba(255,255,255,.40)' }}> · {ev.serviceName}</span>}
                             {ev.paid && ev.tipAmount != null && ev.tipAmount > 0 && <span style={{ color: '#ffe9a3', fontWeight: 700 }}> · ${ev.tipAmount.toFixed(0)}</span>}
+                            {/* Photo & notes indicators */}
+                            {(ev._raw?.reference_photo_url || ev._raw?.client_photo || ev._raw?.haircut_photo || ev._raw?.photo_url || ev._raw?.attachment_url) && (
+                              <span title="Has reference photo" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 5, background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.30)', flexShrink: 0, marginLeft: 2 }}>
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#7abaff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                              </span>
+                            )}
+                            {ev.notes && ev.notes.trim() && (
+                              <span title="Has notes" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 5, background: 'rgba(255,207,63,.14)', border: '1px solid rgba(255,207,63,.25)', flexShrink: 0 }}>
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffd18a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                              </span>
+                            )}
                           </div>
                           </>)}
                         </div>
