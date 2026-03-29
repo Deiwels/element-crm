@@ -2167,14 +2167,13 @@ export default function CalendarPage() {
                                   ? <Chip label="✓ Done" type="paid" />
                                   : <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); if (ev._raw?.id) { apiFetch('/api/bookings/'+encodeURIComponent(String(ev._raw.id)),{method:'PATCH',body:JSON.stringify({status:'completed'})}).then(()=>setEvents(prev=>prev.map(x=>x.id===ev.id?{...x,status:'completed'}:x))).catch(console.warn) } else { setEvents(prev=>prev.map(x=>x.id===ev.id?{...x,status:'completed'}:x)) } }} style={{ height: 20, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,.20)', background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.50)', cursor: 'pointer', fontSize: 9, fontWeight: 700, fontFamily: 'inherit' }}>Mark done</button>
                               ) : (
-                                ev.paid ? <Chip label="Paid" type="paid" /> : <Chip label={ev.status} type={ev.status} />
+                                ev.paid ? <>{ev.tipAmount != null && ev.tipAmount > 0 && <Chip label={`$${ev.tipAmount.toFixed(0)} tip`} type="paid" />}<Chip label="Paid" type="paid" /></> : <Chip label={ev.status} type={ev.status} />
                               )}
                             </div>
                           </div>
                           <div style={{ marginTop: 2, fontSize: height > 40 ? 11 : 9, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 3 }}>
                             <span>{minToAMPM(ev.startMin)}</span>
                             {ev.serviceName && ev.serviceName !== 'Service' && <span style={{ color: 'rgba(255,255,255,.40)' }}> · {ev.serviceName}</span>}
-                            {ev.paid && ev.tipAmount != null && ev.tipAmount > 0 && <span style={{ color: '#ffe9a3', fontWeight: 700 }}> · ${ev.tipAmount.toFixed(0)}</span>}
                             {/* Photo & notes indicators */}
                             {(ev._raw?.reference_photo_url || ev._raw?.client_photo || ev._raw?.haircut_photo || ev._raw?.photo_url || ev._raw?.attachment_url) && (
                               <span title="Has reference photo" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 5, background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.30)', flexShrink: 0, marginLeft: 2 }}>
