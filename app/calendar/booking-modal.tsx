@@ -59,6 +59,8 @@ interface Client {
   notes?: string
   photo_url?: string
   visitCount?: number
+  client_status?: string
+  no_shows?: number
 }
 
 interface Barber { id: string; name: string; color: string; schedule?: any; work_schedule?: any }
@@ -233,6 +235,8 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
           email: String(c.email || ''),
           notes: String(c.notes || ''),
           visitCount: Number(c.visit_count || c.visits || 0),
+          client_status: String(c.client_status || c.status || 'new'),
+          no_shows: Number(c.no_shows || 0),
         })).filter((c: Client) => c.name)
         if (mapped.length > 0) {
           setResults(mapped); setOpen(true); setNotFound(false)
@@ -367,7 +371,38 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,.50)', marginTop: 2 }}>
                 {isOwnerOrAdmin ? (selected.phone || 'No phone') : maskPhone(selected.phone || '')}
                 {selected.visitCount ? ` · ${selected.visitCount} visit${selected.visitCount !== 1 ? 's' : ''}` : ' · New client'}
+                {(selected.no_shows || 0) > 0 && <span style={{ color: '#ff6b6b' }}> · {selected.no_shows} no-show{(selected.no_shows || 0) !== 1 ? 's' : ''}</span>}
               </div>
+              {/* Client status scale */}
+              {(() => {
+                const st = selected.client_status || 'new'
+                const statuses = [
+                  { key: 'at_risk', label: 'Risk', color: '#ff6b6b', bg: 'rgba(255,107,107,.15)', border: 'rgba(255,107,107,.35)' },
+                  { key: 'new', label: 'New', color: '#7abaff', bg: 'rgba(10,132,255,.15)', border: 'rgba(10,132,255,.35)' },
+                  { key: 'active', label: 'Active', color: '#8ff0b1', bg: 'rgba(143,240,177,.15)', border: 'rgba(143,240,177,.35)' },
+                  { key: 'vip', label: 'VIP', color: '#ffd700', bg: 'rgba(255,215,0,.15)', border: 'rgba(255,215,0,.40)' },
+                ]
+                const activeIdx = statuses.findIndex(s => s.key === st || (st === 'risk' && s.key === 'at_risk'))
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 5 }}>
+                    {statuses.map((s, i) => {
+                      const isActive = i === activeIdx
+                      return (
+                        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <span style={{
+                            fontSize: 8, fontWeight: 900, letterSpacing: '.06em', textTransform: 'uppercase',
+                            padding: '2px 6px', borderRadius: 4,
+                            border: `1px solid ${isActive ? s.border : 'rgba(255,255,255,.06)'}`,
+                            background: isActive ? s.bg : 'transparent',
+                            color: isActive ? s.color : 'rgba(255,255,255,.18)',
+                          }}>{s.label}</span>
+                          {i < statuses.length - 1 && <span style={{ fontSize: 8, color: 'rgba(255,255,255,.12)' }}>›</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </div>
           </div>
           <button onClick={clear} style={{ height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 }}>Change</button>
@@ -1072,14 +1107,14 @@ export function BookingModal({
       setPhotoUrl('')
       // Pre-fill client card if we have client info from existing event
       if (existingEvent.clientName) {
-        setSelectedClient({ id: '', name: existingEvent.clientName, phone: existingEvent.clientPhone || '', visitCount: 0 })
+        setSelectedClient({ id: '', name: existingEvent.clientName, phone: existingEvent.clientPhone || '', visitCount: 0, client_status: existingEvent._raw?.client_status || 'new', no_shows: Number(existingEvent._raw?.no_shows || 0) })
         // Try to find real client ID for notes saving
         if (existingEvent.clientName !== 'BLOCKED' && existingEvent.clientName !== 'Client') {
           apiFetch(`/api/clients?q=${encodeURIComponent(existingEvent.clientName)}`)
             .then((data: any) => {
               const list = Array.isArray(data) ? data : (data?.clients || [])
               const match = list.find((c: any) => c.name === existingEvent.clientName)
-              if (match?.id) setSelectedClient(prev => prev ? { ...prev, id: match.id, notes: match.notes || '' } : prev)
+              if (match?.id) setSelectedClient(prev => prev ? { ...prev, id: match.id, notes: match.notes || '', client_status: match.client_status || prev.client_status, no_shows: Number(match.no_shows || prev.no_shows || 0), visitCount: Number(match.visit_count || match.visits || prev.visitCount || 0) } : prev)
             }).catch(() => {})
         }
       } else {
