@@ -61,8 +61,33 @@ interface Client {
   visitCount?: number
 }
 
-interface Barber { id: string; name: string; color: string }
+interface Barber { id: string; name: string; color: string; schedule?: any; work_schedule?: any }
 interface Service { id: string; name: string; durationMin: number; price?: string; barberIds: string[] }
+
+function getBarberWorkingHours(barbers: Barber[], barberId: string, dateStr: string): { startMin: number; endMin: number } | null {
+  const barber = barbers.find(b => b.id === barberId)
+  if (!barber) return { startMin: 480, endMin: 1260 }
+  const sch = barber.schedule || barber.work_schedule
+  if (!sch) return { startMin: 480, endMin: 1260 }
+  const d = new Date(dateStr + 'T12:00:00')
+  const dow = d.getDay()
+  // Per-day array format
+  if (Array.isArray(sch)) {
+    const day = sch[dow]
+    if (!day || !day.enabled) return null
+    return { startMin: day.startMin ?? 480, endMin: day.endMin ?? 1260 }
+  }
+  // Object format with perDay
+  if (sch.perDay && Array.isArray(sch.perDay)) {
+    const day = sch.perDay[dow]
+    if (day && day.enabled === false) return null
+    if (day && day.startMin != null) return { startMin: day.startMin, endMin: day.endMin ?? 1260 }
+  }
+  // Object format with days array
+  const days: number[] = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6]
+  if (!days.includes(dow)) return null
+  return { startMin: Number(sch.startMin ?? 480), endMin: Number(sch.endMin ?? 1260) }
+}
 
 interface BookingModalProps {
   isOpen: boolean
@@ -1093,18 +1118,25 @@ export function BookingModal({
     return [...list].sort((a, b) => (b.durationMin || 30) - (a.durationMin || 30))
   })()
 
-  // Time slots 5min — filter by availability
+  // Time slots — only barber's working hours, filtered by availability
+  const workHours = getBarberWorkingHours(barbers, selBarberId, date)
+  const schedStart = workHours?.startMin ?? 480
+  const schedEnd = workHours?.endMin ?? 1260
   const allSlots: number[] = []
-  for (let m = 0; m <= 24 * 60 - 5; m += 5) allSlots.push(m)
+  for (let m = schedStart; m + durMin <= schedEnd; m += 5) allSlots.push(m)
   // Get busy intervals for selected barber (exclude current event being edited)
   const busyIntervals = (allEvents || [])
     .filter(e => e.barberId === selBarberId && e.clientName !== 'BLOCKED' && e.id !== existingEvent?.id)
     .map(e => ({ start: e.startMin, end: e.startMin + (e.durMin || 30) }))
   const slots = allSlots.filter(m => {
     const end = m + durMin
-    // Check no overlap with any busy interval
     return !busyIntervals.some(b => m < b.end && end > b.start)
   })
+  // Auto-snap: if selected time is outside available slots, pick first available
+  if (slots.length > 0 && !slots.includes(selStartMin)) {
+    const closest = slots.reduce((a, b) => Math.abs(b - selStartMin) < Math.abs(a - selStartMin) ? b : a)
+    if (closest !== selStartMin) setTimeout(() => setSelStartMin(closest), 0)
+  }
 
   async function handleSave() {
     setFormError('')
@@ -1381,15 +1413,26 @@ export function BookingModal({
                     </div>
                   )}
                   <div>
-                    <label style={lbl}>Time {slots.length < allSlots.length && <span style={{ color: 'rgba(10,132,255,.50)', fontWeight: 400 }}>({slots.length} available)</span>}</label>
-                    <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} disabled={isPaidEvent} className="bm-input" style={{ ...inp, opacity: isPaidEvent ? 0.5 : 1 }}>
-                      {slots.map(m => {
-                        const h = Math.floor(m / 60), mm = m % 60
-                        const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
-                        const ampm = h < 12 ? 'AM' : 'PM'
-                        return <option key={m} value={m}>{hour}:{String(mm).padStart(2,'0')} {ampm}</option>
-                      })}
-                    </select>
+                    <label style={lbl}>Time {workHours ? <span style={{ color: 'rgba(255,255,255,.30)', fontWeight: 400 }}>({slots.length} free)</span> : <span style={{ color: '#ff6b6b', fontWeight: 400 }}>Day off</span>}</label>
+                    {slots.length > 0 ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, maxHeight: 180, overflowY: 'auto', padding: 2 }}>
+                        {slots.map(m => {
+                          const h = Math.floor(m / 60), mm = m % 60
+                          const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
+                          const ampm = h < 12 ? 'AM' : 'PM'
+                          const isActive = m === selStartMin
+                          return <button key={m} type="button" onClick={() => !isPaidEvent && setSelStartMin(m)} style={{
+                            height: 34, borderRadius: 10, border: `1px solid ${isActive ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.08)'}`,
+                            background: isActive ? 'rgba(10,132,255,.14)' : 'rgba(255,255,255,.03)',
+                            color: isActive ? '#d7ecff' : 'rgba(255,255,255,.50)', fontWeight: isActive ? 800 : 500,
+                            fontSize: 11, cursor: isPaidEvent ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                            transition: 'all .15s ease', opacity: isPaidEvent ? 0.5 : 1,
+                          }}>{hour}:{String(mm).padStart(2,'0')} {ampm}</button>
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ padding: '12px 0', fontSize: 12, color: 'rgba(255,255,255,.30)', textAlign: 'center' }}>No available slots</div>
+                    )}
                   </div>
                   <div>
                     <label style={lbl}>Duration → end</label>
