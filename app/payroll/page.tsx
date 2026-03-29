@@ -810,12 +810,12 @@ export default function PayrollPage() {
                       const basePay = (r.hourly_rate || 0) * hours
                       // Profit share from owner's net
                       const profitShare = ownerShare * ((r.owner_profit_pct || 0) / 100)
-                      // Service fee: auto from attendance days + extra days from settings
+                      // Service fee: percentage of total services for days worked
                       const workedDays = adminWorkDays[u.id] || []
                       const extraDays = (r.service_fee_days || []) as number[]
                       const allFeeDays = [...new Set([...workedDays, ...extraDays])]
-                      // Count how many unique dates in period had clock-in for this user
-                      const feeShare = allFeeDays.length > 0 ? serviceFeeGross * ((r.service_fee_pct || 0) / 100) : 0
+                      // Fee = service_fee_pct% of total services (if worked any days)
+                      const feeShare = allFeeDays.length > 0 ? totalServices * ((r.service_fee_pct || 0) / 100) : 0
                       const total = basePay + profitShare + feeShare
                       totalAdminPay += total
                       return { u, r, hours, basePay, profitShare, feeShare, total, allFeeDays }
