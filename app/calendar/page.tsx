@@ -2160,6 +2160,7 @@ export default function CalendarPage() {
                           <div style={{ marginTop: 2, fontSize: height > 40 ? 11 : 9, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
                             {minToAMPM(ev.startMin)}
                             {ev.serviceName && ev.serviceName !== 'Service' && <span style={{ color: 'rgba(255,255,255,.40)' }}> · {ev.serviceName}</span>}
+                            {ev.paid && ev.tipAmount != null && ev.tipAmount > 0 && <span style={{ color: '#ffe9a3', fontWeight: 700 }}> · ${ev.tipAmount.toFixed(0)}</span>}
                           </div>
                           </>)}
                         </div>
