@@ -178,6 +178,38 @@ export default function PaymentsPage() {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [refundTarget, setRefundTarget] = useState<Payment | null>(null)
   const [mobileDetail, setMobileDetail] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState('')
+
+  const [user] = useState(() => { try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}') } catch { return {} } })
+  const isOwner = user?.role === 'owner'
+
+  // Sync tips from payments to bookings — recovers lost tips
+  async function syncTips() {
+    if (!window.confirm('Sync tips from Square payments to bookings? This will update bookings that are missing tip data.')) return
+    setSyncing(true); setSyncResult('')
+    try {
+      const data = await apiFetch(`/api/payments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+      const allPayments: Payment[] = data?.payments || []
+      let updated = 0, skipped = 0
+      for (const p of allPayments) {
+        if (p.status !== 'paid') continue
+        const tip = Number(p.tip || 0)
+        const bookingId = p.booking_id
+        if (!bookingId || !tip) { skipped++; continue }
+        try {
+          await apiFetch(`/api/bookings/${encodeURIComponent(bookingId)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ tip, tip_amount: tip, payment_method: p.method || 'terminal' })
+          })
+          updated++
+        } catch { skipped++ }
+      }
+      setSyncResult(`Done! Updated ${updated} bookings, skipped ${skipped}`)
+      load()
+    } catch (e: any) { setSyncResult('Error: ' + e.message) }
+    setSyncing(false)
+  }
 
   // Filters
   const [q, setQ] = useState('')
@@ -295,7 +327,14 @@ export default function PaymentsPage() {
                 style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
                 Export CSV
               </button>
+              {isOwner && (
+                <button onClick={syncTips} disabled={syncing}
+                  style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(143,240,177,.45)', background: 'rgba(143,240,177,.08)', color: '#c9ffe1', cursor: syncing ? 'wait' : 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: syncing ? .5 : 1 }}>
+                  {syncing ? 'Syncing…' : 'Sync Tips'}
+                </button>
+              )}
             </div>
+            {syncResult && <div style={{ padding: '8px 14px', borderRadius: 10, background: 'rgba(143,240,177,.06)', border: '1px solid rgba(143,240,177,.15)', color: '#c9ffe1', fontSize: 12, marginTop: 8 }}>{syncResult}</div>}
           </div>
           {/* Filters row */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, alignItems: 'center' }}>
