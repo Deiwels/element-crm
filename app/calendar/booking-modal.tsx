@@ -1104,9 +1104,18 @@ export function BookingModal({
     return [...list].sort((a, b) => (b.durationMin || 30) - (a.durationMin || 30))
   })()
 
-  // Time slots 5min
-  const slots: number[] = []
-  for (let m = 9 * 60; m <= 21 * 60 - 5; m += 5) slots.push(m)
+  // Time slots 5min — filter by availability
+  const allSlots: number[] = []
+  for (let m = 0; m <= 24 * 60 - 5; m += 5) allSlots.push(m)
+  // Get busy intervals for selected barber (exclude current event being edited)
+  const busyIntervals = (allEvents || [])
+    .filter(e => e.barberId === selBarberId && e.clientName !== 'BLOCKED' && e.id !== existingEvent?.id)
+    .map(e => ({ start: e.startMin, end: e.startMin + (e.durMin || 30) }))
+  const slots = allSlots.filter(m => {
+    const end = m + durMin
+    // Check no overlap with any busy interval
+    return !busyIntervals.some(b => m < b.end && end > b.start)
+  })
 
   async function handleSave() {
     setFormError('')
@@ -1383,9 +1392,14 @@ export function BookingModal({
                     </div>
                   )}
                   <div>
-                    <label style={lbl}>Time</label>
+                    <label style={lbl}>Time {slots.length < allSlots.length && <span style={{ color: 'rgba(10,132,255,.50)', fontWeight: 400 }}>({slots.length} available)</span>}</label>
                     <select value={selStartMin} onChange={e => setSelStartMin(Number(e.target.value))} disabled={isPaidEvent} className="bm-input" style={{ ...inp, opacity: isPaidEvent ? 0.5 : 1 }}>
-                      {slots.map(m => <option key={m} value={m}>{minToHHMM(m)}</option>)}
+                      {slots.map(m => {
+                        const h = Math.floor(m / 60), mm = m % 60
+                        const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
+                        const ampm = h < 12 ? 'AM' : 'PM'
+                        return <option key={m} value={m}>{hour}:{String(mm).padStart(2,'0')} {ampm}</option>
+                      })}
                     </select>
                   </div>
                   <div>
