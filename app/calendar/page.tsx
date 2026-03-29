@@ -2160,7 +2160,7 @@ export default function CalendarPage() {
                             {height > 48 && <div style={{ fontSize: 7, color: ev.paid ? 'rgba(143,240,177,.70)' : 'rgba(255,255,255,.30)' }}>{ev.paid ? '✓' : ev.status?.charAt(0).toUpperCase()}</div>}
                           </>) : (<>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
-                            <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>{ev.clientName}{ev._raw?.client_status === 'vip' ? <span style={{ fontSize: 8, fontWeight: 900, color: '#ffd700', background: 'rgba(255,215,0,.18)', border: '1px solid rgba(255,215,0,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>VIP</span> : ev._raw?.client_status === 'new' ? <span style={{ fontSize: 8, fontWeight: 900, color: '#7abaff', background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>NEW</span> : ev._raw?.client_status === 'at_risk' ? <span style={{ fontSize: 9, fontWeight: 900, color: '#ff6b6b', background: 'rgba(255,107,107,.18)', border: '1px solid rgba(255,107,107,.35)', borderRadius: 4, padding: '0 3px', lineHeight: '14px', flexShrink: 0 }}>!</span> : ev._raw?.client_status === 'active' ? <span style={{ width: 5, height: 5, borderRadius: 999, background: '#8ff0b1', flexShrink: 0 }} /> : null}</div>
+                            <div style={{ fontWeight: 900, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>{ev.clientName}{(() => { const cs = ev._raw?.client_status; const badges: Record<string,{label:string,color:string,bg:string,border:string}> = { vip:{label:'VIP',color:'#ffd700',bg:'rgba(255,215,0,.18)',border:'rgba(255,215,0,.35)'}, active:{label:'ACTIVE',color:'#8ff0b1',bg:'rgba(143,240,177,.14)',border:'rgba(143,240,177,.30)'}, new:{label:'NEW',color:'#7abaff',bg:'rgba(10,132,255,.18)',border:'rgba(10,132,255,.35)'}, at_risk:{label:'RISK',color:'#ff6b6b',bg:'rgba(255,107,107,.18)',border:'rgba(255,107,107,.35)'} }; const b = badges[cs] || badges[(cs === 'risk' ? 'at_risk' : '')]; return b ? <span style={{ fontSize: 7, fontWeight: 900, letterSpacing: '.04em', color: b.color, background: b.bg, border: `1px solid ${b.border}`, borderRadius: 4, padding: '1px 4px', lineHeight: '12px', flexShrink: 0 }}>{b.label}</span> : null })()}</div>
                             <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                               {ev._raw?.booking_type === 'model' && <Chip label="Model" type="model" />}
                               {ev._raw?.booking_type === 'training' && <Chip label="Training" type="model" />}
@@ -2173,21 +2173,25 @@ export default function CalendarPage() {
                               )}
                             </div>
                           </div>
-                          <div style={{ marginTop: 2, fontSize: height > 40 ? 11 : 9, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <div style={{ marginTop: 2, fontSize: height > 40 ? 11 : 9, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
                             <span>{minToAMPM(ev.startMin)}</span>
                             {ev.serviceName && ev.serviceName !== 'Service' && <span style={{ color: 'rgba(255,255,255,.40)' }}> · {ev.serviceName}</span>}
-                            {/* Photo & notes indicators */}
-                            {(ev._raw?.reference_photo_url || ev._raw?.client_photo || ev._raw?.haircut_photo || ev._raw?.photo_url || ev._raw?.attachment_url) && (
-                              <span title="Has reference photo" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 5, background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.30)', flexShrink: 0, marginLeft: 2 }}>
-                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#7abaff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                              </span>
-                            )}
-                            {ev.notes && ev.notes.replace(/Reference photo attached on website:\s*\S+/gi, '').trim() && (
-                              <span title="Has notes" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 5, background: 'rgba(255,207,63,.14)', border: '1px solid rgba(255,207,63,.25)', flexShrink: 0 }}>
-                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffd18a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                              </span>
-                            )}
                           </div>
+                          {/* Photo & notes indicators — below service */}
+                          {height > 50 && ((ev._raw?.reference_photo_url || ev._raw?.client_photo || ev._raw?.haircut_photo || ev._raw?.photo_url || ev._raw?.attachment_url) || (ev.notes && ev.notes.replace(/Reference photo attached on website:\s*\S+/gi, '').trim())) && (
+                            <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
+                              {(ev._raw?.reference_photo_url || ev._raw?.client_photo || ev._raw?.haircut_photo || ev._raw?.photo_url || ev._raw?.attachment_url) && (
+                                <span title="Has reference photo" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 5, background: 'rgba(10,132,255,.18)', border: '1px solid rgba(10,132,255,.30)', flexShrink: 0 }}>
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#7abaff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                                </span>
+                              )}
+                              {ev.notes && ev.notes.replace(/Reference photo attached on website:\s*\S+/gi, '').trim() && (
+                                <span title="Has notes" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 5, background: 'rgba(255,207,63,.14)', border: '1px solid rgba(255,207,63,.25)', flexShrink: 0 }}>
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffd18a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                </span>
+                              )}
+                            </div>
+                          )}
                           </>)}
                         </div>
                       )
