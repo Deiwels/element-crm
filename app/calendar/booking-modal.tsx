@@ -1068,7 +1068,7 @@ export function BookingModal({
       setClientName(existingEvent.clientName || '')
       setServiceIds(existingEvent.serviceIds?.length ? existingEvent.serviceIds : existingEvent.serviceId ? [existingEvent.serviceId] : [])
       setStatus(existingEvent.status || 'booked')
-      setNotes(existingEvent.notes || '')
+      setNotes((existingEvent.notes || '').replace(/Reference photo attached on website:\s*\S+/gi, '').trim())
       setPhotoUrl('')
       // Pre-fill client card if we have client info from existing event
       if (existingEvent.clientName) {
