@@ -30,21 +30,28 @@ const fmtTime = (iso?: string) => { try { return new Date(iso!).toLocaleTimeStri
 const isoToday = () => { const d = new Date(); const p = (n: number) => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}` }
 const isoDate = (d: Date) => { const p = (n: number) => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}` }
 type EarningsPeriod = 'today' | 'week' | 'month'
-function getDateRange(period: EarningsPeriod): { from: string; to: string; label: string } {
+function getDateRange(period: EarningsPeriod, offset: number): { from: string; to: string; label: string } {
   const now = new Date()
-  const today = isoDate(now)
-  if (period === 'today') return { from: today, to: today, label: 'Today' }
+  if (period === 'today') {
+    const d = new Date(now); d.setDate(d.getDate() + offset)
+    const iso = isoDate(d)
+    const label = offset === 0 ? 'Today' : offset === -1 ? 'Yesterday' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    return { from: iso, to: iso, label }
+  }
   if (period === 'week') {
     // Pay week: Sunday to Saturday
-    const dow = now.getDay() // 0=Sun
-    const sun = new Date(now); sun.setDate(now.getDate() - dow)
+    const dow = now.getDay()
+    const sun = new Date(now); sun.setDate(now.getDate() - dow + offset * 7)
     const sat = new Date(sun); sat.setDate(sun.getDate() + 6)
-    return { from: isoDate(sun), to: isoDate(sat), label: `${isoDate(sun).slice(5)} — ${isoDate(sat).slice(5)}` }
+    const label = offset === 0 ? 'This week' : offset === -1 ? 'Last week'
+      : `${sun.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} — ${sat.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+    return { from: isoDate(sun), to: isoDate(sat), label }
   }
   // month
-  const first = new Date(now.getFullYear(), now.getMonth(), 1)
-  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  return { from: isoDate(first), to: isoDate(last), label: now.toLocaleDateString(undefined, { month: 'long' }) }
+  const m = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+  const last = new Date(m.getFullYear(), m.getMonth() + 1, 0)
+  const label = offset === 0 ? 'This month' : m.toLocaleDateString(undefined, { month: 'long', year: now.getFullYear() !== m.getFullYear() ? 'numeric' : undefined })
+  return { from: isoDate(m), to: isoDate(last), label }
 }
 const fmtDateLong = () => new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 
@@ -130,6 +137,7 @@ export default function DashboardPage() {
   const [attLoading, setAttLoading] = useState(false)
 
   const [earningsPeriod, setEarningsPeriod] = useState<EarningsPeriod>('today')
+  const [earningsOffset, setEarningsOffset] = useState(0)
 
   // Get current user from localStorage
   const [user] = useState(() => {
@@ -145,7 +153,7 @@ export default function DashboardPage() {
     const token = localStorage.getItem('ELEMENT_TOKEN') || ''
     const headers: Record<string,string> = { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, Accept: 'application/json' }
     const today = isoToday()
-    const range = getDateRange(earningsPeriod)
+    const range = getDateRange(earningsPeriod, earningsOffset)
     setLoading(true)
     try {
       // Load barbers for name lookup — bookings for today (calendar), payroll for selected period
@@ -252,7 +260,7 @@ export default function DashboardPage() {
       } catch { setPhoneAccessLog([]) }
     }
     setLoading(false)
-  }, [isBarber, myBarberId, earningsPeriod])
+  }, [isBarber, myBarberId, earningsPeriod, earningsOffset])
 
   useEffect(() => { loadAll() }, [loadAll])
   useEffect(() => { const t = setInterval(loadAll, 30000); return () => clearInterval(t) }, [loadAll])
@@ -691,7 +699,7 @@ export default function DashboardPage() {
         <div className="dash-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
           {isBarber ? <>
             <KpiCard title="My bookings today" value={loading ? '…' : String(total)} sub={`${upcoming} upcoming`} color="blue" />
-            <KpiCard title={earningsPeriod === 'today' ? 'My earnings today' : earningsPeriod === 'week' ? 'My earnings this week' : 'My earnings this month'} value={loading ? '…' : money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
+            <KpiCard title={`My earnings · ${getDateRange(earningsPeriod, earningsOffset).label}`} value={loading ? '…' : money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
             <KpiCard title="My clients today" value={loading ? '…' : String(barberClients)} sub={paid > 0 ? `${paid} paid` : 'today'} color="gold" />
             <KpiCard title="No-shows" value={loading ? '…' : String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
           </> : <>
@@ -725,10 +733,10 @@ export default function DashboardPage() {
             {isBarber ? (
               <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)' }}>My earnings{earningsPeriod !== 'today' && <span style={{ display: 'block', fontSize: 9, color: 'rgba(255,255,255,.30)', marginTop: 2, letterSpacing: '.04em' }}>{getDateRange(earningsPeriod).label}</span>}</div>
+                  <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)' }}>My earnings</div>
                   <div style={{ display: 'flex', gap: 4 }}>
                     {(['today', 'week', 'month'] as EarningsPeriod[]).map(p => (
-                      <button key={p} onClick={() => setEarningsPeriod(p)} style={{
+                      <button key={p} onClick={() => { setEarningsPeriod(p); setEarningsOffset(0) }} style={{
                         height: 24, padding: '0 8px', borderRadius: 6, border: `1px solid ${earningsPeriod === p ? 'rgba(10,132,255,.45)' : 'rgba(255,255,255,.10)'}`,
                         background: earningsPeriod === p ? 'rgba(10,132,255,.12)' : 'transparent',
                         color: earningsPeriod === p ? '#d7ecff' : 'rgba(255,255,255,.35)', fontSize: 9, fontWeight: 700,
@@ -736,6 +744,14 @@ export default function DashboardPage() {
                       }}>{p === 'today' ? 'Day' : p === 'week' ? 'Week' : 'Month'}</button>
                     ))}
                   </div>
+                </div>
+                {/* Period navigation */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 10 }}>
+                  <button onClick={() => setEarningsOffset(o => o - 1)} style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.50)', cursor: 'pointer', fontSize: 14, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&lsaquo;</button>
+                  <div style={{ fontSize: 12, color: earningsOffset === 0 ? 'rgba(255,255,255,.60)' : '#d7ecff', fontWeight: 600, minWidth: 120, textAlign: 'center' }}>
+                    {getDateRange(earningsPeriod, earningsOffset).label}
+                  </div>
+                  <button onClick={() => setEarningsOffset(o => Math.min(0, o + 1))} disabled={earningsOffset >= 0} style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: earningsOffset >= 0 ? 'rgba(255,255,255,.15)' : 'rgba(255,255,255,.50)', cursor: earningsOffset >= 0 ? 'not-allowed' : 'pointer', fontSize: 14, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&rsaquo;</button>
                 </div>
                 {loading ? <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 12 }}>Loading…</div> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
