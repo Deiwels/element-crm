@@ -1476,7 +1476,8 @@ export default function CalendarPage() {
     const updated = { ...ev, ...patch, serviceIds: svcIds, serviceName: svcNames || ev.serviceName }
     setEvents(prev => prev.map(e => e.id === ev.id ? updated : e))
     // Track arrived + send notification BEFORE save (so it works even if save fails)
-    const shouldNotifyArrived = patch.status === 'arrived' && !arrivedIdsRef.current.has(ev.id) && !arrivedIdsRef.current.has(String(ev._raw?.id || ''))
+    // _forceArrivedNotify bypasses dedup — user explicitly changed status to arrived
+    const shouldNotifyArrived = patch.status === 'arrived' && (patch._forceArrivedNotify || (!arrivedIdsRef.current.has(ev.id) && !arrivedIdsRef.current.has(String(ev._raw?.id || ''))))
     if (patch.status === 'arrived') {
       if (ev._raw?.id) markArrived(String(ev._raw.id))
       if (ev.id) markArrived(String(ev.id))

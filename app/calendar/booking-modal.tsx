@@ -1425,7 +1425,7 @@ export function BookingModal({
                           } else { setStatus(status) }
                         }
                         if (newStatus === 'arrived') {
-                          setTimeout(() => { try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: 'arrived', notes, photoUrl }) } catch {} }, 50)
+                          setTimeout(() => { try { onSave({ clientName: clientName || selectedClient?.name || '', clientPhone: selectedClient?.phone || '', clientId: selectedClient?.id, barberId: selBarberId, serviceId: serviceIds[0] || '', serviceIds, date, startMin: selStartMin, durMin, status: 'arrived', notes, photoUrl, _forceArrivedNotify: true }) } catch {} }, 50)
                         }
                       }} disabled={isPaidEvent} className="bm-input" style={{ ...inp, opacity: isPaidEvent ? 0.5 : 1 }}>
                         {['booked','arrived','done','noshow','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
