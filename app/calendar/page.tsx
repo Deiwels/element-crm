@@ -1825,7 +1825,7 @@ export default function CalendarPage() {
         {(() => {
           // On mobile: show ALL barbers with narrower columns
           const pageBarbers = visibleBarbers
-          const timeColW = isMobile ? 28 : 90
+          const timeColW = isMobile ? 24 : 90
           // Dynamic column min-width: shrink columns to fit all barbers on screen
           const mobileColMin = isMobile && pageBarbers.length > 1
             ? Math.max(60, Math.floor((window.innerWidth - timeColW) / pageBarbers.length))
@@ -1873,9 +1873,9 @@ export default function CalendarPage() {
                   const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
                   const ampm = h < 12 ? 'AM' : 'PM'
                   return (
-                    <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*slotH*12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', paddingTop: isMobile ? 4 : 8, color: 'rgba(255,255,255,.35)', fontSize: isMobile ? 8 : 11, lineHeight: 1.1 }}>
+                    <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*slotH*12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', paddingTop: isMobile ? 2 : 8, color: 'rgba(255,255,255,.35)', fontSize: isMobile ? 9 : 11, lineHeight: 1, fontWeight: isMobile ? 600 : 400 }}>
                       <span>{hour}</span>
-                      {isMobile && <span style={{ fontSize: 6, opacity: .6 }}>{ampm}</span>}
+                      {isMobile && <span style={{ fontSize: 7, opacity: .5, marginTop: 1 }}>{ampm}</span>}
                       {!isMobile && <span> {ampm}</span>}
                     </div>
                   )
