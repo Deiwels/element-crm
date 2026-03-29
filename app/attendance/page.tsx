@@ -81,6 +81,8 @@ export default function AttendancePage() {
 
   const [user] = useState(() => { try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null } })
   const isOwner = user?.role === 'owner'
+  const isAdmin = user?.role === 'admin'
+  const canManage = isOwner || isAdmin
 
   async function apiFetch(path: string) {
     const token = localStorage.getItem('ELEMENT_TOKEN') || ''
@@ -89,6 +91,21 @@ export default function AttendancePage() {
       headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, Accept: 'application/json' }
     })
     return res.json()
+  }
+
+  async function forceClockOut(attendanceId: string, userName: string, userId: string) {
+    if (!window.confirm(`Clock out ${userName} now?`)) return
+    try {
+      const token = localStorage.getItem('ELEMENT_TOKEN') || ''
+      const res = await fetch(`${API}/api/attendance/admin-clock-out`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY },
+        body: JSON.stringify({ attendance_id: attendanceId, user_id: userId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Clock out failed. Backend may need admin-clock-out endpoint.')
+      loadAll()
+    } catch (e: any) { alert(e.message) }
   }
 
   const loadAll = useCallback(async () => {
@@ -236,7 +253,7 @@ export default function AttendancePage() {
                           {/* Times */}
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.55)' }}>
-                              {fmtTime(r.clock_in || undefined)} → {r.clock_out ? (<>{fmtTime(r.clock_out)}{r.auto_closed && <span style={{ fontSize: 9, color: '#ffb000', marginLeft: 4 }} title="Auto-closed: forgot to clock out">AUTO</span>}{r.capped_to_schedule && <span style={{ fontSize: 9, color: '#ff6b6b', marginLeft: 4 }} title={`Capped to schedule end (was ${r.distance_meters}m away)`}>CAPPED</span>}{r.at_shop === false && !r.auto_closed && !r.capped_to_schedule && <span style={{ fontSize: 9, color: 'rgba(255,255,255,.35)', marginLeft: 4 }}>OUT</span>}</>) : <span style={{ color: '#8ff0b1' }}>Still in</span>}
+                              {fmtTime(r.clock_in || undefined)} → {r.clock_out ? (<>{fmtTime(r.clock_out)}{r.auto_closed && <span style={{ fontSize: 9, color: '#ffb000', marginLeft: 4 }} title="Auto-closed: forgot to clock out">AUTO</span>}{r.capped_to_schedule && <span style={{ fontSize: 9, color: '#ff6b6b', marginLeft: 4 }} title={`Capped to schedule end (was ${r.distance_meters}m away)`}>CAPPED</span>}{r.at_shop === false && !r.auto_closed && !r.capped_to_schedule && <span style={{ fontSize: 9, color: 'rgba(255,255,255,.35)', marginLeft: 4 }}>OUT</span>}</>) : (<><span style={{ color: '#8ff0b1' }}>Still in</span>{canManage && <button onClick={() => forceClockOut(r.id, r.user_name || '?', r.user_id || '')} style={{ marginLeft: 6, height: 20, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(255,107,107,.35)', background: 'rgba(255,107,107,.08)', color: '#ffd0d0', cursor: 'pointer', fontSize: 9, fontWeight: 700, fontFamily: 'inherit' }}>Clock out</button>}</>)}
                             </div>
                             <div style={{ fontSize: 11, color: '#8ff0b1', fontWeight: 700 }}>
                               {r.duration_minutes ? fmtMins(r.duration_minutes) : (r.clock_in ? fmtMins(Math.round((Date.now() - new Date(r.clock_in).getTime()) / 60000)) : '—')}
