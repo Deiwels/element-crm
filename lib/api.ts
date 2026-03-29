@@ -15,7 +15,7 @@ export async function apiFetch(path: string, opts?: RequestInit) {
       ...(opts?.headers || {}),
     },
   })
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     if (typeof window !== 'undefined' && !path.includes('/auth/login')) {
       localStorage.removeItem('ELEMENT_TOKEN')
       localStorage.removeItem('ELEMENT_USER')

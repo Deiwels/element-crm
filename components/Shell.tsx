@@ -358,7 +358,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
 
     fetch(`${API}/api/auth/me`, { credentials: 'include', headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY } })
       .then(r => {
-        if (r.status === 401 || r.status === 403) {
+        if (r.status === 401) {
           localStorage.removeItem('ELEMENT_TOKEN'); localStorage.removeItem('ELEMENT_USER')
           window.location.href = '/signin'
           throw new Error('Token expired')
