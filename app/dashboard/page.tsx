@@ -28,6 +28,24 @@ interface BarberPayroll {
 const money = (n: number) => '$' + Number(n || 0).toFixed(2)
 const fmtTime = (iso?: string) => { try { return new Date(iso!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) } catch { return '—' } }
 const isoToday = () => { const d = new Date(); const p = (n: number) => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}` }
+const isoDate = (d: Date) => { const p = (n: number) => String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}` }
+type EarningsPeriod = 'today' | 'week' | 'month'
+function getDateRange(period: EarningsPeriod): { from: string; to: string; label: string } {
+  const now = new Date()
+  const today = isoDate(now)
+  if (period === 'today') return { from: today, to: today, label: 'Today' }
+  if (period === 'week') {
+    // Pay week: Sunday to Saturday
+    const dow = now.getDay() // 0=Sun
+    const sun = new Date(now); sun.setDate(now.getDate() - dow)
+    const sat = new Date(sun); sat.setDate(sun.getDate() + 6)
+    return { from: isoDate(sun), to: isoDate(sat), label: `${isoDate(sun).slice(5)} — ${isoDate(sat).slice(5)}` }
+  }
+  // month
+  const first = new Date(now.getFullYear(), now.getMonth(), 1)
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return { from: isoDate(first), to: isoDate(last), label: now.toLocaleDateString(undefined, { month: 'long' }) }
+}
 const fmtDateLong = () => new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 
 const STATUS_STYLE: Record<string, React.CSSProperties> = {
@@ -111,6 +129,8 @@ export default function DashboardPage() {
   const [attOpen, setAttOpen] = useState(false)
   const [attLoading, setAttLoading] = useState(false)
 
+  const [earningsPeriod, setEarningsPeriod] = useState<EarningsPeriod>('today')
+
   // Get current user from localStorage
   const [user] = useState(() => {
     try { return JSON.parse(localStorage.getItem('ELEMENT_USER') || 'null') } catch { return null }
@@ -125,9 +145,10 @@ export default function DashboardPage() {
     const token = localStorage.getItem('ELEMENT_TOKEN') || ''
     const headers: Record<string,string> = { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY, Accept: 'application/json' }
     const today = isoToday()
+    const range = getDateRange(earningsPeriod)
     setLoading(true)
     try {
-      // Load barbers for name lookup
+      // Load barbers for name lookup — bookings for today (calendar), payroll for selected period
       const [bkRes, brRes] = await Promise.all([
         fetch(`${API}/api/bookings?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`, { headers }),
         fetch(`${API}/api/barbers`, { headers }),
@@ -188,10 +209,10 @@ export default function DashboardPage() {
         } catch {}
       }
 
-      // Payroll for barber — load their personal stats from payroll API
+      // Payroll for barber — load their personal stats for selected period
       if (isBarber && myBarberId) {
         try {
-          const pr = await fetch(`${API}/api/payroll?from=${today}T00:00:00.000Z&to=${today}T23:59:59.999Z`, { credentials: 'include', headers })
+          const pr = await fetch(`${API}/api/payroll?from=${range.from}T00:00:00.000Z&to=${range.to}T23:59:59.999Z`, { credentials: 'include', headers })
           const prData = await pr.json()
           const mine = (prData?.barbers || []).find((b: BarberPayroll) => b.barber_id === myBarberId)
           setMyPayroll(mine || null)
@@ -231,7 +252,7 @@ export default function DashboardPage() {
       } catch { setPhoneAccessLog([]) }
     }
     setLoading(false)
-  }, [isBarber, myBarberId])
+  }, [isBarber, myBarberId, earningsPeriod])
 
   useEffect(() => { loadAll() }, [loadAll])
   useEffect(() => { const t = setInterval(loadAll, 30000); return () => clearInterval(t) }, [loadAll])
@@ -670,7 +691,7 @@ export default function DashboardPage() {
         <div className="dash-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 14 }}>
           {isBarber ? <>
             <KpiCard title="My bookings today" value={loading ? '…' : String(total)} sub={`${upcoming} upcoming`} color="blue" />
-            <KpiCard title="My earnings today" value={loading ? '…' : money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
+            <KpiCard title={earningsPeriod === 'today' ? 'My earnings today' : earningsPeriod === 'week' ? 'My earnings this week' : 'My earnings this month'} value={loading ? '…' : money(barberEarnings)} sub={`incl. ${money(barberTips)} tips`} color="ok" />
             <KpiCard title="My clients today" value={loading ? '…' : String(barberClients)} sub={paid > 0 ? `${paid} paid` : 'today'} color="gold" />
             <KpiCard title="No-shows" value={loading ? '…' : String(noshow)} sub={noshow > 0 ? 'needs attention' : 'all good'} color={noshow > 0 ? 'bad' : undefined} />
           </> : <>
@@ -703,7 +724,19 @@ export default function DashboardPage() {
             {/* Barber: earnings breakdown. Owner: by barber bars */}
             {isBarber ? (
               <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
-                <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>My earnings today</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)' }}>My earnings{earningsPeriod !== 'today' && <span style={{ display: 'block', fontSize: 9, color: 'rgba(255,255,255,.30)', marginTop: 2, letterSpacing: '.04em' }}>{getDateRange(earningsPeriod).label}</span>}</div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {(['today', 'week', 'month'] as EarningsPeriod[]).map(p => (
+                      <button key={p} onClick={() => setEarningsPeriod(p)} style={{
+                        height: 24, padding: '0 8px', borderRadius: 6, border: `1px solid ${earningsPeriod === p ? 'rgba(10,132,255,.45)' : 'rgba(255,255,255,.10)'}`,
+                        background: earningsPeriod === p ? 'rgba(10,132,255,.12)' : 'transparent',
+                        color: earningsPeriod === p ? '#d7ecff' : 'rgba(255,255,255,.35)', fontSize: 9, fontWeight: 700,
+                        cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '.06em', textTransform: 'uppercase',
+                      }}>{p === 'today' ? 'Day' : p === 'week' ? 'Week' : 'Month'}</button>
+                    ))}
+                  </div>
+                </div>
                 {loading ? <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 12 }}>Loading…</div> : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {[
