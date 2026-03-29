@@ -1555,14 +1555,14 @@ export default function CalendarPage() {
     if (ev) {
       clearArrived(ev.id)
       if (ev._raw?.id) clearArrived(String(ev._raw.id))
-      // Update status to done on backend
+      // Update booking on backend with tip + status + payment_method
       if (ev._raw?.id) {
         apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, {
-          method: 'PATCH', body: JSON.stringify({ status: 'completed', tip, tip_amount: tip, payment_method: method })
-        }).catch(() => {})
+          method: 'PATCH', body: JSON.stringify({ status: 'completed', paid: true, tip, tip_amount: tip, payment_method: method })
+        }).catch(e => console.warn('Payment PATCH failed:', e))
       }
     }
-    setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, status: 'done', paymentMethod: method, tipAmount: tip, _raw: { ...e._raw, tip, tip_amount: tip, paid: true, payment_method: method } } : e))
+    setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, status: 'done', paymentMethod: method, tipAmount: tip, _raw: { ...(e._raw || {}), tip, tip_amount: tip, paid: true, payment_method: method } } : e))
   }
 
   return (
