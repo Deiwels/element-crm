@@ -710,27 +710,9 @@ export default function DashboardPage() {
           </>}
         </div>
 
-        {/* Main grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 14 }}>
-
-          {/* Right column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-            {/* Quick actions */}
-            <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
-              <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Quick actions</div>
-              <div className="dash-quick-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {actions.map(item => (
-                  <a key={item.href} href={item.href} style={{ padding: '13px 12px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.14)', cursor: 'pointer', display: 'block', textDecoration: 'none' }}>
-                    <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 4, color: '#fff' }}>{item.label}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', lineHeight: 1.4 }}>{item.desc}</div>
-                  </a>
-                ))}
-              </div>
-            </div>
-
-            {/* Barber: earnings breakdown. Owner: by barber bars */}
-            {isBarber ? (
+        {/* Barber: earnings breakdown — right after KPIs */}
+        {isBarber ? (
+          <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14, marginBottom: 14 }}>
               <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)' }}>My earnings</div>
@@ -768,8 +750,28 @@ export default function DashboardPage() {
                     {!myPayroll && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', marginTop: 4 }}>Updates every 2 minutes</div>}
                   </div>
                 )}
+          </div>
+        ) : null}
+
+        {/* Main grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* Quick actions */}
+            <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
+              <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Quick actions</div>
+              <div className="dash-quick-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {actions.map(item => (
+                  <a key={item.href} href={item.href} style={{ padding: '13px 12px', borderRadius: 14, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.14)', cursor: 'pointer', display: 'block', textDecoration: 'none' }}>
+                    <div style={{ fontWeight: 900, fontSize: 13, marginBottom: 4, color: '#fff' }}>{item.label}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', lineHeight: 1.4 }}>{item.desc}</div>
+                  </a>
+                ))}
               </div>
-            ) : (
+            </div>
+
+            {/* Owner: today by barber */}
+            {!isBarber && (
               <div style={{ borderRadius: 18, border: '1px solid rgba(255,255,255,.10)', background: 'linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02))', padding: 14 }}>
                 <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,.60)', marginBottom: 12 }}>Today by barber</div>
                 {Object.entries(byBarber).sort((a, b) => b[1] - a[1]).map(([name, count]) => (
