@@ -410,6 +410,11 @@ export default function PayrollPage() {
         barber_service_share: fixedBarbers.reduce((s: number, b: any) => s + b.barber_service_share, 0),
         owner_service_share: fixedBarbers.reduce((s: number, b: any) => s + b.owner_service_share, 0),
         barber_total: fixedBarbers.reduce((s: number, b: any) => s + b.barber_total, 0),
+        // Terminal-only service total (for admin service fee calculation)
+        terminal_service_total: fixedBarbers.reduce((s: number, b: any) => {
+          const terminalBookings = (b.bookings || []).filter((bk: any) => bk.paid && (bk.payment_method === 'terminal' || bk.payment_method === 'card' || bk.payment_method === 'applepay'))
+          return s + terminalBookings.reduce((ss: number, bk: any) => ss + Number(bk.service_amount || 0), 0)
+        }, 0),
       }
       setBarbers(fixedBarbers)
       setTotals(fixedTotals)
@@ -798,9 +803,10 @@ export default function PayrollPage() {
                   {(() => {
                     const ownerShare = totals?.owner_service_share || 0
                     const totalServices = totals?.service_total || 0
+                    const terminalServices = (totals as any)?.terminal_service_total || 0
                     const barbersTotalPayout = totals?.barber_total || 0
-                    // Service fee 3% of all services (what shop charges clients)
-                    const serviceFeeGross = totalServices * 0.03
+                    // Service fee only from terminal/card payments (Square charges fee)
+                    const serviceFeeGross = terminalServices * 0.03
 
                     // Calculate admin payroll
                     let totalAdminPay = 0
@@ -814,8 +820,8 @@ export default function PayrollPage() {
                       const workedDays = adminWorkDays[u.id] || []
                       const extraDays = (r.service_fee_days || []) as number[]
                       const allFeeDays = [...new Set([...workedDays, ...extraDays])]
-                      // Fee = service_fee_pct% of total services (if worked any days)
-                      const feeShare = allFeeDays.length > 0 ? totalServices * ((r.service_fee_pct || 0) / 100) : 0
+                      // Fee = service_fee_pct% of terminal services only (if worked any days)
+                      const feeShare = allFeeDays.length > 0 ? terminalServices * ((r.service_fee_pct || 0) / 100) : 0
                       const total = basePay + profitShare + feeShare
                       totalAdminPay += total
                       return { u, r, hours, basePay, profitShare, feeShare, total, allFeeDays }
