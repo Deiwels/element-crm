@@ -71,22 +71,25 @@ function getBarberWorkingHours(barbers: Barber[], barberId: string, dateStr: str
   if (!sch) return { startMin: 480, endMin: 1260 }
   const d = new Date(dateStr + 'T12:00:00')
   const dow = d.getDay()
-  // Per-day array format
+  // Per-day array format [Sun..Sat]
   if (Array.isArray(sch)) {
     const day = sch[dow]
-    if (!day || !day.enabled) return null
-    return { startMin: day.startMin ?? 480, endMin: day.endMin ?? 1260 }
+    if (!day || day.enabled === false) return null
+    return { startMin: Number(day.startMin ?? day.start_min ?? 480), endMin: Number(day.endMin ?? day.end_min ?? 1260) }
   }
   // Object format with perDay
-  if (sch.perDay && Array.isArray(sch.perDay)) {
-    const day = sch.perDay[dow]
-    if (day && day.enabled === false) return null
-    if (day && day.startMin != null) return { startMin: day.startMin, endMin: day.endMin ?? 1260 }
+  const perDay = sch.perDay || sch.per_day
+  if (Array.isArray(perDay) && perDay[dow]) {
+    const day = perDay[dow]
+    if (day.enabled === false) return null
+    const sm = day.startMin ?? day.start_min
+    const em = day.endMin ?? day.end_min
+    if (sm != null) return { startMin: Number(sm), endMin: Number(em ?? 1260) }
   }
-  // Object format with days array
+  // Fallback to global startMin/endMin
   const days: number[] = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6]
   if (!days.includes(dow)) return null
-  return { startMin: Number(sch.startMin ?? 480), endMin: Number(sch.endMin ?? 1260) }
+  return { startMin: Number(sch.startMin ?? sch.start_min ?? 480), endMin: Number(sch.endMin ?? sch.end_min ?? 1260) }
 }
 
 interface BookingModalProps {
@@ -1126,14 +1129,14 @@ export function BookingModal({
   for (let m = schedStart; m + durMin <= schedEnd; m += 5) allSlots.push(m)
   // Get busy intervals for selected barber (exclude current event being edited)
   const busyIntervals = (allEvents || [])
-    .filter(e => e.barberId === selBarberId && e.clientName !== 'BLOCKED' && e.id !== existingEvent?.id)
+    .filter(e => e.barberId === selBarberId && e.date === date && e.clientName !== 'BLOCKED' && e.id !== existingEvent?.id)
     .map(e => ({ start: e.startMin, end: e.startMin + (e.durMin || 30) }))
   const slots = allSlots.filter(m => {
     const end = m + durMin
     return !busyIntervals.some(b => m < b.end && end > b.start)
   })
-  // Auto-snap: if selected time is outside available slots, pick first available
-  if (slots.length > 0 && !slots.includes(selStartMin)) {
+  // Auto-snap: only for non-admin users — admins can book at any tapped time
+  if (!isOwnerOrAdmin && slots.length > 0 && !slots.includes(selStartMin)) {
     const closest = slots.reduce((a, b) => Math.abs(b - selStartMin) < Math.abs(a - selStartMin) ? b : a)
     if (closest !== selStartMin) setTimeout(() => setSelStartMin(closest), 0)
   }
