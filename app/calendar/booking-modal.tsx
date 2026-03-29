@@ -123,7 +123,7 @@ interface BookingModalProps {
   onSave: (data: {
     clientName: string; clientPhone: string; clientId?: string
     barberId: string; serviceId: string; serviceIds: string[]; date: string; startMin: number
-    durMin: number; status: string; notes: string; photoUrl?: string
+    durMin: number; status: string; notes: string; photoUrl?: string; _forceArrivedNotify?: boolean
   }) => void
   onDelete: () => void
   onPayment: (method: string, tip: number) => void
