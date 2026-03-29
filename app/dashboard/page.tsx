@@ -328,10 +328,17 @@ export default function DashboardPage() {
     setClockError('')
     const wasClocked = clockedIn
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
-      })
-      const { latitude: lat, longitude: lng } = pos.coords
+      let lat = 0, lng = 0
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
+        })
+        lat = pos.coords.latitude; lng = pos.coords.longitude
+      } catch (gpsErr: any) {
+        // For clock OUT — proceed without GPS (server allows it, caps to schedule end)
+        if (wasClocked) { lat = 0; lng = 0 }
+        else throw gpsErr // Clock IN requires GPS
+      }
       const endpoint = clockedIn ? '/api/attendance/clock-out' : '/api/attendance/clock-in'
       const token = localStorage.getItem('ELEMENT_TOKEN') || ''
       const res = await fetch(`${API}${endpoint}`, {
