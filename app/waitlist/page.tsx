@@ -239,7 +239,8 @@ export default function WaitlistPage() {
           </div>
         </div>
 
-        {/* Filter by barber */}
+        {/* Filter by barber — owner/admin only */}
+        {!isBarber && !isStudent && (
         <div className="wl-filter-pills" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button onClick={() => setFilter('')}
             style={{ height: 32, padding: '0 12px', borderRadius: 999, border: `1px solid ${!filter ? 'rgba(255,255,255,.30)' : 'rgba(255,255,255,.10)'}`, background: !filter ? 'rgba(255,255,255,.08)' : 'transparent', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}>
@@ -252,6 +253,7 @@ export default function WaitlistPage() {
             </button>
           ))}
         </div>
+        )}
 
         {/* Add form */}
         {adding && (
