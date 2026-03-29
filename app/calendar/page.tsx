@@ -1724,14 +1724,16 @@ export default function CalendarPage() {
           .cal-btn-text{ display:none !important; }
           .cal-btn-date{ display:none !important; }
           .cal-search-full{ display:none !important; }
-          .cal-search-icon{ display:flex !important; }
+          .cal-search-icon{ display:none !important; }
           .cal-settings-btn{ display:none !important; }
-          .cal-settings-icon{ display:flex !important; }
+          .cal-settings-icon{ display:none !important; }
+          .cal-new-btn{ display:none !important; }
+          .cal-student-btn{ display:none !important; }
           /* Hide arrows + date pill on mobile — moved to bottom dots */
           .cal-topbar-left{ display:none !important; }
           .cal-nav-arrows{ display:none !important; }
-          /* Compact topbar on mobile — safe area for status bar */
-          .cal-topbar-wrap{ padding:calc(env(safe-area-inset-top, 0px) + 6px) 8px 8px !important; }
+          /* Hide topbar on mobile — everything moved to bottom bar */
+          .cal-topbar-wrap{ display:none !important; }
         }
         input[type=range] { -webkit-appearance: none; appearance: none; background: rgba(255,255,255,.12); border-radius: 4px; height: 4px; outline: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #0a84ff; cursor: pointer; border: 2px solid rgba(0,0,0,.40); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
@@ -1802,9 +1804,9 @@ export default function CalendarPage() {
                   }
                   if (!freeSlots.length) { showToast('No free 90min slot available today'); return }
                   setSlotPicker(freeSlots)
-                }} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(168,107,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d4b8ff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(168,107,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ Model</button>
+                }} className="cal-student-btn" style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(168,107,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d4b8ff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(168,107,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ Model</button>
               ) : (
-                <button onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(10,132,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ New</button>
+                <button className="cal-new-btn" onClick={() => openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))} style={{ height: 36, padding: '0 12px', borderRadius: 999, border: '1px solid rgba(10,132,255,.80)', background: 'rgba(0,0,0,.75)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 12, fontFamily: 'inherit', boxShadow: '0 0 14px rgba(10,132,255,.20)', whiteSpace: 'nowrap', flexShrink: 0 }}>+ New</button>
               )}
 
               {/* Zoom +/- — desktop only */}
@@ -2231,8 +2233,14 @@ export default function CalendarPage() {
             })
           }
           return (
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 15, padding: '8px 0 max(8px, env(safe-area-inset-bottom, 8px))', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, pointerEvents: 'auto' }}>
-              {dots.map((dot, i) => (
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 15, padding: '6px 10px max(6px, env(safe-area-inset-bottom, 6px))', display: 'flex', justifyContent: 'space-between', alignItems: 'center', pointerEvents: 'auto' }}>
+              {/* Settings button */}
+              <button onClick={() => setSettingsOpen(true)} style={{ width: 32, height: 32, borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(0,0,0,.60)', color: 'rgba(255,255,255,.50)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </button>
+              {/* Date dots */}
+              <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+              {dots.slice(1, -1).map((dot, i) => (
                 <button key={dot.day + '-' + dot.date.getMonth()}
                   className={`date-dot${dot.isCurrent ? ' date-dot-current' : ''}`}
                   onClick={() => {
@@ -2264,6 +2272,30 @@ export default function CalendarPage() {
                   {dot.isToday && !dot.isCurrent && <div style={{ position: 'absolute', bottom: 3, width: 3, height: 3, borderRadius: 999, background: 'rgba(10,132,255,.90)' }} />}
                 </button>
               ))}
+              </div>
+              {/* + button */}
+              <button onClick={() => {
+                if (isStudent) {
+                  // Student: trigger slot picker
+                  const freeSlots: { min: number; mentorId: string; mentorName: string }[] = []
+                  for (let m = START_HOUR * 60; m <= END_HOUR * 60 - 90; m += 5) {
+                    const mid = studentSlotMentorMap.get(m)
+                    if (!mid) continue
+                    let ok = true
+                    for (let c = m; c < m + 90; c += 5) { if (!studentSlotMentorMap.has(c)) { ok = false; break } }
+                    if (ok) {
+                      const mentor = barbers.find(b => b.id === mid)
+                      if (!freeSlots.length || freeSlots[freeSlots.length-1].min + 5 < m || freeSlots[freeSlots.length-1].mentorId !== mid) {
+                        freeSlots.push({ min: m, mentorId: mid, mentorName: mentor?.name || '' })
+                      }
+                    }
+                  }
+                  if (!freeSlots.length) { showToast('No free 90min slot available today'); return }
+                  setSlotPicker(freeSlots)
+                } else {
+                  openCreate(isBarber ? myBarberId : (barbers[0]?.id || ''), clamp(new Date().getHours()*60))
+                }
+              }} style={{ width: 32, height: 32, borderRadius: 999, border: '1px solid rgba(10,132,255,.60)', background: 'rgba(0,0,0,.60)', color: '#d7ecff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16, fontWeight: 900 }}>+</button>
             </div>
           )
         })()}
