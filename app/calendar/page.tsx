@@ -1512,15 +1512,11 @@ export default function CalendarPage() {
       } else {
         const patchStart = new Date(updated.date + 'T' + minToHHMM(updated.startMin) + ':00')
         const patchEnd = new Date(patchStart.getTime() + (updated.durMin || 30) * 60000)
-        const apiStatus = updated.status === 'arrived' ? 'booked' : updated.status
-        const patchBody: any = { barber_id: updated.barberId, service_id: svcIds.join(',') || updated.serviceId || '', service_name: svcNames || updated.serviceName || '', client_name: updated.clientName, status: apiStatus, end_at: patchEnd.toISOString(), start_at: patchStart.toISOString() }
+        const patchBody: any = { barber_id: updated.barberId, service_id: svcIds.join(',') || updated.serviceId || '', service_name: svcNames || updated.serviceName || '', client_name: updated.clientName, status: updated.status, end_at: patchEnd.toISOString(), start_at: patchStart.toISOString() }
         if (updated.clientPhone) patchBody.client_phone = updated.clientPhone
         if (updated.notes != null) patchBody.notes = updated.notes || ''
         if (updated.photoUrl) patchBody.reference_photo_url = updated.photoUrl
         await apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify(patchBody) })
-        if (updated.status === 'arrived') {
-          apiFetch(`/api/bookings/${encodeURIComponent(String(ev._raw.id))}`, { method: 'PATCH', body: JSON.stringify({ status: 'arrived' }) }).catch(() => {})
-        }
       }
     } catch(e: any) {
       // Rollback optimistic update on error
