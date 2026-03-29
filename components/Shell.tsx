@@ -115,21 +115,16 @@ function ProfileModal({ user, onClose, onUpdated }: {
     push_arrived: true,
     push_chat_messages: true,
   })
-  const [notifLoaded, setNotifLoaded] = useState(false)
-
-  // Load notification prefs from API
+  // Load notification prefs from user object (comes from /api/auth/me)
   useEffect(() => {
-    const token = localStorage.getItem('ELEMENT_TOKEN') || ''
-    fetch(`${API}/api/users/${encodeURIComponent(user.uid)}`, {
-      headers: { Authorization: `Bearer ${token}`, 'X-API-KEY': API_KEY }
-    })
-      .then(r => r.json())
-      .then((data: any) => {
-        if (data?.notification_prefs) setNotifPrefs(prev => ({ ...prev, ...data.notification_prefs }))
-        setNotifLoaded(true)
-      })
-      .catch(() => setNotifLoaded(true))
-  }, [user.uid])
+    const stored = localStorage.getItem('ELEMENT_USER')
+    if (stored) {
+      try {
+        const u = JSON.parse(stored)
+        if (u?.notification_prefs) setNotifPrefs(prev => ({ ...prev, ...u.notification_prefs }))
+      } catch {}
+    }
+  }, [])
 
   useEffect(() => {
     if (!user.barber_id || user.photo) return
@@ -231,6 +226,11 @@ function ProfileModal({ user, onClose, onUpdated }: {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error')
+      // Update local storage so prefs persist
+      try {
+        const stored = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}')
+        localStorage.setItem('ELEMENT_USER', JSON.stringify({ ...stored, notification_prefs: notifPrefs }))
+      } catch {}
       setMsg('Notification preferences saved ✓')
     } catch (e: any) { setErr(e.message) }
     setSaving(false)
