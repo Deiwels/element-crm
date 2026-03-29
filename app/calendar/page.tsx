@@ -1563,7 +1563,7 @@ export default function CalendarPage() {
         }).catch(() => {})
       }
     }
-    setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, status: 'done', paymentMethod: method, tipAmount: tip } : e))
+    setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, status: 'done', paymentMethod: method, tipAmount: tip, _raw: { ...e._raw, tip, tip_amount: tip, paid: true, payment_method: method } } : e))
   }
 
   return (
