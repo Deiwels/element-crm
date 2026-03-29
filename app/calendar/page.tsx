@@ -2139,9 +2139,15 @@ export default function CalendarPage() {
                       const isArrived = ev.status === 'arrived'
                       const isDone = ev.status === 'done' || ev.status === 'completed'
                       const isPaid = !!ev.paid || isDone
+                      const isNoshow = ev.status === 'noshow'
+                      // Hide no-show if another booking overlaps the same slot for this barber
+                      if (isNoshow) {
+                        const hasReplacement = colEvents.some(other => other.id !== ev.id && other.status !== 'noshow' && other.status !== 'cancelled' && other.startMin < ev.startMin + ev.durMin && other.startMin + other.durMin > ev.startMin)
+                        if (hasReplacement) return null
+                      }
                       return (
                         <div key={ev.id} className={`cal-event${isArrived ? ' arrived-pulse' : ''}${isPaid ? ' cal-event-paid' : ''}${drag?.eventId===ev.id ? ' cal-event-dragging' : ''}`}
-                          style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, ...(isArrived ? {} : drag?.eventId===ev.id ? {} : { border: `1px solid ${isPaid ? barber.color + '20' : 'rgba(255,255,255,.10)'}`, background: (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}${isPaid ? '18' : '26'},${barber.color}${isPaid ? '08' : '12'})` }), padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : 5, transition: 'transform .15s, box-shadow .15s' }}
+                          style={{ position: 'absolute', left: tinyCol ? 2 : 8, right: tinyCol ? 2 : 8, top, height: height-2, borderRadius: tinyCol ? 8 : 14, ...(isArrived ? {} : drag?.eventId===ev.id ? {} : { border: `1px solid ${isPaid ? barber.color + '20' : isNoshow ? 'rgba(255,107,107,.15)' : 'rgba(255,255,255,.10)'}`, background: isNoshow ? 'rgba(255,107,107,.06)' : (ev._raw?.booking_type === 'model' || ev._raw?.booking_type === 'training') ? 'linear-gradient(180deg,rgba(168,107,255,.26),rgba(168,107,255,.10))' : `linear-gradient(180deg,${barber.color}${isPaid ? '18' : '26'},${barber.color}${isPaid ? '08' : '12'})` }), opacity: isNoshow ? 0.35 : 1, padding: tinyCol ? '3px 4px' : '7px 10px', cursor: canDrag ? (drag ? 'grabbing' : 'grab') : 'pointer', userSelect: 'none', overflow: 'hidden', zIndex: drag?.eventId===ev.id ? 50 : isNoshow ? 2 : 5, transition: 'transform .15s, box-shadow .15s' }}
                           onMouseDown={e => { if (!canDrag || e.button!==0) return; startDrag(e, ev, bi) }}
                           onTouchStart={e => { if (!canDrag) return; e.stopPropagation(); clearTimeout(eventLongPressTimer.current); const touch = e.touches[0]; const evCopy = ev; const biCopy = bi; eventLongPressTimer.current = setTimeout(() => { const fakeEvt = { preventDefault(){}, stopPropagation(){}, touches: [touch] } as any; startDrag(fakeEvt, evCopy, biCopy) }, 400) }}
                           onTouchEnd={() => clearTimeout(eventLongPressTimer.current)}
