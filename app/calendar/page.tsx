@@ -4,7 +4,7 @@ import Shell from '@/components/Shell'
 import { BookingModal } from '@/app/calendar/booking-modal'
 import ImageCropper from '@/components/ImageCropper'
 
-import { apiFetch } from '@/lib/api'
+import { apiFetch, API, API_KEY } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Barber {
@@ -1486,7 +1486,13 @@ export default function CalendarPage() {
       const barberName = barbers.find(b => b.id === updated.barberId)?.name || updated.barberName || ''
       const clientName = updated.clientName || 'Client'
       const msgText = `📍 ${clientName} arrived — ${barberName}`
-      apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ chatType: 'barbers', text: msgText }) })
+      // Send as system notification (API key only, no user token) so it works even with expired session
+      fetch(`${API}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+        body: JSON.stringify({ chatType: 'barbers', text: msgText, system: true })
+      })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
         .then(() => showToast('Client arrived — barbers notified'))
         .catch(() => showToast('Arrived saved'))
     }
