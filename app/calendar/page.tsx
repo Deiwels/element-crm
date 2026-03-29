@@ -1170,7 +1170,7 @@ export default function CalendarPage() {
       const svcName = svcs.length > 1 ? svcs.map(s => s.name).join(' + ') : (svc?.name || String(b.service_name || b.notes || 'Service'))
       return {
         id: String(b.id || uid()), type: isBlock ? 'block' as const : 'booking' as const,
-        barberId: String(b.barber_id || ''), barberName: barber?.name || String(b.barber_name || ''),
+        barberId: String(b.barber_id || ''), barberName: barber?.name || String(b.barber_name || b.barber || ''),
         clientName: String(b.client_name || 'Client'), clientPhone: String(b.client_phone || ''),
         serviceId: rawServiceIds[0] || String(b.service_id || ''), serviceIds: rawServiceIds, serviceName: svcName,
         date: localDate,
