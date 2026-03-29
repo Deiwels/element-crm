@@ -28,15 +28,29 @@ interface UserSummary {
 function getScheduleStartMin(barber: Barber | undefined, dayOfWeek: number): number | null {
   const sch = barber?.schedule || barber?.work_schedule
   if (!sch) return null
+  // Format 1: per-day array [Sun..Sat]
   if (Array.isArray(sch)) {
     const day = sch[dayOfWeek]
-    if (!day || !day.enabled) return null
-    return day.startMin ?? null
+    if (!day || day.enabled === false) return null
+    const sm = day.startMin ?? day.start_min
+    return sm != null ? Number(sm) : null
   }
-  if (typeof sch === 'object' && sch.startMin !== undefined) {
-    const days: number[] = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6]
-    if (!days.includes(dayOfWeek)) return null
-    return Number(sch.startMin)
+  if (typeof sch === 'object') {
+    // Format 2: { perDay: [...], startMin, endMin, days }
+    const perDay = sch.perDay || sch.per_day
+    if (Array.isArray(perDay) && perDay[dayOfWeek]) {
+      const day = perDay[dayOfWeek]
+      if (day.enabled === false) return null
+      const sm = day.startMin ?? day.start_min
+      if (sm != null) return Number(sm)
+    }
+    // Fallback to global startMin
+    const globalStart = sch.startMin ?? sch.start_min
+    if (globalStart !== undefined) {
+      const days: number[] = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6]
+      if (!days.includes(dayOfWeek)) return null
+      return Number(globalStart)
+    }
   }
   return null
 }
