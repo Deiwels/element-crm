@@ -330,6 +330,9 @@ export default function DashboardPage() {
     try {
       let lat = 0, lng = 0
       try {
+        if (!navigator.geolocation) throw new Error('Location is not supported by your browser. Please use a different device.')
+        const perm = await navigator.permissions?.query({ name: 'geolocation' }).catch(() => null)
+        if (perm && perm.state === 'denied') throw new Error('Location access is disabled. Please enable location in your device settings and try again.')
         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 })
         })
@@ -337,7 +340,13 @@ export default function DashboardPage() {
       } catch (gpsErr: any) {
         // For clock OUT — proceed without GPS (server allows it, caps to schedule end)
         if (wasClocked) { lat = 0; lng = 0 }
-        else throw gpsErr // Clock IN requires GPS
+        else {
+          const msg = gpsErr?.code === 1 ? 'Location access denied. Please enable location in your device settings and try again.'
+            : gpsErr?.code === 2 ? 'Location unavailable. Please check that location services are turned on.'
+            : gpsErr?.code === 3 ? 'Location request timed out. Please try again.'
+            : gpsErr?.message || 'Location is required for clock-in. Please enable location services.'
+          throw new Error(msg)
+        }
       }
       const endpoint = clockedIn ? '/api/attendance/clock-out' : '/api/attendance/clock-in'
       const token = localStorage.getItem('ELEMENT_TOKEN') || ''
