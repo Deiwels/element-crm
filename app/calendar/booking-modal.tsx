@@ -133,6 +133,14 @@ interface BookingModalProps {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const minToHHMM = (min: number) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
+const _is24h = (() => { try { const f = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return f.hourCycle === 'h23' || f.hourCycle === 'h24' } catch { return false } })()
+const minToDisplay = (min: number) => {
+  const h = Math.floor(min / 60), m = min % 60
+  if (_is24h) return `${pad2(h)}:${pad2(m)}`
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return `${h12}:${pad2(m)} ${period}`
+}
 
 function maskPhone(phone: string) {
   const digits = phone.replace(/\D/g, '')
@@ -1340,7 +1348,7 @@ export function BookingModal({
                 {isNew ? (isModelEvent ? 'New model appointment' : 'New appointment') : (isModelEvent ? `Model — ${existingEvent?.clientName}` : `Edit — ${existingEvent?.clientName}`)}
               </div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 4, letterSpacing: '.08em' }}>
-                {date} · {barberName} · {minToHHMM(selStartMin)}
+                {date} · {barberName} · {minToDisplay(selStartMin)}
               </div>
             </div>
             <button onClick={onClose} className="bm-footer-btn" style={{ width: 34, height: 34, borderRadius: 10, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontFamily: 'inherit' }}>✕</button>
@@ -1384,7 +1392,7 @@ export function BookingModal({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
                     <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 2 }}>Time</div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>{minToHHMM(selStartMin)} — {minToHHMM(selStartMin + durMin)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{minToDisplay(selStartMin)} — {minToDisplay(selStartMin + durMin)}</div>
                   </div>
                   <div style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.04)' }}>
                     <div style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.35)', marginBottom: 2 }}>Mentor</div>
@@ -1439,9 +1447,6 @@ export function BookingModal({
                         <div style={{ fontSize: 9, color: 'rgba(143,240,177,.50)', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 4, fontWeight: 700 }}>Best — no gaps</div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
                           {optimalSlots.map(m => {
-                            const h = Math.floor(m / 60), mm = m % 60
-                            const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
-                            const ampm = h < 12 ? 'AM' : 'PM'
                             const isActive = m === selStartMin
                             return <button key={`opt-${m}`} type="button" onClick={() => !isPaidEvent && setSelStartMin(m)} style={{
                               height: 34, borderRadius: 10,
@@ -1450,7 +1455,7 @@ export function BookingModal({
                               color: isActive ? '#8ff0b1' : 'rgba(143,240,177,.65)', fontWeight: isActive ? 800 : 600,
                               fontSize: 11, cursor: isPaidEvent ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                               transition: 'all .15s ease', opacity: isPaidEvent ? 0.5 : 1,
-                            }}>{hour}:{String(mm).padStart(2,'0')} {ampm}</button>
+                            }}>{minToDisplay(m)}</button>
                           })}
                         </div>
                       </div>
@@ -1458,9 +1463,6 @@ export function BookingModal({
                     {slots.length > 0 ? (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, maxHeight: 180, overflowY: 'auto', padding: 2 }}>
                         {slots.map(m => {
-                          const h = Math.floor(m / 60), mm = m % 60
-                          const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
-                          const ampm = h < 12 ? 'AM' : 'PM'
                           const isActive = m === selStartMin
                           return <button key={m} type="button" onClick={() => !isPaidEvent && setSelStartMin(m)} style={{
                             height: 34, borderRadius: 10, border: `1px solid ${isActive ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.08)'}`,
@@ -1468,7 +1470,7 @@ export function BookingModal({
                             color: isActive ? '#d7ecff' : 'rgba(255,255,255,.50)', fontWeight: isActive ? 800 : 500,
                             fontSize: 11, cursor: isPaidEvent ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                             transition: 'all .15s ease', opacity: isPaidEvent ? 0.5 : 1,
-                          }}>{hour}:{String(mm).padStart(2,'0')} {ampm}</button>
+                          }}>{minToDisplay(m)}</button>
                         })}
                       </div>
                     ) : (
@@ -1478,7 +1480,7 @@ export function BookingModal({
                   <div>
                     <label style={lbl}>Duration → end</label>
                     <div style={{ height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', padding: '0 12px', display: 'flex', alignItems: 'center', fontSize: 13, color: 'rgba(255,255,255,.50)', fontWeight: 600 }}>
-                      {durMin}min → {minToHHMM(selStartMin + durMin)}
+                      {durMin}min → {minToDisplay(selStartMin + durMin)}
                     </div>
                   </div>
                 </div>

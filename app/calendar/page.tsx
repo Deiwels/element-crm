@@ -45,8 +45,11 @@ const DAY_DEFAULTS: DaySchedule[] = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const minToHHMM = (min: number) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`
+// Detect device 12h/24h preference (cached)
+const _is24h = (() => { try { const f = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return f.hourCycle === 'h23' || f.hourCycle === 'h24' } catch { return false } })()
 const minToAMPM = (min: number) => {
   const h = Math.floor(min / 60), m = min % 60
+  if (_is24h) return `${pad2(h)}:${pad2(m)}`
   const period = h >= 12 ? 'PM' : 'AM'
   const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
   return m === 0 ? `${h12} ${period}` : `${h12}:${pad2(m)} ${period}`
@@ -1867,13 +1870,13 @@ export default function CalendarPage() {
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
                 {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => {
                   const h = START_HOUR + i
-                  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
-                  const ampm = h < 12 ? 'AM' : 'PM'
+                  const label = _is24h ? `${pad2(h)}` : (() => { const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h; return String(h12) })()
+                  const ampm = _is24h ? '' : (h < 12 ? 'AM' : 'PM')
                   return (
                     <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*slotH*12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', paddingTop: isMobile ? 2 : 8, color: 'rgba(255,255,255,.35)', fontSize: isMobile ? 9 : 11, lineHeight: 1, fontWeight: isMobile ? 600 : 400 }}>
-                      <span>{hour}</span>
-                      {isMobile && <span style={{ fontSize: 7, opacity: .5, marginTop: 1 }}>{ampm}</span>}
-                      {!isMobile && <span> {ampm}</span>}
+                      <span>{label}</span>
+                      {!_is24h && isMobile && <span style={{ fontSize: 7, opacity: .5, marginTop: 1 }}>{ampm}</span>}
+                      {!_is24h && !isMobile && <span> {ampm}</span>}
                     </div>
                   )
                 })}
