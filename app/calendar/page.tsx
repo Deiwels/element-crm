@@ -1825,7 +1825,7 @@ export default function CalendarPage() {
         {(() => {
           // On mobile: show ALL barbers with narrower columns
           const pageBarbers = visibleBarbers
-          const timeColW = isMobile ? 36 : 90
+          const timeColW = isMobile ? 28 : 90
           // Dynamic column min-width: shrink columns to fit all barbers on screen
           const mobileColMin = isMobile && pageBarbers.length > 1
             ? Math.max(60, Math.floor((window.innerWidth - timeColW) / pageBarbers.length))
@@ -1836,7 +1836,7 @@ export default function CalendarPage() {
           <div style={{ minWidth: timeColW + pageBarbers.length * colMin }}>
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${colMin}px,1fr))`, borderBottom: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.20)', position: 'sticky', top: 0, zIndex: 10 }}>
-              <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,.10)', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', textAlign: 'center' }}>Time</div>
+              <div style={{ padding: isMobile ? '10px 2px' : '10px 12px', borderRight: '1px solid rgba(255,255,255,.10)', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.10em', textTransform: 'uppercase', textAlign: 'center' }}>{isMobile ? '' : 'Time'}</div>
               {pageBarbers.map((b, i) => {
                 const attachedStudents = studentUsers.filter(s => s.mentorIds.includes(b.id))
                 const compact = isMobile && pageBarbers.length > 2
@@ -1868,14 +1868,18 @@ export default function CalendarPage() {
             <div style={{ display: 'grid', gridTemplateColumns: `${timeColW}px repeat(${pageBarbers.length}, minmax(${colMin}px,1fr))`, height: totalH, position: 'relative' }}>
               {/* Time labels */}
               <div style={{ borderRight: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.12)', position: 'relative' }}>
-                {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
-                  <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*slotH*12, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 8, color: 'rgba(255,255,255,.40)', fontSize: 11 }}>{(() => {
-                    const h = START_HOUR + i
-                    if (h === 0) return '12 AM'
-                    if (h === 12) return '12 PM'
-                    return h < 12 ? `${h} AM` : `${h-12} PM`
-                  })()}</div>
-                ))}
+                {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => {
+                  const h = START_HOUR + i
+                  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
+                  const ampm = h < 12 ? 'AM' : 'PM'
+                  return (
+                    <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: i*slotH*12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', paddingTop: isMobile ? 4 : 8, color: 'rgba(255,255,255,.35)', fontSize: isMobile ? 8 : 11, lineHeight: 1.1 }}>
+                      <span>{hour}</span>
+                      {isMobile && <span style={{ fontSize: 6, opacity: .6 }}>{ampm}</span>}
+                      {!isMobile && <span> {ampm}</span>}
+                    </div>
+                  )
+                })}
               </div>
 
               {/* Columns */}
