@@ -846,7 +846,29 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         ::-webkit-scrollbar{width:4px;}
         ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px;}
         select option{background:#111;}
+        @keyframes swipeHintIn {
+          0% { opacity:0; transform:translateX(-4px) }
+          20% { opacity:.6; transform:translateX(0) }
+          70% { opacity:.6; transform:translateX(0) }
+          100% { opacity:0; transform:translateX(-4px) }
+        }
+        .swipe-hint {
+          display:none;
+          position:fixed;
+          left:0; top:50%; transform:translateY(-50%);
+          width:4px; height:36px; border-radius:0 4px 4px 0;
+          background:rgba(255,255,255,.30);
+          z-index:60;
+          animation: swipeHintIn 1.5s ease-in-out forwards;
+          pointer-events:none;
+        }
+        @media(max-width:768px){
+          .swipe-hint { display:block; }
+        }
       `}</style>
+
+      {/* Swipe hint — iOS-style bar on left edge */}
+      {!sidebarOpen && <div className="swipe-hint" key={pathname} />}
 
       <div className="shell">
         {/* Burger */}
