@@ -114,6 +114,7 @@ export default function ExpensesPage() {
   const [fDesc, setFDesc] = useState('')
   const [fDate, setFDate] = useState(today)
   const [saving, setSaving] = useState(false)
+  const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null)
 
   useEffect(() => {
     try { const u = JSON.parse(localStorage.getItem('ELEMENT_USER') || '{}'); setUser(u) } catch {}
@@ -183,10 +184,15 @@ export default function ExpensesPage() {
     setSaving(false)
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Delete this expense?')) return
-    try { await apiFetch(`/api/expenses/${id}`, { method: 'DELETE' }); showToast('Deleted ✓'); load() }
-    catch (e: any) { showToast('Error: ' + e.message) }
+  function handleDelete(id: string) {
+    setConfirmModal({
+      message: 'Are you sure you want to delete this expense?',
+      onConfirm: async () => {
+        setConfirmModal(null)
+        try { await apiFetch(`/api/expenses/${id}`, { method: 'DELETE' }); showToast('Deleted ✓'); load() }
+        catch (e: any) { showToast('Error: ' + e.message) }
+      }
+    })
   }
 
   // ─── Calculations ──────────────────────────────────────────────────────────
@@ -302,7 +308,7 @@ export default function ExpensesPage() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                         <div style={{ width: 36, height: 36, borderRadius: 10, background: color + '18', border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <span style={{ fontSize: 14 }}>💰</span>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                         </div>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 800, fontSize: 14 }}>{money(e.amount)}</div>
@@ -374,6 +380,28 @@ export default function ExpensesPage() {
                   {saving ? 'Saving…' : editing ? 'Update' : 'Add expense'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 250, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, animation: 'expSlide .2s ease' }}
+          onClick={e => { if (e.target === e.currentTarget) setConfirmModal(null) }}>
+          <div style={{ width: 'min(360px,90vw)', borderRadius: 20, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(10,10,20,.92)', backdropFilter: 'saturate(180%) blur(40px)', padding: '24px 22px', boxShadow: '0 30px 80px rgba(0,0,0,.6)', animation: 'modalIn .25s cubic-bezier(.4,0,.2,1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,107,107,.12)', border: '1px solid rgba(255,107,107,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff6b6b" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: '#ffd0d0' }}>Delete expense</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', marginTop: 3 }}>{confirmModal.message}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setConfirmModal(null)} style={{ flex: 1, height: 42, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', transition: 'all .2s' }}>Cancel</button>
+              <button onClick={confirmModal.onConfirm} style={{ flex: 1, height: 42, borderRadius: 12, border: '1px solid rgba(255,107,107,.40)', background: 'rgba(255,107,107,.12)', color: '#ffd0d0', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', transition: 'all .2s' }}>Delete</button>
             </div>
           </div>
         </div>
