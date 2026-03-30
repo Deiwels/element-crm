@@ -362,15 +362,18 @@ export default function PayrollPage() {
   const [adminWorkDays, setAdminWorkDays] = useState<Record<string, number[]>>({})
   const [allAttendance, setAllAttendance] = useState<any[]>([])
   const [lateMinutes, setLateMinutes] = useState<Record<string, number>>({})
+  const [expensesTotal, setExpensesTotal] = useState(0)
+  const [expensesByCategory, setExpensesByCategory] = useState<Record<string, number>>({})
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const [payData, rulesData, usersData, attData] = await Promise.all([
+      const [payData, rulesData, usersData, attData, expData] = await Promise.all([
         apiFetch(`/api/payroll?from=${encodeURIComponent(from+'T00:00:00.000Z')}&to=${encodeURIComponent(to+'T23:59:59.999Z')}`),
         apiFetch('/api/payroll/rules').catch(() => ({ rules: {} })),
         apiFetch('/api/users').catch(() => ({ users: [] })),
         apiFetch(`/api/attendance?from=${from}&to=${to}`).catch(() => ({ attendance: [], summary: {} })),
+        apiFetch(`/api/expenses/total?from=${from}&to=${to}`).catch(() => ({ total: 0, by_category: {} })),
       ])
       // Recalculate totals from paid bookings only (server counts all bookings including unpaid)
       const rawBarbers = payData?.barbers || []
@@ -406,6 +409,8 @@ export default function PayrollPage() {
       }
       setBarbers(fixedBarbers)
       setTotals(fixedTotals)
+      setExpensesTotal(Number(expData?.total || 0))
+      setExpensesByCategory(expData?.by_category || {})
       setRules(rulesData?.rules || {})
       // Admin users
       const allUsers = usersData?.users || []
@@ -833,7 +838,7 @@ export default function PayrollPage() {
                     })
 
                     // Owner net = owner share - admin pay
-                    const ownerNet = ownerShare - totalAdminPay
+                    const ownerNet = ownerShare - totalAdminPay - expensesTotal
                     return (
                       <>
                         {/* Owner net profit */}
@@ -844,6 +849,7 @@ export default function PayrollPage() {
                             <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Barbers payout: </span><span style={{ color: '#ff6b6b' }}>−{fmtMoney(barbersTotalPayout)}</span></div>
                             <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Owner share: </span><span style={{ color: '#ffe9a3' }}>{fmtMoney(ownerShare)}</span></div>
                             {adminUsers.length > 0 && <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Admin pay: </span><span style={{ color: '#ff6b6b' }}>−{fmtMoney(totalAdminPay)}</span></div>}
+                            {expensesTotal > 0 && <div><span style={{ color: 'rgba(255,255,255,.40)' }}>Expenses: </span><span style={{ color: '#ff6b6b' }}>−{fmtMoney(expensesTotal)}</span></div>}
                           </div>
                           <div style={{ fontWeight: 900, fontSize: 22, color: '#ffe9a3' }}>
                             Net: {fmtMoney(ownerNet)}

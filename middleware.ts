@@ -11,8 +11,8 @@ const COOKIE_NAME = 'ELEMENT_TOKEN'
 const PUBLIC_PATHS = ['/signin']
 
 // Routes restricted by role
-const OWNER_ADMIN_ONLY = ['/settings', '/payroll', '/payments', '/attendance']
-const STUDENT_BLOCKED  = ['/settings', '/payroll', '/payments', '/clients', '/dashboard', '/attendance']
+const OWNER_ADMIN_ONLY = ['/settings', '/payroll', '/payments', '/attendance', '/expenses']
+const STUDENT_BLOCKED  = ['/settings', '/payroll', '/payments', '/clients', '/dashboard', '/attendance', '/expenses']
 const BARBER_REDIRECT  = '/calendar'
 
 // Cookie format: "role:uid" — set from JS after login
