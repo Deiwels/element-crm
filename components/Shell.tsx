@@ -426,6 +426,8 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
     if (pinInput.length === 4 && showPinOverlay) handlePinSubmit(pinInput)
   }, [pinInput, showPinOverlay, handlePinSubmit])
 
+  const [swipeHintKey, setSwipeHintKey] = useState(0)
+
   // Swipe to open/close sidebar — sets flag to block other swipe handlers
   useEffect(() => {
     let startX = 0, startY = 0, isSidebarSwipe = false
@@ -434,6 +436,8 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
       startX = t.clientX; startY = t.clientY
       // Mark as sidebar swipe if starting from left edge or sidebar is open
       isSidebarSwipe = startX < 40 || sidebarOpen
+      // Show swipe hint when touching left edge
+      if (startX < 40 && !sidebarOpen) setSwipeHintKey(k => k + 1)
     }
     const onTouchMove = (e: TouchEvent) => {
       if (!isSidebarSwipe) return
@@ -868,7 +872,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
       `}</style>
 
       {/* Swipe hint — iOS-style bar on left edge */}
-      {!sidebarOpen && <div className="swipe-hint" key={pathname} />}
+      {!sidebarOpen && <div className="swipe-hint" key={`${pathname}-${swipeHintKey}`} />}
 
       <div className="shell">
         {/* Burger */}
