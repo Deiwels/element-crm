@@ -327,13 +327,21 @@ export default function PaymentsPage() {
           .pay-filters{gap:6px!important;}
           .pay-filters select{width:auto!important;min-width:0!important;font-size:12px!important;}
           .pay-topbar-row{flex-direction:column!important;align-items:flex-start!important;gap:8px!important;}
-          th:nth-child(3),td:nth-child(3){display:none;}
-          th:nth-child(5),td:nth-child(5){display:none;}
+          /* Hide table on mobile — show cards instead */
+          .pay-table{display:none!important;}
+          .pay-cards{display:flex!important;}
         }
-        @media(max-width:480px){
-          .pay-kpis{grid-template-columns:1fr 1fr!important;}
-          th:nth-child(4),td:nth-child(4){font-size:12px!important;}
+        @media(min-width:769px){
+          .pay-cards{display:none!important;}
         }
+        @keyframes payCardIn {
+          from { opacity:0; transform:translateY(8px) }
+          to { opacity:1; transform:translateY(0) }
+        }
+        .pay-card-item {
+          animation: payCardIn .2s ease-out both;
+        }
+        @keyframes paySpin { to { transform:rotate(360deg) } }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
 
@@ -364,16 +372,16 @@ export default function PaymentsPage() {
             </div>
             {syncResult && <div style={{ padding: '8px 14px', borderRadius: 10, background: 'rgba(143,240,177,.06)', border: '1px solid rgba(143,240,177,.15)', color: '#c9ffe1', fontSize: 12, marginTop: 8 }}>{syncResult}</div>}
           </div>
-          {/* Filters row */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, alignItems: 'center' }}>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search client / note…"
-              style={{ ...inp, width: 'min(220px,45vw)' }} />
+          {/* Filters — horizontal scrolling chips on mobile */}
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', alignItems: 'center', paddingBottom: 2, scrollbarWidth: 'none' as any, WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…"
+              style={{ ...inp, width: 'min(160px,35vw)', flexShrink: 0 }} />
             {[
               { value: filterBarber, set: setFilterBarber, opts: allBarbers.map(b => ({ v: b, l: b })), ph: 'All barbers' },
               { value: filterStatus, set: setFilterStatus, opts: ['paid','pending','refunded'].map(s => ({ v: s, l: s })), ph: 'All statuses' },
               { value: filterMethod, set: setFilterMethod, opts: ['card','applepay','terminal','cash','zelle','other'].map(m => ({ v: m, l: methodLabel(m) })), ph: 'All methods' },
             ].map((f, i) => (
-              <select key={i} value={f.value} onChange={e => f.set(e.target.value)} style={inp}>
+              <select key={i} value={f.value} onChange={e => f.set(e.target.value)} style={{ ...inp, flexShrink: 0 }}>
                 <option value="">{f.ph}</option>
                 {f.opts.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
               </select>
@@ -394,8 +402,8 @@ export default function PaymentsPage() {
         {/* Main grid */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'grid', gridTemplateColumns: '1.7fr .85fr' }}>
 
-          {/* Table */}
-          <div style={{ overflowY: 'auto', borderRight: '1px solid rgba(255,255,255,.08)' }}>
+          {/* Table — desktop only */}
+          <div className="pay-table" style={{ overflowY: 'auto', borderRight: '1px solid rgba(255,255,255,.08)' }}>
             {loading ? (
               <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,.40)', fontSize: 13 }}>
                 <div style={{ display: 'inline-block', width: 18, height: 18, border: '2px solid rgba(255,255,255,.18)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin .8s linear infinite', marginRight: 8, verticalAlign: 'middle' }} />
@@ -449,6 +457,43 @@ export default function PaymentsPage() {
                 </tbody>
               </table>
             )}
+          </div>
+
+          {/* Mobile cards view */}
+          <div className="pay-cards" style={{ display: 'none', flexDirection: 'column', gap: 8, overflowY: 'auto', padding: '12px 14px 80px' }}>
+            {loading ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,.30)' }}>
+                <div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,.15)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'paySpin .8s linear infinite', margin: '0 auto 10px' }} />
+              </div>
+            ) : visible.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,.25)', fontSize: 13 }}>No transactions</div>
+            ) : visible.map((p, idx) => {
+              const cn = getClientName(p)
+              return (
+                <div key={p.id} className="pay-card-item" onClick={() => { setSelectedId(p.id); setMobileDetail(true) }}
+                  style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.03)', cursor: 'pointer', animationDelay: `${Math.min(idx * 30, 300)}ms` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0, color: 'rgba(255,255,255,.60)' }}>{cn ? initials(cn) : '–'}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn || '—'}</div>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,.35)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {[p.barber_name, fmtDateShort(p.date), methodLabel(p.method)].filter(Boolean).join(' · ')}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontWeight: 900, fontSize: 14 }}>{fmtMoney(p.amount)}</div>
+                      {(p.tip || 0) > 0 && <div style={{ fontSize: 10, color: '#ffe9a3', marginTop: 1 }}>+{fmtMoney(p.tip || 0)} tip</div>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                    <StatusChip status={p.status} />
+                    {p.source === 'square' && <span style={{ fontSize: 8, color: 'rgba(255,255,255,.20)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Square</span>}
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           {/* Details panel */}
