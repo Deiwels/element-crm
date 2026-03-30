@@ -1641,16 +1641,27 @@ export function BookingModal({
                         setEcSaving(true)
                         try {
                           let clientId = selectedClient?.id || ''
-                          // If no ID, find client by name
+                          // If no ID, find client by name (try multiple search strategies)
                           if (!clientId || clientId.startsWith('local_')) {
-                            const search = await apiFetch(`/api/clients?q=${encodeURIComponent(selectedClient?.name || ecName.trim())}`)
+                            const searchName = selectedClient?.name || ecName.trim()
+                            const search = await apiFetch(`/api/clients?q=${encodeURIComponent(searchName)}`)
                             const list = Array.isArray(search) ? search : (search?.clients || [])
-                            const match = list.find((c: any) => c.name === (selectedClient?.name || ecName.trim()))
+                            // Try exact match first, then case-insensitive, then includes
+                            const match = list.find((c: any) => c.name === searchName)
+                              || list.find((c: any) => String(c.name || '').toLowerCase() === searchName.toLowerCase())
+                              || list.find((c: any) => String(c.name || '').toLowerCase().includes(searchName.toLowerCase()))
                             if (match?.id) clientId = match.id
                           }
                           if (!clientId || clientId.startsWith('local_')) {
+                            // Last resort: create the client
+                            try {
+                              const created = await apiFetch('/api/clients', { method: 'POST', body: JSON.stringify({ name: ecName.trim(), phone: ecPhone || undefined, email: ecEmail || undefined }) })
+                              clientId = created?.id || ''
+                            } catch {}
+                          }
+                          if (!clientId) {
                             setEcSaving(false)
-                            alert('Client not found in database. Save the booking first.')
+                            alert('Could not find or create client.')
                             return
                           }
                           const patch: any = {}
