@@ -156,7 +156,7 @@ export default function MembershipPage() {
         </div>
       )}
 
-      <div style={{ padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: 14, height: '100vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any, paddingBottom: 100 }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div>
@@ -223,8 +223,8 @@ export default function MembershipPage() {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
-          <div style={{ width: 'min(440px,100%)', maxHeight: '90vh', overflowY: 'auto', borderRadius: 24, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(10,10,20,.92)', backdropFilter: 'saturate(180%) blur(40px)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', boxShadow: '0 30px 80px rgba(0,0,0,.55)', overflow: 'hidden', animation: 'memModalIn .3s cubic-bezier(.4,0,.2,1)' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
+          <div style={{ width: 'min(440px,100%)', maxHeight: '90vh', overflowY: 'auto', borderRadius: 24, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(6,6,6,.96)', color: '#e9e9e9', fontFamily: 'Inter,sans-serif', boxShadow: '0 30px 80px rgba(0,0,0,.7)', animation: 'memModalIn .3s cubic-bezier(.4,0,.2,1)', WebkitOverflowScrolling: 'touch' as any }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
               <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.16em', textTransform: 'uppercase', fontSize: 13 }}>
                 {editing ? 'Edit membership' : 'New membership'}
