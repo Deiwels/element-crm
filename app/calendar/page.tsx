@@ -745,7 +745,7 @@ export default function CalendarPage() {
   const [pendingBlockRequests, setPendingBlockRequests] = useState<any[]>([])
   const [slotPicker, setSlotPicker] = useState<{ min: number; mentorId: string; mentorName: string }[] | null>(null)
   const [touchIndicator, setTouchIndicator] = useState<{ min: number; y: number } | null>(null)
-  const touchColRef = useRef<{ barberId: string; barberIdx: number; colEl: HTMLElement | null; startX: number; startY: number; active: boolean }>({ barberId: '', barberIdx: 0, colEl: null, startX: 0, startY: 0, active: false })
+  const touchColRef = useRef<{ barberId: string; barberIdx: number; colEl: HTMLElement | null; startX: number; startY: number; active: boolean; moveHandler: ((e: TouchEvent) => void) | null; endHandler: (() => void) | null }>({ barberId: '', barberIdx: 0, colEl: null, startX: 0, startY: 0, active: false, moveHandler: null, endHandler: null })
   const touchDelayTimer = useRef<any>(null)
   const [mobilePage, setMobilePage] = useState(0)
   const BARBERS_PER_PAGE = 2
@@ -1940,77 +1940,77 @@ export default function CalendarPage() {
                     onTouchStart={e => {
                       clearTimeout(blockLongPressTimer.current)
                       clearTimeout(touchDelayTimer.current)
+                      // Cleanup previous listeners
+                      if (touchColRef.current.moveHandler) { window.removeEventListener('touchmove', touchColRef.current.moveHandler); touchColRef.current.moveHandler = null }
+                      if (touchColRef.current.endHandler) { window.removeEventListener('touchend', touchColRef.current.endHandler); touchColRef.current.endHandler = null }
                       touchColRef.current.active = false
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       const col = e.currentTarget as HTMLElement
                       const colRect = col.getBoundingClientRect()
                       const touchMin = Math.round((e.touches[0].clientY - colRect.top) / slotH) * 5 + START_HOUR * 60
-                      touchColRef.current = { barberId: barber.id, barberIdx: bi, colEl: col, startX: e.touches[0].clientX, startY: e.touches[0].clientY, active: false }
-                      // 200ms — activate crosshair + lock scroll
+                      const startX = e.touches[0].clientX, startY = e.touches[0].clientY
+                      touchColRef.current = { barberId: barber.id, barberIdx: bi, colEl: col, startX, startY, active: false, moveHandler: null, endHandler: null }
+                      // 200ms — activate crosshair with window listeners (like blockDrag)
                       touchDelayTimer.current = setTimeout(() => {
                         touchColRef.current.active = true
-                        // Lock scroll on the container so finger can move crosshair
-                        const container = scrollContainerRef.current
-                        if (container) container.style.touchAction = 'none'
-                        col.style.touchAction = 'none'
                         setTouchIndicator({ min: touchMin, y: 0 })
+                        // Add window-level listeners with passive:false to block scroll
+                        const onMove = (te: TouchEvent) => {
+                          if (!touchColRef.current.active) return
+                          te.preventDefault() // block scroll
+                          clearTimeout(blockLongPressTimer.current)
+                          const cRect = col.getBoundingClientRect()
+                          const newMin = Math.round((te.touches[0].clientY - cRect.top) / slotH) * 5 + START_HOUR * 60
+                          setTouchIndicator({ min: newMin, y: te.touches[0].clientY - cRect.top })
+                        }
+                        const onEnd = () => {
+                          clearTimeout(blockLongPressTimer.current)
+                          window.removeEventListener('touchmove', onMove)
+                          window.removeEventListener('touchend', onEnd)
+                          touchColRef.current.moveHandler = null; touchColRef.current.endHandler = null
+                          const bId = touchColRef.current.barberId
+                          const curIndicator = touchColRef.current.active
+                          touchColRef.current.active = false
+                          if (!curIndicator) { setTouchIndicator(null); return }
+                          // Get current indicator min from DOM (state may be stale in closure)
+                          const cRect = col.getBoundingClientRect()
+                          setTouchIndicator(prev => {
+                            if (!prev) return null
+                            setTimeout(() => {
+                              if (isBarber && bId !== myBarberId) return
+                              if (isStudent) return
+                              const x2 = window.innerWidth / 2, y2 = window.innerHeight / 2
+                              ;(isOwnerOrAdmin || (isBarber && bId === myBarberId)) ? setContextMenu({ x: x2, y: y2, barberId: bId, min: clamp(prev.min) }) : openCreate(bId, clamp(prev.min))
+                            }, 10)
+                            return null
+                          })
+                        }
+                        window.addEventListener('touchmove', onMove, { passive: false })
+                        window.addEventListener('touchend', onEnd)
+                        touchColRef.current.moveHandler = onMove; touchColRef.current.endHandler = onEnd
                       }, 200)
-                      // 600ms — block drag starts (if finger didn't move)
+                      // 600ms — block drag (if finger didn't move)
                       if (!isStudent) {
                         const canBlock = isOwnerOrAdmin || (isBarber && barber.id === myBarberId)
                         if (canBlock && e.touches.length === 1) {
                           const bId = barber.id
                           blockLongPressTimer.current = setTimeout(() => {
                             clearTimeout(touchDelayTimer.current)
-                            touchColRef.current.active = false
+                            if (touchColRef.current.moveHandler) { window.removeEventListener('touchmove', touchColRef.current.moveHandler) }
+                            if (touchColRef.current.endHandler) { window.removeEventListener('touchend', touchColRef.current.endHandler) }
+                            touchColRef.current.active = false; touchColRef.current.moveHandler = null; touchColRef.current.endHandler = null
                             setTouchIndicator(null)
                             startBlockDrag(bId, bi, touchMin)
                           }, 600)
                         }
                       }
                     }}
-                    onTouchEnd={() => {
-                      clearTimeout(blockLongPressTimer.current)
-                      clearTimeout(touchDelayTimer.current)
-                      // Restore scroll
-                      const container = scrollContainerRef.current
-                      if (container) container.style.touchAction = ''
-                      const col = touchColRef.current.colEl
-                      if (col) col.style.touchAction = ''
-                      if (touchColRef.current.active && touchIndicator && !blockDrag) {
-                        const barberId = touchColRef.current.barberId
-                        const min = touchIndicator.min
-                        setTouchIndicator(null)
-                        touchColRef.current.active = false
-                        if (isBarber && barberId !== myBarberId) return
-                        if (isStudent) return
-                        const x = window.innerWidth / 2
-                        const y = window.innerHeight / 2
-                        ;(isOwnerOrAdmin || (isBarber && barberId === myBarberId)) ? setContextMenu({ x, y, barberId, min: clamp(min) }) : openCreate(barberId, clamp(min))
-                      } else {
-                        setTouchIndicator(null)
-                        touchColRef.current.active = false
-                      }
-                    }}
+                    onTouchEnd={() => { clearTimeout(touchDelayTimer.current); clearTimeout(blockLongPressTimer.current) }}
                     onTouchMove={e => {
-                      if (!touchColRef.current.active) {
-                        // Before 200ms — if finger moves, cancel everything (allow scroll)
-                        const dy = Math.abs(e.touches[0].clientY - touchColRef.current.startY)
-                        const dx = Math.abs(e.touches[0].clientX - touchColRef.current.startX)
-                        if (dy > 8 || dx > 8) {
-                          clearTimeout(touchDelayTimer.current)
-                          clearTimeout(blockLongPressTimer.current)
-                        }
-                        return
-                      }
-                      // After 200ms — crosshair active, move it with finger
-                      clearTimeout(blockLongPressTimer.current) // moving = no block
-                      e.preventDefault()
-                      const col2 = touchColRef.current.colEl
-                      if (!col2) return
-                      const colRect2 = col2.getBoundingClientRect()
-                      const newMin = Math.round((e.touches[0].clientY - colRect2.top) / slotH) * 5 + START_HOUR * 60
-                      setTouchIndicator({ min: newMin, y: e.touches[0].clientY - colRect2.top })
+                      if (touchColRef.current.active) return // handled by window listener
+                      const dy = Math.abs(e.touches[0].clientY - touchColRef.current.startY)
+                      const dx = Math.abs(e.touches[0].clientX - touchColRef.current.startX)
+                      if (dy > 8 || dx > 8) { clearTimeout(touchDelayTimer.current); clearTimeout(blockLongPressTimer.current) }
                     }}
                     onClick={e => {
                       if (contextMenu) return // already opened by touchEnd
