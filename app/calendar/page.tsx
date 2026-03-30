@@ -1594,6 +1594,28 @@ export default function CalendarPage() {
       }
     }
     setEvents(prev => prev.map(e => e.id === modal.eventId ? { ...e, paid: true, status: 'done', paymentMethod: method, tipAmount: tip, _raw: { ...(e._raw || {}), tip, tip_amount: tip, paid: true, payment_method: method } } : e))
+    // Reload bookings after payment to sync tips from server
+    setTimeout(() => { loadBookings(barbers, services).then(evs => {
+      setEvents(prev => {
+        const serverMap = new Map(evs.map(e => [e.id, e]))
+        return prev.map(pe => {
+          const se = serverMap.get(pe.id)
+          if (se && se.paid) return { ...se, status: pe.status === 'arrived' ? 'arrived' : se.status }
+          return pe
+        })
+      })
+    }).catch(console.warn) }, 3000)
+    // Second reload after 10s to catch terminal tips that arrive later
+    setTimeout(() => { loadBookings(barbers, services).then(evs => {
+      setEvents(prev => {
+        const serverMap = new Map(evs.map(e => [e.id, e]))
+        return prev.map(pe => {
+          const se = serverMap.get(pe.id)
+          if (se) return { ...se, status: (pe.status === 'arrived' && !se.paid) ? 'arrived' : se.status }
+          return pe
+        })
+      })
+    }).catch(console.warn) }, 10000)
   }
 
   return (
