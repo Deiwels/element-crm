@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Shell from '@/components/Shell'
 import { apiFetch } from '@/lib/api'
 
@@ -22,6 +22,74 @@ function catColor(cat: string) { return CATEGORY_COLORS[cat] || FALLBACK_COLORS[
 const money = (n: number) => '$' + Number(n || 0).toFixed(2)
 const fmtDate = (d: string) => { try { const dt = new Date(d + 'T12:00:00'); return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) } catch { return d } }
 const isoToday = () => { const d = new Date(); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` }
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const DOW = ['Mo','Tu','We','Th','Fr','Sa','Su']
+
+// ─── DatePicker ──────────────────────────────────────────────────────────────
+function DatePicker({ value, onChange, label }: { value: string; onChange: (v: string) => void; label?: string }) {
+  const [open, setOpen] = useState(false)
+  const d = value ? new Date(value + 'T12:00:00') : new Date()
+  const [viewYear, setViewYear] = useState(d.getFullYear())
+  const [viewMonth, setViewMonth] = useState(d.getMonth())
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function close(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  function prevMonth() { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) } else setViewMonth(m => m - 1) }
+  function nextMonth() { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) } else setViewMonth(m => m + 1) }
+
+  const firstDow = new Date(viewYear, viewMonth, 1).getDay()
+  const startOffset = firstDow === 0 ? 6 : firstDow - 1
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const todayStr = isoToday()
+  const cells: (number | null)[] = Array(startOffset).fill(null).concat(Array.from({ length: daysInMonth }, (_, i) => i + 1))
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  const displayDate = value ? new Date(value + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Select date'
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      {label && <div style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,.45)', marginBottom: 5 }}>{label}</div>}
+      <button onClick={() => { setOpen(!open); const dd = value ? new Date(value + 'T12:00:00') : new Date(); setViewYear(dd.getFullYear()); setViewMonth(dd.getMonth()) }}
+        style={{ width: '100%', height: 44, borderRadius: 14, border: `1px solid ${open ? 'rgba(10,132,255,.50)' : 'rgba(255,255,255,.12)'}`, background: open ? 'rgba(10,132,255,.06)' : 'rgba(0,0,0,.22)', color: '#fff', padding: '0 14px', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left', transition: 'all .2s ease', boxShadow: open ? '0 0 12px rgba(10,132,255,.15)' : 'none' }}>
+        {displayDate}
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6, zIndex: 100, borderRadius: 18, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(12,12,12,.95)', backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)', boxShadow: '0 20px 60px rgba(0,0,0,.7), inset 0 0 0 .5px rgba(255,255,255,.06)', padding: '14px 12px 12px', animation: 'calPopIn .2s ease' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <button onClick={prevMonth} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 900, fontFamily: 'inherit' }}>‹</button>
+            <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: '.06em' }}>{MONTHS[viewMonth]} {viewYear}</div>
+            <button onClick={nextMonth} style={{ width: 32, height: 32, borderRadius: 10, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 900, fontFamily: 'inherit' }}>›</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+            {DOW.map(day => <div key={day} style={{ textAlign: 'center', fontSize: 9, letterSpacing: '.10em', color: 'rgba(255,255,255,.35)', padding: '4px 0', fontWeight: 700 }}>{day}</div>)}
+            {cells.map((day, i) => {
+              if (day === null) return <div key={`e${i}`} />
+              const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+              const isSelected = dateStr === value
+              const isToday = dateStr === todayStr
+              return (
+                <button key={i} onClick={() => { onChange(dateStr); setOpen(false) }}
+                  style={{ width: '100%', height: 36, borderRadius: 10, border: isSelected ? '1px solid rgba(10,132,255,.65)' : isToday ? '1px solid rgba(255,255,255,.25)' : '1px solid transparent', background: isSelected ? 'rgba(10,132,255,.20)' : 'transparent', color: isSelected ? '#fff' : isToday ? '#d7ecff' : 'rgba(255,255,255,.75)', cursor: 'pointer', fontWeight: isSelected || isToday ? 900 : 500, fontSize: 13, fontFamily: 'inherit', transition: 'all .15s ease', boxShadow: isSelected ? '0 0 14px rgba(10,132,255,.25)' : 'none' }}>
+                  {day}
+                </button>
+              )
+            })}
+          </div>
+          <button onClick={() => { onChange(todayStr); setOpen(false) }}
+            style={{ width: '100%', height: 32, marginTop: 8, borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', letterSpacing: '.06em', textTransform: 'uppercase' }}>
+            Today
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function ExpensesPage() {
   const [user, setUser] = useState<User | null>(null)
@@ -173,10 +241,10 @@ export default function ExpensesPage() {
           {[{ k: 'week', l: 'This week' }, { k: 'month', l: 'This month' }, { k: 'quarter', l: '3 months' }].map(p => (
             <button key={p.k} onClick={() => setPreset(p.k)} style={pill(activePreset === p.k)}>{p.l}</button>
           ))}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 'auto' }}>
-            <input type="date" value={from} onChange={e => { setFrom(e.target.value); setActivePreset('') }} style={{ ...inp, width: 130, height: 32, fontSize: 11, padding: '0 8px' }} />
-            <span style={{ color: 'rgba(255,255,255,.25)', fontSize: 11 }}>→</span>
-            <input type="date" value={to} onChange={e => { setTo(e.target.value); setActivePreset('') }} style={{ ...inp, width: 130, height: 32, fontSize: 11, padding: '0 8px' }} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginLeft: 'auto' }}>
+            <div style={{ width: 150 }}><DatePicker value={from} onChange={v => { setFrom(v); setActivePreset('') }} label="From" /></div>
+            <span style={{ color: 'rgba(255,255,255,.20)', fontSize: 11, paddingBottom: 14 }}>→</span>
+            <div style={{ width: 150 }}><DatePicker value={to} onChange={v => { setTo(v); setActivePreset('') }} label="To" /></div>
           </div>
         </div>
       </div>
@@ -299,10 +367,7 @@ export default function ExpensesPage() {
                 <label style={lbl}>Description (optional)</label>
                 <input value={fDesc} onChange={e => setFDesc(e.target.value)} placeholder="What was this expense for?" style={inp} />
               </div>
-              <div>
-                <label style={lbl}>Date</label>
-                <input type="date" value={fDate} onChange={e => setFDate(e.target.value)} style={inp} />
-              </div>
+              <DatePicker value={fDate} onChange={setFDate} label="Date" />
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <button onClick={() => setShowModal(false)} style={{ flex: 1, height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>Cancel</button>
                 <button onClick={handleSave} disabled={saving} style={{ flex: 1, height: 44, borderRadius: 12, border: '1px solid rgba(10,132,255,.50)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1, transition: 'all .2s' }}>
@@ -327,7 +392,7 @@ export default function ExpensesPage() {
         @keyframes expSlide { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
         @keyframes modalIn { 0% { opacity: 0; transform: scale(.96) translateY(8px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes barGrow { 0% { width: 0; } }
-        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(.4); }
+        @keyframes calPopIn { 0%{opacity:0;transform:translateY(-6px) scale(.97)} 100%{opacity:1;transform:translateY(0) scale(1)} }
         select option { background: #111; }
       `}</style>
     </Shell>
