@@ -348,27 +348,27 @@ export default function PaymentsPage() {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#e9e9e9', fontFamily: 'Inter,system-ui,sans-serif' }}>
 
         {/* Topbar */}
-        <div style={{ padding: '12px 18px', background: 'rgba(0,0,0,.80)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', position: 'sticky', top: 0, zIndex: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-            <div>
-              <h2 className="page-title" style={{ margin: 0, fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 15 }}>Payments</h2>
-              <p style={{ margin: '3px 0 0', color: 'rgba(255,255,255,.40)', fontSize: 11, letterSpacing: '.08em' }}>
-                {visible.length} transactions · {fmtDateFull(from)} → {fmtDateFull(to)}
+        <div style={{ padding: '10px 14px', background: 'rgba(0,0,0,.80)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,.08)', position: 'sticky', top: 0, zIndex: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <h2 className="page-title" style={{ margin: 0, fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.18em', textTransform: 'uppercase', fontSize: 14 }}>Payments</h2>
+              <p style={{ margin: '2px 0 0', color: 'rgba(255,255,255,.35)', fontSize: 10, letterSpacing: '.06em' }}>
+                {visible.length} · {fmtDateShort(from)} → {fmtDateShort(to)}
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
               <button onClick={() => setShowDatePicker(true)}
-                style={{ ...inp, cursor: 'pointer', fontWeight: 700, minWidth: 180, textAlign: 'left', background: 'rgba(255,255,255,.05)' }}>
+                style={{ height: 34, padding: '0 10px', borderRadius: 999, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 11, fontFamily: 'inherit' }}>
                 {from === to && from === todayIso() ? 'Today' : `${fmtDateShort(from)} → ${fmtDateShort(to)}`}
               </button>
               <button onClick={exportCSV}
-                style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(10,132,255,.65)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit' }}>
-                Export CSV
+                style={{ height: 34, padding: '0 10px', borderRadius: 999, border: '1px solid rgba(10,132,255,.55)', background: 'rgba(10,132,255,.08)', color: '#d7ecff', cursor: 'pointer', fontWeight: 800, fontSize: 10, fontFamily: 'inherit' }}>
+                CSV
               </button>
               {isOwner && (
                 <button onClick={syncTips} disabled={syncing}
-                  style={{ height: 40, padding: '0 16px', borderRadius: 999, border: '1px solid rgba(143,240,177,.45)', background: 'rgba(143,240,177,.08)', color: '#c9ffe1', cursor: syncing ? 'wait' : 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: syncing ? .5 : 1 }}>
-                  {syncing ? 'Syncing…' : 'Sync Tips'}
+                  style={{ height: 34, padding: '0 10px', borderRadius: 999, border: '1px solid rgba(143,240,177,.35)', background: 'rgba(143,240,177,.06)', color: '#c9ffe1', cursor: syncing ? 'wait' : 'pointer', fontWeight: 800, fontSize: 10, fontFamily: 'inherit', opacity: syncing ? .5 : 1 }}>
+                  {syncing ? '…' : 'Sync'}
                 </button>
               )}
             </div>
