@@ -152,11 +152,12 @@ function maskPhone(phone: string) {
 
 
 // ─── ClientSearch ─────────────────────────────────────────────────────────────
-function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: {
+function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName, onEditClient }: {
   onSelect: (c: Client | null, name: string) => void
   isOwnerOrAdmin: boolean
   initialClient?: Client | null
   initialName?: string
+  onEditClient?: (client: Client) => void
 }) {
   const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
@@ -406,8 +407,8 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
             </div>
           </div>
           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-            {isOwnerOrAdmin && selected.id && !selected.id.startsWith('local_') && (
-              <button onClick={() => { setEcName(selected.name || ''); setEcPhone(selected.phone || ''); setEcEmail(selected.email || ''); setEcNotes(selected.notes || ''); setEditClientOpen(true) }}
+            {isOwnerOrAdmin && selected.id && !selected.id.startsWith('local_') && onEditClient && (
+              <button onClick={() => onEditClient(selected)}
                 style={{ height: 30, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(10,132,255,.30)', background: 'rgba(10,132,255,.06)', color: '#d7ecff', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 3 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 Edit
@@ -1431,6 +1432,7 @@ export function BookingModal({
                     setSelectedClient(c)
                     setClientName(c ? c.name : (name || ''))
                   }}
+                  onEditClient={(c) => { setEcName(c.name || ''); setEcPhone(c.phone || ''); setEcEmail(c.email || ''); setEcNotes(c.notes || ''); setEditClientOpen(true) }}
                 />
               </div>
             )}
