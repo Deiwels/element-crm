@@ -479,6 +479,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [toast, setToast] = useState('')
+  const [squareOAuth, setSquareOAuth] = useState<{ connected: boolean; merchant_id?: string; expires_at?: string; connected_at?: string }>({ connected: false })
+  const [squareConnecting, setSquareConnecting] = useState(false)
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
@@ -496,6 +498,21 @@ export default function SettingsPage() {
 
   useEffect(() => { load() }, [load])
 
+  // Load Square OAuth status & handle callback redirect
+  useEffect(() => {
+    apiFetch('/api/square/oauth/status').then(d => setSquareOAuth(d)).catch(() => {})
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('square') === 'connected') {
+      showToast('Square connected successfully ✓')
+      apiFetch('/api/square/oauth/status').then(d => setSquareOAuth(d)).catch(() => {})
+      window.history.replaceState({}, '', '/settings')
+    } else if (params.get('square') === 'error') {
+      showToast('❌ Square connection failed: ' + (params.get('msg') || 'unknown error'))
+      window.history.replaceState({}, '', '/settings')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function set(key: string, val: any) { setSettings((s: any) => ({ ...s, [key]: val })); setDirty(true) }
   function setNested(parent: string, key: string, val: any) { setSettings((s: any) => ({ ...s, [parent]: { ...(s[parent] || {}), [key]: val } })); setDirty(true) }
 
@@ -506,6 +523,25 @@ export default function SettingsPage() {
       setDirty(false); showToast('Settings saved ✓')
     } catch (e: any) { showToast('Error: ' + e.message) }
     setSaving(false)
+  }
+
+  async function connectSquare() {
+    setSquareConnecting(true)
+    try {
+      const r = await apiFetch('/api/square/oauth/url')
+      if (r?.url) window.location.href = r.url
+      else showToast('❌ Failed to get Square auth URL')
+    } catch (e: any) { showToast('❌ ' + e.message) }
+    setSquareConnecting(false)
+  }
+
+  async function disconnectSquare() {
+    if (!window.confirm('Disconnect Square? Payment terminal will stop working until reconnected.')) return
+    try {
+      await apiFetch('/api/square/oauth/disconnect', { method: 'POST' })
+      setSquareOAuth({ connected: false })
+      showToast('Square disconnected')
+    } catch (e: any) { showToast('❌ ' + e.message) }
   }
 
   async function testSquare() {
@@ -533,7 +569,7 @@ export default function SettingsPage() {
     { id: 'fees', label: 'Fees & Charges' },
     { id: 'booking', label: 'Booking & SMS' },
     { id: 'payroll', label: 'Payroll' },
-    // { id: 'square', label: 'Square' }, // hidden — not used
+    { id: 'square', label: 'Square' },
     { id: 'users', label: 'Accounts' },
   ] as const
 
@@ -774,7 +810,33 @@ export default function SettingsPage() {
             {/* ── SQUARE ── */}
             {tab === 'square' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 680 }}>
-                <SectionCard title="Square & integrations">
+                <SectionCard title="Square Connection">
+                  {squareOAuth.connected ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(143,240,177,.25)', background: 'rgba(143,240,177,.06)' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#8ff0b1', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 999, background: '#8ff0b1', display: 'inline-block' }} />
+                          Connected to Square
+                        </div>
+                        {squareOAuth.merchant_id && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 3 }}>Merchant: {squareOAuth.merchant_id}</div>}
+                        {squareOAuth.connected_at && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 1 }}>Since {new Date(squareOAuth.connected_at).toLocaleDateString()}</div>}
+                      </div>
+                      <SmBtn danger onClick={disconnectSquare}>Disconnect</SmBtn>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.14)' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>Connect your Square account</div>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 2 }}>Required for terminal payments, refunds and payment tracking</div>
+                      </div>
+                      <button onClick={connectSquare} disabled={squareConnecting}
+                        style={{ height: 38, padding: '0 20px', borderRadius: 999, border: 'none', background: 'rgba(10,132,255,.75)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap', opacity: squareConnecting ? .5 : 1, transition: 'opacity .2s' }}>
+                        {squareConnecting ? 'Connecting…' : 'Connect Square'}
+                      </button>
+                    </div>
+                  )}
+                </SectionCard>
+                <SectionCard title="Terminal Settings">
                   <Field label="Square Proxy URL"><input value={square.proxy_url || ''} onChange={e => setNested('square','proxy_url',e.target.value)} placeholder="https://square-proxy-…run.app" style={inp} /></Field>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 10 }}>
                     <Field label="Location ID"><input value={square.location_id || ''} onChange={e => setNested('square','location_id',e.target.value)} placeholder="L08HP7JSW9WNR" style={inp} /></Field>
