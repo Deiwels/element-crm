@@ -14,7 +14,7 @@ interface Barber {
   schedule?: any; work_schedule?: any
 }
 interface Service {
-  id: string; name: string; durationMin: number; price?: string; barberIds: string[]
+  id: string; name: string; durationMin: number; price?: string; barberIds: string[]; service_type?: string
 }
 interface CalEvent {
   id: string; type?: 'booking' | 'block'; barberId: string; barberName: string
@@ -563,7 +563,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</span>
-                            <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, border: `1px solid ${(s as any).service_type === 'addon' ? 'rgba(255,207,63,.35)' : 'rgba(10,132,255,.35)'}`, background: (s as any).service_type === 'addon' ? 'rgba(255,207,63,.12)' : 'rgba(10,132,255,.12)', color: (s as any).service_type === 'addon' ? '#ffe9a3' : '#d7ecff' }}>{(s as any).service_type === 'addon' ? 'Add-on' : 'Primary'}</span>
+                            <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, border: `1px solid ${s.service_type === 'addon' ? 'rgba(255,207,63,.35)' : 'rgba(10,132,255,.35)'}`, background: s.service_type === 'addon' ? 'rgba(255,207,63,.12)' : 'rgba(10,132,255,.12)', color: s.service_type === 'addon' ? '#ffe9a3' : '#d7ecff' }}>{s.service_type === 'addon' ? 'Add-on' : 'Primary'}</span>
                           </div>
                           <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
                             {s.durationMin}min{s.price ? ` · $${s.price}` : ''}
@@ -586,7 +586,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                             setSDur(String(s.durationMin))
                             setSPrice(s.price || '')
                             setSBarbers(s.barberIds)
-                            setSType((s as any).service_type === 'addon' ? 'addon' : 'primary')
+                            setSType(s.service_type === 'addon' ? 'addon' : 'primary')
                           }} style={{ height: 32, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,.14)', background: isEditing ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
                             {isEditing ? 'Cancel' : 'Edit'}
                           </button>
@@ -1165,7 +1165,7 @@ export default function CalendarPage() {
     return list.map((s: any) => {
       const durMin = s.duration_minutes || Math.round((s.durationMs || 0) / 60000) || 30
       const price = s.price ?? (s.price_cents > 0 ? (s.price_cents / 100).toFixed(2) : '')
-      return { id: String(s.id || ''), name: String(s.name || ''), durationMin: Math.max(1, durMin), price: String(price), barberIds: (s.barber_ids || s.barberIds || []).map(String) }
+      return { id: String(s.id || ''), name: String(s.name || ''), durationMin: Math.max(1, durMin), price: String(price), barberIds: (s.barber_ids || s.barberIds || []).map(String), service_type: String(s.service_type || 'primary') }
     }).filter((s: Service) => s.name)
   }, [])
 
