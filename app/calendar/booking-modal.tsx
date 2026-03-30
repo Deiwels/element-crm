@@ -1648,16 +1648,24 @@ export function BookingModal({
                             const match = list.find((c: any) => c.name === (selectedClient?.name || ecName.trim()))
                             if (match?.id) clientId = match.id
                           }
-                          if (!clientId || clientId.startsWith('local_')) { console.warn('Client ID not found'); setEcSaving(false); return }
-                          const patch: any = { name: ecName.trim() }
-                          if (ecPhone) patch.phone = ecPhone
-                          if (ecEmail) patch.email = ecEmail
-                          if (ecNotes !== undefined) patch.notes = ecNotes
+                          if (!clientId || clientId.startsWith('local_')) {
+                            setEcSaving(false)
+                            alert('Client not found in database. Save the booking first.')
+                            return
+                          }
+                          const patch: any = {}
+                          if (ecName.trim()) patch.name = ecName.trim()
+                          if (ecPhone !== undefined) patch.phone = ecPhone || null
+                          if (ecEmail !== undefined) patch.email = ecEmail || null
+                          if (ecNotes !== undefined) patch.notes = ecNotes || null
                           await apiFetch(`/api/clients/${encodeURIComponent(clientId)}`, { method: 'PATCH', body: JSON.stringify(patch) })
                           setSelectedClient(prev => prev ? { ...prev, id: clientId, name: ecName.trim(), phone: ecPhone, email: ecEmail, notes: ecNotes } : prev)
                           setClientName(ecName.trim())
                           setEditClientOpen(false)
-                        } catch (e: any) { console.warn('Edit client error:', e) }
+                        } catch (e: any) {
+                          console.warn('Edit client error:', e)
+                          alert('Failed to save: ' + (e?.message || 'Unknown error'))
+                        }
                         setEcSaving(false)
                       }} style={{ flex: 1, height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.50)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: ecSaving ? .5 : 1 }}>
                         {ecSaving ? 'Saving…' : 'Save'}
