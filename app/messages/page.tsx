@@ -891,7 +891,7 @@ export default function MessagesPage() {
         {activeTab === 'applications' ? (
           /* Applications tab */
           <div className="msg-list" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-            {loading && !messages.length && !requests.length && !applications.length && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
+            {loading && !messages.length && !requests.length && !applications.length && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 40 }}><div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,.08)', borderTop: '2px solid rgba(255,255,255,.40)', borderRadius: '50%', animation: 'msgSpin .8s linear infinite' }} /><style>{`@keyframes msgSpin{to{transform:rotate(360deg)}}`}</style></div>}
             {!loading && applications.length === 0 && (
               <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.20)' }}>
                 <div style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="1.5" strokeLinecap="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div>
@@ -958,7 +958,7 @@ export default function MessagesPage() {
                 Requests are created automatically when you change your schedule, photo, or profile in Calendar Settings.
               </div>
             )}
-            {loading && !messages.length && !requests.length && !applications.length && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
+            {loading && !messages.length && !requests.length && !applications.length && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 40 }}><div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,.08)', borderTop: '2px solid rgba(255,255,255,.40)', borderRadius: '50%', animation: 'msgSpin .8s linear infinite' }} /><style>{`@keyframes msgSpin{to{transform:rotate(360deg)}}`}</style></div>}
             {!loading && requests.length === 0 && (
               <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.20)' }}>
                 <div style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="17" x2="13" y2="17"/></svg></div>
@@ -973,7 +973,7 @@ export default function MessagesPage() {
           <>
             <div ref={listRef} className="msg-list" onScroll={onScroll}
               style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 12, paddingBottom: 8 }}>
-              {loading && !messages.length && !requests.length && !applications.length && <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>Loading…</div>}
+              {loading && !messages.length && !requests.length && !applications.length && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 40 }}><div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,.08)', borderTop: '2px solid rgba(255,255,255,.40)', borderRadius: '50%', animation: 'msgSpin .8s linear infinite' }} /><style>{`@keyframes msgSpin{to{transform:rotate(360deg)}}`}</style></div>}
               {!loading && messages.length === 0 && (
                 <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,.20)' }}>
                   <div style={{ marginBottom: 8 }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
