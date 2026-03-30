@@ -1946,9 +1946,13 @@ export default function CalendarPage() {
                       const colRect = col.getBoundingClientRect()
                       const touchMin = Math.round((e.touches[0].clientY - colRect.top) / slotH) * 5 + START_HOUR * 60
                       touchColRef.current = { barberId: barber.id, barberIdx: bi, colEl: col, startX: e.touches[0].clientX, startY: e.touches[0].clientY, active: false }
-                      // 200ms — show crosshair (static, doesn't move — no scroll conflict)
+                      // 200ms — activate crosshair + lock scroll
                       touchDelayTimer.current = setTimeout(() => {
                         touchColRef.current.active = true
+                        // Lock scroll on the container so finger can move crosshair
+                        const container = scrollContainerRef.current
+                        if (container) container.style.touchAction = 'none'
+                        col.style.touchAction = 'none'
                         setTouchIndicator({ min: touchMin, y: 0 })
                       }, 200)
                       // 600ms — block drag starts (if finger didn't move)
@@ -1968,6 +1972,11 @@ export default function CalendarPage() {
                     onTouchEnd={() => {
                       clearTimeout(blockLongPressTimer.current)
                       clearTimeout(touchDelayTimer.current)
+                      // Restore scroll
+                      const container = scrollContainerRef.current
+                      if (container) container.style.touchAction = ''
+                      const col = touchColRef.current.colEl
+                      if (col) col.style.touchAction = ''
                       if (touchColRef.current.active && touchIndicator && !blockDrag) {
                         const barberId = touchColRef.current.barberId
                         const min = touchIndicator.min
@@ -1984,14 +1993,24 @@ export default function CalendarPage() {
                       }
                     }}
                     onTouchMove={e => {
-                      // Any movement cancels crosshair and block — allows scroll
-                      const dy = Math.abs(e.touches[0].clientY - touchColRef.current.startY)
-                      const dx = Math.abs(e.touches[0].clientX - touchColRef.current.startX)
-                      if (dy > 8 || dx > 8) {
-                        clearTimeout(touchDelayTimer.current)
-                        clearTimeout(blockLongPressTimer.current)
-                        if (touchColRef.current.active) { setTouchIndicator(null); touchColRef.current.active = false }
+                      if (!touchColRef.current.active) {
+                        // Before 200ms — if finger moves, cancel everything (allow scroll)
+                        const dy = Math.abs(e.touches[0].clientY - touchColRef.current.startY)
+                        const dx = Math.abs(e.touches[0].clientX - touchColRef.current.startX)
+                        if (dy > 8 || dx > 8) {
+                          clearTimeout(touchDelayTimer.current)
+                          clearTimeout(blockLongPressTimer.current)
+                        }
+                        return
                       }
+                      // After 200ms — crosshair active, move it with finger
+                      clearTimeout(blockLongPressTimer.current) // moving = no block
+                      e.preventDefault()
+                      const col2 = touchColRef.current.colEl
+                      if (!col2) return
+                      const colRect2 = col2.getBoundingClientRect()
+                      const newMin = Math.round((e.touches[0].clientY - colRect2.top) / slotH) * 5 + START_HOUR * 60
+                      setTouchIndicator({ min: newMin, y: e.touches[0].clientY - colRect2.top })
                     }}
                     onClick={e => {
                       if (contextMenu) return // already opened by touchEnd
