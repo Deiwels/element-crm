@@ -806,17 +806,10 @@ export default function MessagesPage() {
 
   return (
     <Shell page="Messages">
-      {/* Loading overlay — first load only */}
+      {/* Loading — inline spinner, no fullscreen overlay */}
       {loading && messages.length === 0 && requests.length === 0 && applications.length === 0 && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#000', gap: 16 }}>
-          <div style={{ position: 'relative', width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src="/Element_logo-05.jpg" alt="Element" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover' }} />
-            <svg viewBox="0 0 80 80" fill="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', animation: 'msgLoadSpin 1.2s linear infinite' }}>
-              <circle cx="40" cy="40" r="38" stroke="rgba(255,255,255,.08)" strokeWidth="2.5" />
-              <path d="M40 2a38 38 0 0 1 38 38" stroke="#d7ecff" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
-          </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.30)', letterSpacing: '.08em' }}>Loading messages…</div>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+          <div style={{ width: 24, height: 24, border: '2px solid rgba(255,255,255,.10)', borderTop: '2px solid rgba(255,255,255,.50)', borderRadius: '50%', animation: 'msgLoadSpin .8s linear infinite' }} />
           <style>{`@keyframes msgLoadSpin { to { transform: rotate(360deg) } }`}</style>
         </div>
       )}
