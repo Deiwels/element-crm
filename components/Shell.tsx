@@ -23,6 +23,7 @@ const NAV = [
   { id: 'payments',  href: '/payments',  label: 'Payments',   sub: 'Square + Terminal',   ownerAdmin: true },
   { id: 'attendance', href: '/attendance', label: 'Attendance', sub: 'Hours & clock',       ownerAdmin: true },
   { id: 'cash',      href: '/cash',      label: 'Cash',       sub: 'Daily register',      ownerAdmin: true },
+  { id: 'membership', href: '/membership', label: 'Membership', sub: 'Recurring clients',   ownerAdmin: true },
   { id: 'expenses',  href: '/expenses',  label: 'Expenses',   sub: 'Track costs',         ownerAdmin: true },
   { id: 'payroll',   href: '/payroll',   label: 'Payroll',    sub: 'Commission + tips',   ownerOnly: true },
   { id: 'settings',  href: '/settings',  label: 'Settings',   sub: 'Config & sync',       ownerAdmin: true },
@@ -75,6 +76,12 @@ function Icon({ id, color }: { id: string; color: string }) {
     case 'attendance':
       return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
         <circle cx="12" cy="12" r="10" {...s}/><polyline points="12 6 12 12 16 14" {...s}/>
+      </svg>
+    case 'membership':
+      return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
+        <polyline points="23 4 23 10 17 10" {...s}/>
+        <polyline points="1 20 1 14 7 14" {...s}/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" {...s}/>
       </svg>
     case 'expenses':
       return <svg width="17" height="17" viewBox="0 0 24 24" {...{}}>
