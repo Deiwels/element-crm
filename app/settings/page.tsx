@@ -836,16 +836,6 @@ export default function SettingsPage() {
                     </div>
                   )}
                 </SectionCard>
-                <SectionCard title="Terminal Settings">
-                  <Field label="Square Proxy URL"><input value={square.proxy_url || ''} onChange={e => setNested('square','proxy_url',e.target.value)} placeholder="https://square-proxy-…run.app" style={inp} /></Field>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 10 }}>
-                    <Field label="Location ID"><input value={square.location_id || ''} onChange={e => setNested('square','location_id',e.target.value)} placeholder="L08HP7JSW9WNR" style={inp} /></Field>
-                    <Field label="Terminal Device ID"><input value={square.device_id || ''} onChange={e => setNested('square','device_id',e.target.value)} placeholder="device:438CS…" style={inp} /></Field>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <SmBtn onClick={testSquare}>Test connection</SmBtn>
-                  </div>
-                </SectionCard>
                 <SectionCard title="Danger zone">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(255,107,107,.20)', background: 'rgba(255,107,107,.04)' }}>
                     <div>
