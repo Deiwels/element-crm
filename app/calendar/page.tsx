@@ -744,6 +744,7 @@ export default function CalendarPage() {
   // Pending block requests (loaded from /api/requests)
   const [pendingBlockRequests, setPendingBlockRequests] = useState<any[]>([])
   const [slotPicker, setSlotPicker] = useState<{ min: number; mentorId: string; mentorName: string }[] | null>(null)
+  const [touchIndicator, setTouchIndicator] = useState<{ min: number; y: number } | null>(null)
   const [mobilePage, setMobilePage] = useState(0)
   const BARBERS_PER_PAGE = 2
   const swipeRef = useRef<{ startX: number; startY: number } | null>(null)
@@ -1937,15 +1938,19 @@ export default function CalendarPage() {
                     onTouchStart={e => {
                       clearTimeout(blockLongPressTimer.current)
                       if ((e.target as HTMLElement).closest('.cal-event')) return
+                      // Show touch indicator
+                      const colRect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      const touchMin = Math.round((e.touches[0].clientY - colRect.top) / slotH) * 5 + START_HOUR * 60
+                      setTouchIndicator({ min: touchMin, y: e.touches[0].clientY - colRect.top })
                       if (isStudent) return
                       const canBlock = isOwnerOrAdmin || (isBarber && barber.id === myBarberId)
                       if (!canBlock || e.touches.length !== 1) return
-                      const min = Math.round((e.touches[0].clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top) / slotH) * 5 + START_HOUR * 60
+                      const min = Math.round((e.touches[0].clientY - colRect.top) / slotH) * 5 + START_HOUR * 60
                       const bId = barber.id
                       blockLongPressTimer.current = setTimeout(() => { startBlockDrag(bId, bi, min) }, 400)
                     }}
-                    onTouchEnd={() => { clearTimeout(blockLongPressTimer.current) }}
-                    onTouchMove={() => { clearTimeout(blockLongPressTimer.current) }}
+                    onTouchEnd={() => { clearTimeout(blockLongPressTimer.current); setTouchIndicator(null) }}
+                    onTouchMove={() => { clearTimeout(blockLongPressTimer.current); setTouchIndicator(null) }}
                     onClick={e => {
                       if (blockDrag || blockDragRef.current || blockDragJustEnded.current) return
                       if ((e.target as HTMLElement).closest('.cal-event')) return
@@ -1966,7 +1971,8 @@ export default function CalendarPage() {
                         openCreate(mentorId, slotMin)
                         return
                       }
-                      (isOwnerOrAdmin || (isBarber && barber.id === myBarberId)) ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
+                      setTouchIndicator(null)
+                      ;(isOwnerOrAdmin || (isBarber && barber.id === myBarberId)) ? setContextMenu({ x: e.clientX, y: e.clientY, barberId: barber.id, min: clamp(min) }) : openCreate(barber.id, clamp(min))
                     }}>
                     {/* Student: blocked slots overlay (where no mentor is free) */}
                     {isStudent && barber.id === '__student__' && studentBlockedRanges.map((range, ri) => {
@@ -2060,6 +2066,27 @@ export default function CalendarPage() {
                         {bi === 0 && <div style={{ position: 'absolute', left: -4, top: -4, width: 10, height: 10, borderRadius: 999, background: '#0a84ff', boxShadow: '0 0 0 3px rgba(10,132,255,.25)' }} />}
                       </div>
                     )}
+                    {/* Touch indicator — crosshair + time tooltip */}
+                    {touchIndicator && bi === 0 && (() => {
+                      const indY = minToY(touchIndicator.min)
+                      const h = touchIndicator.min % (12 * 60) === 0 ? 12 : (touchIndicator.min % (12 * 60)) / 60
+                      const hour = Math.floor(touchIndicator.min / 60)
+                      const mins = touchIndicator.min % 60
+                      const ampm = hour < 12 ? 'AM' : 'PM'
+                      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+                      return (
+                        <>
+                          {/* Highlight row */}
+                          <div style={{ position: 'absolute', left: -timeColW, right: -(pageBarbers.length - 1) * colMin, top: indY - slotH * 3, height: slotH * 6, background: 'rgba(10,132,255,.04)', pointerEvents: 'none', zIndex: 1 }} />
+                          {/* Crosshair line */}
+                          <div style={{ position: 'absolute', left: -timeColW, right: -(pageBarbers.length - 1) * colMin, top: indY, height: 1, background: 'rgba(10,132,255,.35)', pointerEvents: 'none', zIndex: 25, boxShadow: '0 0 6px rgba(10,132,255,.25)' }} />
+                          {/* Time tooltip */}
+                          <div style={{ position: 'absolute', left: -timeColW, top: indY - 11, zIndex: 26, pointerEvents: 'none', background: 'rgba(10,132,255,.85)', borderRadius: 6, padding: '2px 6px', fontSize: 9, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap' }}>
+                            {displayHour}:{String(mins).padStart(2, '0')} {ampm}
+                          </div>
+                        </>
+                      )
+                    })()}
                     {/* Ghost */}
                     {drag?.ghostBarberIdx===bi && (() => {
                       const dragEv = events.find(e => e.id === drag.eventId); if (!dragEv) return null
