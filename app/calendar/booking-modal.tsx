@@ -407,7 +407,7 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName, on
             </div>
           </div>
           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-            {isOwnerOrAdmin && selected.id && !selected.id.startsWith('local_') && onEditClient && (
+            {isOwnerOrAdmin && onEditClient && (
               <button onClick={() => onEditClient(selected)}
                 style={{ height: 30, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(10,132,255,.30)', background: 'rgba(10,132,255,.06)', color: '#d7ecff', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 3 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1640,12 +1640,21 @@ export function BookingModal({
                         if (!ecName.trim()) return
                         setEcSaving(true)
                         try {
+                          let clientId = selectedClient?.id || ''
+                          // If no ID, find client by name
+                          if (!clientId || clientId.startsWith('local_')) {
+                            const search = await apiFetch(`/api/clients?q=${encodeURIComponent(selectedClient?.name || ecName.trim())}`)
+                            const list = Array.isArray(search) ? search : (search?.clients || [])
+                            const match = list.find((c: any) => c.name === (selectedClient?.name || ecName.trim()))
+                            if (match?.id) clientId = match.id
+                          }
+                          if (!clientId || clientId.startsWith('local_')) { console.warn('Client ID not found'); setEcSaving(false); return }
                           const patch: any = { name: ecName.trim() }
                           if (ecPhone) patch.phone = ecPhone
                           if (ecEmail) patch.email = ecEmail
                           if (ecNotes !== undefined) patch.notes = ecNotes
-                          await apiFetch(`/api/clients/${encodeURIComponent(selectedClient?.id || '')}`, { method: 'PATCH', body: JSON.stringify(patch) })
-                          setSelectedClient(prev => prev ? { ...prev, name: ecName.trim(), phone: ecPhone, email: ecEmail, notes: ecNotes } : prev)
+                          await apiFetch(`/api/clients/${encodeURIComponent(clientId)}`, { method: 'PATCH', body: JSON.stringify(patch) })
+                          setSelectedClient(prev => prev ? { ...prev, id: clientId, name: ecName.trim(), phone: ecPhone, email: ecEmail, notes: ecNotes } : prev)
                           setClientName(ecName.trim())
                           setEditClientOpen(false)
                         } catch (e: any) { console.warn('Edit client error:', e) }
