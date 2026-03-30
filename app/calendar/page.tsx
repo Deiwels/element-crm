@@ -745,7 +745,8 @@ export default function CalendarPage() {
   const [pendingBlockRequests, setPendingBlockRequests] = useState<any[]>([])
   const [slotPicker, setSlotPicker] = useState<{ min: number; mentorId: string; mentorName: string }[] | null>(null)
   const [touchIndicator, setTouchIndicator] = useState<{ min: number; y: number } | null>(null)
-  const touchColRef = useRef<{ barberId: string; barberIdx: number; colEl: HTMLElement | null; startX: number }>({ barberId: '', barberIdx: 0, colEl: null, startX: 0 })
+  const touchColRef = useRef<{ barberId: string; barberIdx: number; colEl: HTMLElement | null; startX: number; startY: number; active: boolean }>({ barberId: '', barberIdx: 0, colEl: null, startX: 0, startY: 0, active: false })
+  const touchDelayTimer = useRef<any>(null)
   const [mobilePage, setMobilePage] = useState(0)
   const BARBERS_PER_PAGE = 2
   const swipeRef = useRef<{ startX: number; startY: number } | null>(null)
@@ -1938,38 +1939,50 @@ export default function CalendarPage() {
                     onMouseLeave={() => { clearTimeout(blockLongPressTimer.current) }}
                     onTouchStart={e => {
                       clearTimeout(blockLongPressTimer.current)
+                      clearTimeout(touchDelayTimer.current)
+                      touchColRef.current.active = false
                       if ((e.target as HTMLElement).closest('.cal-event')) return
                       const col = e.currentTarget as HTMLElement
                       const colRect = col.getBoundingClientRect()
                       const touchMin = Math.round((e.touches[0].clientY - colRect.top) / slotH) * 5 + START_HOUR * 60
-                      setTouchIndicator({ min: touchMin, y: e.touches[0].clientY - colRect.top })
-                      touchColRef.current = { barberId: barber.id, barberIdx: bi, colEl: col, startX: e.touches[0].clientX }
+                      touchColRef.current = { barberId: barber.id, barberIdx: bi, colEl: col, startX: e.touches[0].clientX, startY: e.touches[0].clientY, active: false }
+                      // Delay crosshair activation — allow normal scroll first
+                      touchDelayTimer.current = setTimeout(() => {
+                        touchColRef.current.active = true
+                        setTouchIndicator({ min: touchMin, y: e.touches[0].clientY - colRect.top })
+                      }, 200)
                     }}
-                    onTouchEnd={e => {
+                    onTouchEnd={() => {
                       clearTimeout(blockLongPressTimer.current)
-                      if (touchIndicator && !blockDrag) {
+                      clearTimeout(touchDelayTimer.current)
+                      if (touchColRef.current.active && touchIndicator && !blockDrag) {
                         const barberId = touchColRef.current.barberId
                         const min = touchIndicator.min
                         setTouchIndicator(null)
+                        touchColRef.current.active = false
                         if (isBarber && barberId !== myBarberId) return
                         if (isStudent) return
-                        // Open context menu at crosshair position
                         const x = window.innerWidth / 2
                         const y = window.innerHeight / 2
                         ;(isOwnerOrAdmin || (isBarber && barberId === myBarberId)) ? setContextMenu({ x, y, barberId, min: clamp(min) }) : openCreate(barberId, clamp(min))
                       } else {
                         setTouchIndicator(null)
+                        touchColRef.current.active = false
                       }
                     }}
                     onTouchMove={e => {
+                      // If crosshair not yet active — check if scrolling, cancel timer
+                      if (!touchColRef.current.active) {
+                        const dy = Math.abs(e.touches[0].clientY - touchColRef.current.startY)
+                        if (dy > 10) { clearTimeout(touchDelayTimer.current); clearTimeout(blockLongPressTimer.current) }
+                        return // let scroll happen normally
+                      }
+                      // Crosshair is active — move it
                       clearTimeout(blockLongPressTimer.current)
-                      if (!touchIndicator) return
                       const col = touchColRef.current.colEl
                       if (!col) { setTouchIndicator(null); return }
-                      // If moved too far horizontally — cancel (allow scroll)
                       const dx = Math.abs(e.touches[0].clientX - touchColRef.current.startX)
-                      if (dx > 30) { setTouchIndicator(null); return }
-                      // Move crosshair vertically
+                      if (dx > 40) { setTouchIndicator(null); touchColRef.current.active = false; return }
                       e.preventDefault()
                       const colRect = col.getBoundingClientRect()
                       const newMin = Math.round((e.touches[0].clientY - colRect.top) / slotH) * 5 + START_HOUR * 60
