@@ -45,6 +45,7 @@ export default function MembershipPage() {
   const [fFreq, setFFreq] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly')
   const [fDay, setFDay] = useState(1)
   const [fTime, setFTime] = useState(600)
+  const [fDiscount, setFDiscount] = useState(10)
   const [saving, setSaving] = useState(false)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
@@ -74,10 +75,10 @@ export default function MembershipPage() {
   useEffect(() => { load() }, [load])
 
   function openAdd() {
-    setEditing(null); setFClient(''); setFPhone(''); setFBarber(barbers[0]?.id || ''); setFServiceIds([]); setFFreq('weekly'); setFDay(1); setFTime(600); setShowModal(true)
+    setEditing(null); setFClient(''); setFPhone(''); setFBarber(barbers[0]?.id || ''); setFServiceIds([]); setFFreq('weekly'); setFDay(1); setFTime(600); setFDiscount(10); setShowModal(true)
   }
   function openEdit(m: Membership) {
-    setEditing(m); setFClient(m.client_name); setFPhone(m.client_phone || ''); setFBarber(m.barber_id); setFServiceIds((m as any).service_ids?.length ? (m as any).service_ids : m.service_id ? [m.service_id] : []); setFFreq(m.frequency as any); setFDay(m.preferred_day); setFTime(m.preferred_time_min); setShowModal(true)
+    setEditing(m); setFClient(m.client_name); setFPhone(m.client_phone || ''); setFBarber(m.barber_id); setFServiceIds((m as any).service_ids?.length ? (m as any).service_ids : m.service_id ? [m.service_id] : []); setFFreq(m.frequency as any); setFDay(m.preferred_day); setFTime(m.preferred_time_min); setFDiscount((m as any).discount_pct ?? 10); setShowModal(true)
   }
 
   async function handleSave() {
@@ -88,7 +89,8 @@ export default function MembershipPage() {
     const barber = barbers.find(b => b.id === fBarber)
     const selectedSvcs = services.filter(s => fServiceIds.includes(s.id))
     const totalDur = selectedSvcs.reduce((sum, s) => sum + (s.durationMin || 30), 0)
-    const totalCents = selectedSvcs.reduce((sum, s) => sum + (s.price ? Math.round(parseFloat(s.price) * 100) : 0), 0)
+    const totalCentsRaw = selectedSvcs.reduce((sum, s) => sum + (s.price ? Math.round(parseFloat(s.price) * 100) : 0), 0)
+    const discountedCents = Math.round(totalCentsRaw * (1 - fDiscount / 100))
     const svcNames = selectedSvcs.map(s => s.name).join(' + ')
     try {
       if (editing) {
@@ -96,7 +98,7 @@ export default function MembershipPage() {
           barber_id: fBarber, barber_name: barber?.name || '',
           service_id: fServiceIds.join(','), service_ids: fServiceIds, service_name: svcNames,
           duration_minutes: totalDur, frequency: fFreq, preferred_day: fDay, preferred_time_min: fTime,
-          amount_cents: totalCents,
+          amount_cents: discountedCents, discount_pct: fDiscount,
         }) })
         showToast('Membership updated ✓')
       } else {
@@ -104,7 +106,7 @@ export default function MembershipPage() {
           client_name: fClient.trim(), client_phone: fPhone, barber_id: fBarber, barber_name: barber?.name || '',
           service_id: fServiceIds.join(','), service_ids: fServiceIds, service_name: svcNames,
           duration_minutes: totalDur, frequency: fFreq, preferred_day: fDay, preferred_time_min: fTime,
-          amount_cents: totalCents,
+          amount_cents: discountedCents, discount_pct: fDiscount,
         }) })
         showToast('Membership created ✓')
       }
@@ -194,6 +196,7 @@ export default function MembershipPage() {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, fontSize: 11, color: 'rgba(255,255,255,.40)' }}>
                     <span>Every {DAYS[m.preferred_day]} at {minToTime(m.preferred_time_min)}</span>
                     {m.amount_cents > 0 && <span style={{ color: '#ffe9a3', fontWeight: 700 }}>{money(m.amount_cents)}</span>}
+                    {(m as any).discount_pct > 0 && <span style={{ fontSize: 9, fontWeight: 800, color: '#8ff0b1', background: 'rgba(143,240,177,.12)', padding: '2px 6px', borderRadius: 999 }}>-{(m as any).discount_pct}%</span>}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6, fontSize: 11 }}>
                     {m.next_booking_at && m.status === 'active' && (
@@ -293,6 +296,35 @@ export default function MembershipPage() {
                   </select>
                 </div>
               </div>
+              {/* Discount + price preview */}
+              <div>
+                <label style={lbl}>Membership discount</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[0, 5, 10, 15, 20].map(d => (
+                    <button key={d} onClick={() => setFDiscount(d)}
+                      style={{ flex: 1, height: 36, borderRadius: 10, border: `1px solid ${fDiscount === d ? 'rgba(143,240,177,.50)' : 'rgba(255,255,255,.10)'}`, background: fDiscount === d ? 'rgba(143,240,177,.12)' : 'rgba(255,255,255,.03)', color: fDiscount === d ? '#c9ffe1' : 'rgba(255,255,255,.45)', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', transition: 'all .2s' }}>
+                      {d}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {fServiceIds.length > 0 && (() => {
+                const svcs = services.filter(s => fServiceIds.includes(s.id))
+                const raw = svcs.reduce((sum, s) => sum + (s.price ? parseFloat(s.price) : 0), 0)
+                const discounted = raw * (1 - fDiscount / 100)
+                return (
+                  <div style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(143,240,177,.20)', background: 'rgba(143,240,177,.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', letterSpacing: '.08em', textTransform: 'uppercase' }}>Per visit price</div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3 }}>
+                        {fDiscount > 0 && <span style={{ fontSize: 13, color: 'rgba(255,255,255,.30)', textDecoration: 'line-through' }}>${raw.toFixed(2)}</span>}
+                        <span style={{ fontSize: 20, fontWeight: 900, color: '#c9ffe1' }}>${discounted.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    {fDiscount > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: '#8ff0b1', background: 'rgba(143,240,177,.15)', padding: '4px 10px', borderRadius: 999 }}>SAVE {fDiscount}%</span>}
+                  </div>
+                )
+              })()}
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <button onClick={() => setShowModal(false)} style={{ flex: 1, height: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>Cancel</button>
                 <button onClick={handleSave} disabled={saving} style={{ flex: 1, height: 44, borderRadius: 12, border: '1px solid rgba(10,132,255,.50)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: saving ? .5 : 1 }}>
