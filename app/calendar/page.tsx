@@ -1946,11 +1946,24 @@ export default function CalendarPage() {
                       const colRect = col.getBoundingClientRect()
                       const touchMin = Math.round((e.touches[0].clientY - colRect.top) / slotH) * 5 + START_HOUR * 60
                       touchColRef.current = { barberId: barber.id, barberIdx: bi, colEl: col, startX: e.touches[0].clientX, startY: e.touches[0].clientY, active: false }
-                      // Delay crosshair activation — allow normal scroll first
+                      // 200ms — crosshair appears (can then slide)
                       touchDelayTimer.current = setTimeout(() => {
                         touchColRef.current.active = true
                         setTouchIndicator({ min: touchMin, y: e.touches[0].clientY - colRect.top })
                       }, 200)
+                      // 500ms — block drag starts (if finger didn't move)
+                      if (!isStudent) {
+                        const canBlock = isOwnerOrAdmin || (isBarber && barber.id === myBarberId)
+                        if (canBlock && e.touches.length === 1) {
+                          const bId = barber.id
+                          blockLongPressTimer.current = setTimeout(() => {
+                            clearTimeout(touchDelayTimer.current)
+                            touchColRef.current.active = false
+                            setTouchIndicator(null)
+                            startBlockDrag(bId, bi, touchMin)
+                          }, 500)
+                        }
+                      }
                     }}
                     onTouchEnd={() => {
                       clearTimeout(blockLongPressTimer.current)
@@ -1971,13 +1984,13 @@ export default function CalendarPage() {
                       }
                     }}
                     onTouchMove={e => {
-                      // If crosshair not yet active — check if scrolling, cancel timer
+                      // If crosshair not yet active — check if scrolling, cancel timers
                       if (!touchColRef.current.active) {
                         const dy = Math.abs(e.touches[0].clientY - touchColRef.current.startY)
                         if (dy > 10) { clearTimeout(touchDelayTimer.current); clearTimeout(blockLongPressTimer.current) }
                         return // let scroll happen normally
                       }
-                      // Crosshair is active — move it
+                      // Crosshair is active — move it, cancel block timer
                       clearTimeout(blockLongPressTimer.current)
                       const col = touchColRef.current.colEl
                       if (!col) { setTouchIndicator(null); return }
