@@ -4,6 +4,10 @@ import { DialogWrapper } from './DialogWrapper'
 export const metadata: Metadata = {
   title: 'Element CRM',
   description: 'Element Barbershop Staff Portal',
+  icons: {
+    icon: '/favicon.jpg',
+    apple: '/favicon.jpg',
+  },
 }
 
 export const viewport: Viewport = {
