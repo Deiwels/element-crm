@@ -330,6 +330,8 @@ export default function PaymentsPage() {
           /* Hide table on mobile — show cards instead */
           .pay-table{display:none!important;}
           .pay-cards{display:flex!important;}
+          .pay-main-grid{grid-template-columns:1fr!important;}
+          .pay-details-panel{display:none!important;}
         }
         @media(min-width:769px){
           .pay-cards{display:none!important;}
@@ -400,7 +402,7 @@ export default function PaymentsPage() {
         </div>
 
         {/* Main grid */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'grid', gridTemplateColumns: '1.7fr .85fr' }}>
+        <div className="pay-main-grid" style={{ flex: 1, overflow: 'hidden', display: 'grid', gridTemplateColumns: '1.7fr .85fr' }}>
 
           {/* Table — desktop only */}
           <div className="pay-table" style={{ overflowY: 'auto', borderRight: '1px solid rgba(255,255,255,.08)' }}>
@@ -496,8 +498,8 @@ export default function PaymentsPage() {
             })}
           </div>
 
-          {/* Details panel */}
-          <div style={mobileDetail && selectedId
+          {/* Details panel — hidden on mobile unless fullscreen */}
+          <div className={mobileDetail && selectedId ? '' : 'pay-details-panel'} style={mobileDetail && selectedId
             ? { position: 'fixed' as const, inset: 0, zIndex: 90, background: 'rgba(0,0,0,.97)', overflowY: 'auto' as const, display: 'flex', flexDirection: 'column' as const }
             : { overflowY: 'auto' as const, padding: 14, display: 'flex', flexDirection: 'column' as const, gap: 10, background: 'rgba(0,0,0,.08)' }}>
             {mobileDetail && selectedId && (
