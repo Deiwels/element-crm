@@ -798,7 +798,7 @@ export default function Shell({ children, page }: { children: React.ReactNode; p
         }
         .burger-btn:hover{background:rgba(255,255,255,.10);}
         @media(max-width:768px){
-          .burger-btn.open{ opacity:0; pointer-events:none; }
+          .burger-btn{ display:none !important; }
         }
 
         .sidebar-backdrop{
