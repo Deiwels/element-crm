@@ -416,6 +416,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
   const [sPrice, setSPrice] = useState(''); const [sBarber, setSBarber] = useState('')
   const [editSvcId, setEditSvcId] = useState<string | null>(null)
   const [sBarbers, setSBarbers] = useState<string[]>([]) // multi-barber selection
+  const [sType, setSType] = useState<'primary' | 'addon'>('primary')
 
   async function addBarber() {
     if (!bName.trim()) { setMsg('Name required'); return }
@@ -458,8 +459,8 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
     try {
       const price_cents = Math.round(parseFloat(sPrice || '0') * 100)
       // Always create new service — same name can exist for different barbers/prices
-      await apiFetch('/api/services', { method: 'POST', body: JSON.stringify({ name: sName.trim(), duration_minutes: Number(sDur), price_cents, version: '1', barber_ids: sBarbers }) })
-      setMsg('Service added ✓'); setSName(''); setSDur('30'); setSPrice(''); setSBarbers([]); onReload()
+      await apiFetch('/api/services', { method: 'POST', body: JSON.stringify({ name: sName.trim(), duration_minutes: Number(sDur), price_cents, version: '1', barber_ids: sBarbers, service_type: sType }) })
+      setMsg('Service added ✓'); setSName(''); setSDur('30'); setSPrice(''); setSBarbers([]); setSType('primary'); onReload()
     } catch (e: any) { setMsg('Error: ' + e.message) }
     setSaving(false)
   }
@@ -560,7 +561,10 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                       {/* Service row */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontWeight: 700, fontSize: 13 }}>{s.name}</span>
+                            <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4, border: `1px solid ${(s as any).service_type === 'addon' ? 'rgba(255,207,63,.35)' : 'rgba(10,132,255,.35)'}`, background: (s as any).service_type === 'addon' ? 'rgba(255,207,63,.12)' : 'rgba(10,132,255,.12)', color: (s as any).service_type === 'addon' ? '#ffe9a3' : '#d7ecff' }}>{(s as any).service_type === 'addon' ? 'Add-on' : 'Primary'}</span>
+                          </div>
                           <div style={{ fontSize: 11, color: 'rgba(255,255,255,.40)', marginTop: 2 }}>
                             {s.durationMin}min{s.price ? ` · $${s.price}` : ''}
                           </div>
@@ -582,6 +586,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                             setSDur(String(s.durationMin))
                             setSPrice(s.price || '')
                             setSBarbers(s.barberIds)
+                            setSType((s as any).service_type === 'addon' ? 'addon' : 'primary')
                           }} style={{ height: 32, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,.14)', background: isEditing ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.04)', color: '#fff', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
                             {isEditing ? 'Cancel' : 'Edit'}
                           </button>
@@ -597,6 +602,18 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                             <div><label style={lbl}>Price ($)</label><input value={sPrice} onChange={e => setSPrice(e.target.value)} style={inp} /></div>
                           </div>
                           {/* Barbers checkboxes — owner/admin only */}
+                          {/* Service type toggle */}
+                          {!isBarber && <div style={{ marginTop: 10 }}>
+                            <label style={lbl}>Service type</label>
+                            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                              {(['primary', 'addon'] as const).map(t => (
+                                <button key={t} onClick={() => setSType(t)}
+                                  style={{ height: 30, padding: '0 12px', borderRadius: 999, border: `1px solid ${sType === t ? (t === 'addon' ? 'rgba(255,207,63,.40)' : 'rgba(10,132,255,.40)') : 'rgba(255,255,255,.10)'}`, background: sType === t ? (t === 'addon' ? 'rgba(255,207,63,.12)' : 'rgba(10,132,255,.12)') : 'rgba(255,255,255,.03)', color: sType === t ? (t === 'addon' ? '#ffe9a3' : '#d7ecff') : 'rgba(255,255,255,.45)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', transition: 'all .2s' }}>
+                                  {t === 'primary' ? 'Primary' : 'Add-on'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>}
                           {!isBarber && <div style={{ marginTop: 10 }}>
                             <label style={lbl}>Assigned barbers</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
@@ -615,7 +632,7 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                             setSaving(true)
                             try {
                               const price_cents = sPrice ? Math.round(parseFloat(sPrice) * 100) : 0
-                              const changes = { name: sName.trim(), duration_minutes: Number(sDur), price_cents, barber_ids: sBarbers }
+                              const changes = { name: sName.trim(), duration_minutes: Number(sDur), price_cents, barber_ids: sBarbers, service_type: sType }
                               if (isBarber) {
                                 // Barber sends service change as request
                                 await apiFetch('/api/requests', { method: 'POST', body: JSON.stringify({ type: 'service_change', data: { serviceId: s.id, serviceName: s.name, changes } }) })
@@ -641,6 +658,17 @@ function SettingsModal({ barbers, services, onClose, onReload, isStudent, isBarb
                   <div style={{ gridColumn: '1 / -1' }}><label style={lbl}>Service name</label><input value={editSvcId ? '' : sName} onChange={e => setSName(e.target.value)} placeholder="Fade" style={inp} /></div>
                   <div><label style={lbl}>Duration (min)</label><input type="number" value={editSvcId ? '30' : sDur} onChange={e => setSDur(e.target.value)} placeholder="30" style={inp} /></div>
                   <div><label style={lbl}>Price ($)</label><input value={editSvcId ? '' : sPrice} onChange={e => setSPrice(e.target.value)} placeholder="35" style={inp} /></div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={lbl}>Service type</label>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      {(['primary', 'addon'] as const).map(t => (
+                        <button key={t} onClick={() => { if (!editSvcId) setSType(t) }}
+                          style={{ height: 30, padding: '0 12px', borderRadius: 999, border: `1px solid ${!editSvcId && sType === t ? (t === 'addon' ? 'rgba(255,207,63,.40)' : 'rgba(10,132,255,.40)') : 'rgba(255,255,255,.10)'}`, background: !editSvcId && sType === t ? (t === 'addon' ? 'rgba(255,207,63,.12)' : 'rgba(10,132,255,.12)') : 'rgba(255,255,255,.03)', color: !editSvcId && sType === t ? (t === 'addon' ? '#ffe9a3' : '#d7ecff') : 'rgba(255,255,255,.45)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', opacity: editSvcId ? 0.4 : 1, transition: 'all .2s' }}>
+                          {t === 'primary' ? 'Primary' : 'Add-on'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={lbl}>Assign barbers</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
