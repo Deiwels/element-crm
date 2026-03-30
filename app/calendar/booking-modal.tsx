@@ -405,7 +405,16 @@ function ClientSearch({ onSelect, isOwnerOrAdmin, initialClient, initialName }: 
               })()}
             </div>
           </div>
-          <button onClick={clear} style={{ height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 }}>Change</button>
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+            {isOwnerOrAdmin && selected.id && !selected.id.startsWith('local_') && (
+              <button onClick={() => { setEcName(selected.name || ''); setEcPhone(selected.phone || ''); setEcEmail(selected.email || ''); setEcNotes(selected.notes || ''); setEditClientOpen(true) }}
+                style={{ height: 30, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(10,132,255,.30)', background: 'rgba(10,132,255,.06)', color: '#d7ecff', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 3 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit
+              </button>
+            )}
+            <button onClick={clear} style={{ height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit' }}>Change</button>
+          </div>
         </div>
 
         {/* Client photo */}
@@ -1073,6 +1082,12 @@ export function BookingModal({
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientName, setClientName] = useState('')
   const [modalKey, setModalKey] = useState(0)  // force remount ClientSearch on open
+  const [editClientOpen, setEditClientOpen] = useState(false)
+  const [ecName, setEcName] = useState('')
+  const [ecPhone, setEcPhone] = useState('')
+  const [ecEmail, setEcEmail] = useState('')
+  const [ecNotes, setEcNotes] = useState('')
+  const [ecSaving, setEcSaving] = useState(false)
   // Barbers can only book for themselves — but when editing existing bookings, keep original barber
   const isEditingExisting = !!existingEvent?._raw?.id
   const forcedBarberId = (!isOwnerOrAdmin && myBarberId && !isEditingExisting) ? myBarberId : barberId
@@ -1589,6 +1604,57 @@ export function BookingModal({
                   </div>
                 )}
               </>
+            )}
+
+            {/* Edit Client Modal */}
+            {editClientOpen && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 250, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+                onClick={e => { if (e.target === e.currentTarget) setEditClientOpen(false) }}>
+                <div style={{ width: 'min(400px,92vw)', borderRadius: 20, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(10,10,20,.92)', backdropFilter: 'saturate(180%) blur(40px)', padding: 0, boxShadow: '0 30px 80px rgba(0,0,0,.6)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
+                    <div style={{ fontFamily: '"Julius Sans One",sans-serif', letterSpacing: '.14em', textTransform: 'uppercase', fontSize: 12 }}>Edit client</div>
+                    <button onClick={() => setEditClientOpen(false)} style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.06)', color: '#fff', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                  </div>
+                  <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 5 }}>Name</label>
+                      <input value={ecName} onChange={e => setEcName(e.target.value)} style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 5 }}>Phone</label>
+                      <input value={ecPhone} onChange={e => setEcPhone(e.target.value)} type="tel" style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 5 }}>Email</label>
+                      <input value={ecEmail} onChange={e => setEcEmail(e.target.value)} type="email" style={{ width: '100%', height: 42, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '0 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, letterSpacing: '.10em', textTransform: 'uppercase', color: 'rgba(255,255,255,.40)', display: 'block', marginBottom: 5 }}>Notes</label>
+                      <textarea value={ecNotes} onChange={e => setEcNotes(e.target.value)} rows={3} style={{ width: '100%', borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.06)', color: '#fff', padding: '10px 12px', outline: 'none', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5 }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                      <button onClick={() => setEditClientOpen(false)} style={{ flex: 1, height: 42, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: 'rgba(255,255,255,.60)', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>Cancel</button>
+                      <button disabled={ecSaving} onClick={async () => {
+                        if (!ecName.trim()) return
+                        setEcSaving(true)
+                        try {
+                          const patch: any = { name: ecName.trim() }
+                          if (ecPhone) patch.phone = ecPhone
+                          if (ecEmail) patch.email = ecEmail
+                          if (ecNotes !== undefined) patch.notes = ecNotes
+                          await apiFetch(`/api/clients/${encodeURIComponent(selectedClient?.id || '')}`, { method: 'PATCH', body: JSON.stringify(patch) })
+                          setSelectedClient(prev => prev ? { ...prev, name: ecName.trim(), phone: ecPhone, email: ecEmail, notes: ecNotes } : prev)
+                          setClientName(ecName.trim())
+                          setEditClientOpen(false)
+                        } catch (e: any) { console.warn('Edit client error:', e) }
+                        setEcSaving(false)
+                      }} style={{ flex: 1, height: 42, borderRadius: 12, border: '1px solid rgba(10,132,255,.50)', background: 'rgba(10,132,255,.12)', color: '#d7ecff', cursor: 'pointer', fontWeight: 900, fontSize: 13, fontFamily: 'inherit', opacity: ecSaving ? .5 : 1 }}>
+                        {ecSaving ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Upload reference photo — only for new bookings */}
