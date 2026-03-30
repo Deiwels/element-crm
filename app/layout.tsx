@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { DialogWrapper } from './DialogWrapper'
 
 export const metadata: Metadata = {
   title: 'Element CRM',
@@ -17,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body style={{ margin: 0, padding: 0, background: '#000', overflow: 'hidden' }}>
-        {children}
+        <DialogWrapper>{children}</DialogWrapper>
       </body>
     </html>
   )
