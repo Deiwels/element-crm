@@ -1572,9 +1572,8 @@ export default function CalendarPage() {
     <Shell page="calendar">
       {/* Loading — inline centered in calendar area */}
       {loading && events.length === 0 && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, background: '#000' }}>
           <div style={{ width: 24, height: 24, border: '2px solid rgba(255,255,255,.10)', borderTop: '2px solid rgba(255,255,255,.50)', borderRadius: '50%', animation: 'calLoadSpin 0.8s linear infinite' }} />
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,.20)', letterSpacing: '.06em' }}>Loading…</div>
           <style>{`@keyframes calLoadSpin { to { transform: rotate(360deg) } }`}</style>
         </div>
       )}
