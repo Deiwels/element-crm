@@ -125,8 +125,17 @@ export default function MembershipPage() {
 
   async function cancelMembership(m: Membership) {
     try {
-      await apiFetch(`/api/memberships/${m.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'cancelled' }) })
-      showToast('Cancelled ✓'); load()
+      const res = await apiFetch(`/api/memberships/${m.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'cancelled' }) })
+      const cnt = res?.cancelled_bookings || 0
+      showToast(`Cancelled ✓${cnt ? ` — ${cnt} future booking${cnt !== 1 ? 's' : ''} removed` : ''}`); load()
+    } catch (e: any) { showToast('Error: ' + e.message) }
+  }
+
+  async function deleteMembership(m: Membership) {
+    try {
+      const res = await apiFetch(`/api/memberships/${m.id}`, { method: 'DELETE' })
+      const cnt = res?.deleted_bookings || 0
+      showToast(`Deleted ✓${cnt ? ` — ${cnt} booking${cnt !== 1 ? 's' : ''} removed` : ''}`); load()
     } catch (e: any) { showToast('Error: ' + e.message) }
   }
 
@@ -217,6 +226,7 @@ export default function MembershipPage() {
                   {m.status !== 'cancelled' && (
                     <button onClick={() => cancelMembership(m)} style={{ height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,107,107,.25)', background: 'rgba(255,107,107,.06)', color: '#ffd0d0', cursor: 'pointer', fontSize: 10, fontWeight: 700, fontFamily: 'inherit' }}>Cancel</button>
                   )}
+                  <button onClick={() => deleteMembership(m)} style={{ height: 28, padding: '0 10px', borderRadius: 8, border: '1px solid rgba(255,107,107,.40)', background: 'rgba(255,107,107,.10)', color: '#ff6b6b', cursor: 'pointer', fontSize: 10, fontWeight: 700, fontFamily: 'inherit' }}>Delete</button>
                 </div>
               </div>
             </div>
