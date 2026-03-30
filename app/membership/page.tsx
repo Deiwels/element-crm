@@ -41,7 +41,7 @@ export default function MembershipPage() {
   const [fClient, setFClient] = useState('')
   const [fPhone, setFPhone] = useState('')
   const [fBarber, setFBarber] = useState('')
-  const [fService, setFService] = useState('')
+  const [fServiceIds, setFServiceIds] = useState<string[]>([])
   const [fFreq, setFFreq] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly')
   const [fDay, setFDay] = useState(1)
   const [fTime, setFTime] = useState(600)
@@ -74,32 +74,37 @@ export default function MembershipPage() {
   useEffect(() => { load() }, [load])
 
   function openAdd() {
-    setEditing(null); setFClient(''); setFPhone(''); setFBarber(barbers[0]?.id || ''); setFService(''); setFFreq('weekly'); setFDay(1); setFTime(600); setShowModal(true)
+    setEditing(null); setFClient(''); setFPhone(''); setFBarber(barbers[0]?.id || ''); setFServiceIds([]); setFFreq('weekly'); setFDay(1); setFTime(600); setShowModal(true)
   }
   function openEdit(m: Membership) {
-    setEditing(m); setFClient(m.client_name); setFPhone(m.client_phone || ''); setFBarber(m.barber_id); setFService(m.service_id); setFFreq(m.frequency as any); setFDay(m.preferred_day); setFTime(m.preferred_time_min); setShowModal(true)
+    setEditing(m); setFClient(m.client_name); setFPhone(m.client_phone || ''); setFBarber(m.barber_id); setFServiceIds((m as any).service_ids?.length ? (m as any).service_ids : m.service_id ? [m.service_id] : []); setFFreq(m.frequency as any); setFDay(m.preferred_day); setFTime(m.preferred_time_min); setShowModal(true)
   }
 
   async function handleSave() {
     if (!fClient.trim()) { showToast('Enter client name'); return }
     if (!fBarber) { showToast('Select barber'); return }
+    if (!fServiceIds.length) { showToast('Select at least one service'); return }
     setSaving(true)
     const barber = barbers.find(b => b.id === fBarber)
-    const svc = services.find(s => s.id === fService)
+    const selectedSvcs = services.filter(s => fServiceIds.includes(s.id))
+    const totalDur = selectedSvcs.reduce((sum, s) => sum + (s.durationMin || 30), 0)
+    const totalCents = selectedSvcs.reduce((sum, s) => sum + (s.price ? Math.round(parseFloat(s.price) * 100) : 0), 0)
+    const svcNames = selectedSvcs.map(s => s.name).join(' + ')
     try {
       if (editing) {
         await apiFetch(`/api/memberships/${editing.id}`, { method: 'PATCH', body: JSON.stringify({
-          barber_id: fBarber, barber_name: barber?.name || '', service_id: fService, service_name: svc?.name || '',
-          duration_minutes: svc?.durationMin || 30, frequency: fFreq, preferred_day: fDay, preferred_time_min: fTime,
-          amount_cents: svc?.price ? Math.round(parseFloat(svc.price) * 100) : 0,
+          barber_id: fBarber, barber_name: barber?.name || '',
+          service_id: fServiceIds.join(','), service_ids: fServiceIds, service_name: svcNames,
+          duration_minutes: totalDur, frequency: fFreq, preferred_day: fDay, preferred_time_min: fTime,
+          amount_cents: totalCents,
         }) })
         showToast('Membership updated ✓')
       } else {
         await apiFetch('/api/memberships', { method: 'POST', body: JSON.stringify({
           client_name: fClient.trim(), client_phone: fPhone, barber_id: fBarber, barber_name: barber?.name || '',
-          service_id: fService, service_name: svc?.name || '', duration_minutes: svc?.durationMin || 30,
-          frequency: fFreq, preferred_day: fDay, preferred_time_min: fTime,
-          amount_cents: svc?.price ? Math.round(parseFloat(svc.price) * 100) : 0,
+          service_id: fServiceIds.join(','), service_ids: fServiceIds, service_name: svcNames,
+          duration_minutes: totalDur, frequency: fFreq, preferred_day: fDay, preferred_time_min: fTime,
+          amount_cents: totalCents,
         }) })
         showToast('Membership created ✓')
       }
@@ -228,8 +233,23 @@ export default function MembershipPage() {
             </div>
             <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               {!editing && <>
-                <div><label style={lbl}>Client name</label><input value={fClient} onChange={e => setFClient(e.target.value)} placeholder="John Smith" style={inp} /></div>
-                <div><label style={lbl}>Phone</label><input value={fPhone} onChange={e => setFPhone(e.target.value)} placeholder="+1 (555) 000-0000" type="tel" style={inp} /></div>
+                <div>
+                  <label style={lbl}>Find client by phone</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input value={fPhone} onChange={e => setFPhone(e.target.value)} placeholder="Phone number" type="tel" style={{ ...inp, flex: 1 }} />
+                    <button onClick={async () => {
+                      if (!fPhone.trim()) return
+                      try {
+                        const data = await apiFetch(`/api/clients?q=${encodeURIComponent(fPhone.trim())}`)
+                        const list = Array.isArray(data) ? data : (data?.clients || [])
+                        if (list.length > 0) { setFClient(list[0].name || ''); showToast(`Found: ${list[0].name}`) }
+                        else showToast('Client not found')
+                      } catch { showToast('Search failed') }
+                    }} style={{ height: 44, padding: '0 14px', borderRadius: 12, border: '1px solid rgba(10,132,255,.40)', background: 'rgba(10,132,255,.08)', color: '#d7ecff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Search</button>
+                  </div>
+                  {fClient && <div style={{ marginTop: 6, fontSize: 13, color: '#c9ffe1', fontWeight: 700 }}>{fClient}</div>}
+                  {!fClient && <div style={{ marginTop: 6 }}><label style={lbl}>Or enter name manually</label><input value={fClient} onChange={e => setFClient(e.target.value)} placeholder="John Smith" style={inp} /></div>}
+                </div>
               </>}
               <div><label style={lbl}>Barber</label>
                 <select value={fBarber} onChange={e => setFBarber(e.target.value)} style={inp}>
@@ -237,13 +257,19 @@ export default function MembershipPage() {
                   {barbers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
-              <div><label style={lbl}>Service</label>
-                <select value={fService} onChange={e => setFService(e.target.value)} style={inp}>
-                  <option value="">Select service</option>
-                  {services.filter(s => !fBarber || !s.barberIds.length || s.barberIds.includes(fBarber)).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}{s.price ? ` — $${s.price}` : ''}</option>
-                  ))}
-                </select>
+              <div><label style={lbl}>Services <span style={{ color: 'rgba(255,255,255,.25)', fontWeight: 400 }}>({fServiceIds.length} selected)</span></label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {services.filter(s => !fBarber || !s.barberIds.length || s.barberIds.includes(fBarber)).map(s => {
+                    const on = fServiceIds.includes(s.id)
+                    return (
+                      <button key={s.id} onClick={() => setFServiceIds(prev => on ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                        style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${on ? 'rgba(10,132,255,.55)' : 'rgba(255,255,255,.10)'}`, background: on ? 'rgba(10,132,255,.15)' : 'rgba(255,255,255,.03)', color: on ? '#d7ecff' : 'rgba(255,255,255,.50)', cursor: 'pointer', fontSize: 12, fontWeight: on ? 800 : 500, fontFamily: 'inherit', transition: 'all .2s', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {on && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                        {s.name}{s.price ? ` $${s.price}` : ''}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               <div><label style={lbl}>Frequency</label>
                 <div style={{ display: 'flex', gap: 6 }}>
