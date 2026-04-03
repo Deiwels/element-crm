@@ -471,7 +471,7 @@ function UsersTab() {
 
 // ─── Main Settings Page ───────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const [tab, setTab] = useState<'shop'|'fees'|'booking'|'payroll'|'square'|'users'>('shop')
+  const [tab, setTab] = useState<'shop'|'fees'|'booking'|'payroll'|'square'|'vuriumbook'|'users'>('shop')
   const [settings, setSettings] = useState<any>({})
   const [fees, setFees] = useState<Fee[]>([])
   const [charges, setCharges] = useState<Charge[]>([])
@@ -481,6 +481,10 @@ export default function SettingsPage() {
   const [toast, setToast] = useState('')
   const [squareOAuth, setSquareOAuth] = useState<{ connected: boolean; merchant_id?: string; expires_at?: string; connected_at?: string }>({ connected: false })
   const [squareConnecting, setSquareConnecting] = useState(false)
+  const [vuriumBookStatus, setVuriumBookStatus] = useState<{ connected: boolean; business_name?: string; connected_at?: string; last_sync?: string }>({ connected: false })
+  const [vuriumBookKey, setVuriumBookKey] = useState('')
+  const [vuriumBookConnecting, setVuriumBookConnecting] = useState(false)
+  const [vuriumBookSyncing, setVuriumBookSyncing] = useState(false)
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
@@ -508,6 +512,18 @@ export default function SettingsPage() {
       window.history.replaceState({}, '', '/settings')
     } else if (params.get('square') === 'error') {
       showToast('❌ Square connection failed: ' + (params.get('msg') || 'unknown error'))
+      window.history.replaceState({}, '', '/settings')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Load VuriumBook status
+  useEffect(() => {
+    apiFetch('/api/vuriumbook/status').then(d => setVuriumBookStatus(d)).catch(() => {})
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('vuriumbook') === 'connected') {
+      showToast('VuriumBook connected ✓')
+      apiFetch('/api/vuriumbook/status').then(d => setVuriumBookStatus(d)).catch(() => {})
       window.history.replaceState({}, '', '/settings')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -552,6 +568,37 @@ export default function SettingsPage() {
     } catch (e: any) { showToast('❌ ' + e.message) }
   }
 
+  async function connectVuriumBook() {
+    if (!vuriumBookKey.trim()) { showToast('Enter your VuriumBook API key'); return }
+    setVuriumBookConnecting(true)
+    try {
+      const r = await apiFetch('/api/vuriumbook/connect', { method: 'POST', body: JSON.stringify({ api_key: vuriumBookKey.trim() }) })
+      setVuriumBookStatus(r)
+      setVuriumBookKey('')
+      showToast('VuriumBook connected ✓')
+    } catch (e: any) { showToast('❌ ' + e.message) }
+    setVuriumBookConnecting(false)
+  }
+
+  async function disconnectVuriumBook() {
+    if (!window.confirm('Disconnect VuriumBook? Appointment sync will stop.')) return
+    try {
+      await apiFetch('/api/vuriumbook/disconnect', { method: 'POST' })
+      setVuriumBookStatus({ connected: false })
+      showToast('VuriumBook disconnected')
+    } catch (e: any) { showToast('❌ ' + e.message) }
+  }
+
+  async function syncVuriumBook() {
+    setVuriumBookSyncing(true)
+    try {
+      const r = await apiFetch('/api/vuriumbook/sync', { method: 'POST' })
+      setVuriumBookStatus(prev => ({ ...prev, last_sync: new Date().toISOString() }))
+      showToast(`Synced ${r?.imported ?? 0} appointments ✓`)
+    } catch (e: any) { showToast('❌ ' + e.message) }
+    setVuriumBookSyncing(false)
+  }
+
   async function cleanup() {
     try { const r = await apiFetch('/api/admin/cleanup-test-payments', { method: 'DELETE' }); showToast(`Cleaned ${r?.deleted || 0} records`) }
     catch (e: any) { showToast('Error: ' + e.message) }
@@ -570,6 +617,7 @@ export default function SettingsPage() {
     { id: 'booking', label: 'Booking & SMS' },
     { id: 'payroll', label: 'Payroll' },
     { id: 'square', label: 'Square' },
+    { id: 'vuriumbook', label: 'VuriumBook' },
     { id: 'users', label: 'Accounts' },
   ] as const
 
@@ -845,6 +893,82 @@ export default function SettingsPage() {
                     <SmBtn danger onClick={cleanup}>Clean up</SmBtn>
                   </div>
                 </SectionCard>
+              </div>
+            )}
+
+            {/* ── VURIUMBOOK ── */}
+            {tab === 'vuriumbook' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 680 }}>
+                <SectionCard title="VuriumBook Connection">
+                  {vuriumBookStatus.connected ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(143,240,177,.25)', background: 'rgba(143,240,177,.06)' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#8ff0b1', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 999, background: '#8ff0b1', display: 'inline-block' }} />
+                          Connected to VuriumBook
+                        </div>
+                        {vuriumBookStatus.business_name && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', marginTop: 3 }}>Business: {vuriumBookStatus.business_name}</div>}
+                        {vuriumBookStatus.connected_at && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 1 }}>Since {new Date(vuriumBookStatus.connected_at).toLocaleDateString()}</div>}
+                      </div>
+                      <SmBtn danger onClick={disconnectVuriumBook}>Disconnect</SmBtn>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', lineHeight: 1.6 }}>
+                        Paste your VuriumBook API key to connect. After connecting you can pull all appointments into Element CRM.
+                      </div>
+                      <Field label="VuriumBook API Key">
+                        <input
+                          value={vuriumBookKey}
+                          onChange={e => setVuriumBookKey(e.target.value)}
+                          placeholder="vb_live_xxxxxxxxxxxxxxxx"
+                          style={inp}
+                          type="password"
+                          autoComplete="off"
+                        />
+                      </Field>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={connectVuriumBook}
+                          disabled={vuriumBookConnecting || !vuriumBookKey.trim()}
+                          style={{ height: 38, padding: '0 20px', borderRadius: 999, border: 'none', background: 'rgba(10,132,255,.75)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', opacity: (vuriumBookConnecting || !vuriumBookKey.trim()) ? .5 : 1, transition: 'opacity .2s' }}>
+                          {vuriumBookConnecting ? 'Connecting…' : 'Connect VuriumBook'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </SectionCard>
+
+                {vuriumBookStatus.connected && (
+                  <SectionCard title="Appointment Sync">
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.45)', lineHeight: 1.6 }}>
+                      Import all upcoming appointments from VuriumBook into the Element CRM calendar. Existing appointments will not be duplicated.
+                    </div>
+                    {vuriumBookStatus.last_sync && (
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(0,0,0,.14)' }}>
+                        Last sync: {new Date(vuriumBookStatus.last_sync).toLocaleString()}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={syncVuriumBook}
+                        disabled={vuriumBookSyncing}
+                        style={{ height: 38, padding: '0 20px', borderRadius: 999, border: '1px solid rgba(10,132,255,.45)', background: 'rgba(10,132,255,.14)', color: '#d7ecff', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', opacity: vuriumBookSyncing ? .5 : 1, transition: 'opacity .2s' }}>
+                        {vuriumBookSyncing ? 'Syncing…' : 'Sync appointments now'}
+                      </button>
+                    </div>
+                  </SectionCard>
+                )}
+
+                <div style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.02)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.50)', marginBottom: 6, letterSpacing: '.10em', textTransform: 'uppercase' }}>How it works</div>
+                  <ol style={{ margin: 0, padding: '0 0 0 18px', color: 'rgba(255,255,255,.40)', fontSize: 11, lineHeight: 2 }}>
+                    <li>Paste your VuriumBook API key and click Connect</li>
+                    <li>Click "Sync appointments now" to pull all upcoming bookings</li>
+                    <li>Imported appointments appear in the Element calendar as bookings</li>
+                    <li>Re-sync at any time to pull new appointments</li>
+                  </ol>
+                </div>
               </div>
             )}
 
